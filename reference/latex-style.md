@@ -149,6 +149,80 @@ Or use schema notation for unchanged state:
 \Xi OtherState  % OtherState unchanged
 ```
 
+## Detecting and Fixing Typeset Overflows
+
+**Important**: Source line breaks (for `.tex` readability) are different from typeset line breaks (what appears in the PDF). A line under 80 characters in your source can still overflow in the typeset output.
+
+### Detecting Overflows
+
+After running pdflatex, check for "Overfull hbox" warnings:
+
+```bash
+pdflatex -interaction=nonstopmode spec.tex
+grep -i "overfull" spec.log
+```
+
+Example output:
+```
+Overfull \hbox (279.5776pt too wide) in alignment at lines 837--854
+```
+
+The line numbers refer to the `.tex` source. Any overflow means content is cut off in the PDF—readers cannot see it.
+
+### Fixing Overflows
+
+Add explicit line breaks with `\\` followed by `\t1` for indentation:
+
+```latex
+% BAD - typeset overflow even though source is multi-line
+(condition1 \land result1) \lor
+(condition2 \land result2)
+
+% GOOD - explicit typeset breaks with indentation
+(condition1 \\
+\t1 \land result1) \\
+\lor (condition2 \\
+\t1 \land result2)
+```
+
+### Common Overflow Patterns
+
+| Pattern | Solution |
+|---------|----------|
+| Long `\LET` bindings | Break after `==`, indent body with `\t1` |
+| `\IF-\THEN-\ELSE` | Each clause on its own line with `\t1` |
+| Chained `\land` predicates | Break before each `\land`, indent with `\t1` |
+| Chained `\lor` alternatives | Break before `\lor`, keep `(` on same line |
+| Long comparisons | Break after operator, indent continuation |
+
+### Example: Breaking a Complex Schema
+
+```latex
+% Before - causes overflow
+\LET minAttempts == \IF base > perChar * count \THEN base \ELSE perChar * count @
+(attempts \geq minAttempts \land accuracy \geq threshold \land met! = ztrue) \lor
+(attempts < minAttempts \land met! = zfalse)
+
+% After - no overflow
+\LET minAttempts == \\
+\t1 \IF base > perChar * count \\
+\t1 \THEN base \\
+\t1 \ELSE perChar * count @
+(attempts \geq minAttempts \\
+\t1 \land accuracy \geq threshold \\
+\t1 \land met! = ztrue) \\
+\lor (attempts < minAttempts \\
+\t1 \land met! = zfalse)
+```
+
+### Iterative Fix Process
+
+1. Run `pdflatex` and check for overflows
+2. Find the schema at the reported line numbers
+3. Add `\\` and `\t1` breaks at logical operators
+4. Re-run `pdflatex` and verify no overflows remain
+5. Repeat until `grep -i "overfull" spec.log` returns nothing
+
 ## Formatting Tools
 
 ### tex-fmt

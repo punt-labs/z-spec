@@ -450,6 +450,13 @@ fi
 cd docs && pdflatex <file>.tex && pdflatex <file>.tex
 ```
 
+3. **Check for typeset overflows**:
+```bash
+grep -i "overfull" docs/<file>.log
+```
+
+If any overflows are reported, fix them by adding `\\` and `\t1` breaks at logical operators. See `reference/latex-style.md` for the overflow fix process. Repeat until no overflows remain.
+
 ## Reference
 
 Consult the reference files for:
