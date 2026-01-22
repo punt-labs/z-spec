@@ -19,6 +19,7 @@ description: Show Z specification plugin help and quick reference
 | `/z code2model [focus]` | Create or update a Z specification from codebase |
 | `/z check [file]` | Type-check a specification with fuzz |
 | `/z test [file]` | Validate and animate with probcli |
+| `/z audit [spec] [--json]` | Audit test coverage against spec constraints |
 | `/z elaborate [spec] [design]` | Enhance spec with narrative from design docs |
 | `/z model2code [spec] [lang]` | Generate code and tests from a Z specification |
 | `/z cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
@@ -36,6 +37,8 @@ description: Show Z specification plugin help and quick reference
 /z elaborate docs/system.tex              # Uses DESIGN.md by default
 /z model2code docs/auth.tex swift         # Generate Swift code from spec
 /z model2code                             # Auto-detect spec and language
+/z audit docs/auth.tex                    # Audit test coverage against spec
+/z audit docs/auth.tex --json             # Output as JSON for CI
 /z cleanup                                # Remove tooling files from docs/
 ```
 
@@ -96,6 +99,18 @@ For specs that work with both fuzz and probcli:
 | Nested schema types | Flatten all fields into one `State` schema |
 | Missing Init | Create unified `Init` schema with all initial values |
 | Init with schema composition | Avoid `\theta` and dot notation on primed schemas |
+
+## Reference Files
+
+For detailed documentation, consult:
+
+| File | Contents |
+|------|----------|
+| `reference/z-notation.md` | Z notation syntax and symbols |
+| `reference/schema-patterns.md` | Common schema patterns |
+| `reference/latex-style.md` | LaTeX formatting guidelines |
+| `reference/probcli-guide.md` | ProB CLI options and usage |
+| `reference/test-patterns.md` | Test assertion patterns by language |
 
 ## Requirements
 

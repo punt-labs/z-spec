@@ -144,8 +144,9 @@ Note: The implementation includes additional rules not modeled here:
 
 After enhancement:
 1. Run `fuzz -t <file>` to ensure type-checking still passes
-2. Run `pdflatex` twice to generate PDF with table of contents
-3. Review for consistency between narrative and formal content
+2. Format with tex-fmt if available: `tex-fmt <file>` (see `reference/latex-style.md`)
+3. Run `pdflatex` twice to generate PDF with table of contents
+4. Review for consistency between narrative and formal content
 
 ### 6. Report
 
@@ -161,12 +162,19 @@ Summarize:
 \documentclass[a4paper,10pt,fleqn]{article}
 \usepackage[margin=1in]{geometry}
 \usepackage{fuzz}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
 
 \begin{document}
 
 \title{System Name: A Z Specification}
 \author{Formal Model of System Description}
 \date{Month Year}
+\hypersetup{
+  pdftitle={System Name: A Z Specification},
+  pdfauthor={Author},
+  pdfsubject={Z Specification},
+  pdfcreator={fuzz/probcli}
+}
 \maketitle
 
 \tableofcontents
