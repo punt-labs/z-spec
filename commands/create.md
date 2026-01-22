@@ -13,7 +13,20 @@ Focus hint: $ARGUMENTS
 
 ## Process
 
-### 0. Ensure TeX Files Available
+### 0. Check Prerequisites
+
+Before proceeding, verify fuzz is installed:
+
+```bash
+which fuzz >/dev/null 2>&1 || echo "FUZZ_NOT_FOUND"
+```
+
+**If fuzz not found**: Stop and tell the user:
+> fuzz is not installed. Run `/z setup` first to install the Z specification tools.
+
+Do not proceed with specification creation until fuzz is available.
+
+### 1. Ensure TeX Files Available
 
 Before creating a specification, ensure the required TeX files are in the project's `docs/` directory.
 
@@ -47,7 +60,7 @@ for pattern in "docs/fuzz.sty" "docs/*.mf" "docs/*.pk" "docs/*.tfm" "docs/*.aux"
 done
 ```
 
-### 1. Analyze the System
+### 2. Analyze the System
 
 If in a codebase:
 - Search for model files, data structures, entities, and state management
@@ -58,7 +71,7 @@ If working from description:
 - Extract entities, attributes, and operations from the description
 - Ask clarifying questions if the description is ambiguous
 
-### 2. Identify Stateful Components
+### 3. Identify Stateful Components
 
 For each entity, determine:
 - **Basic types**: Identifiers, timestamps, external references (use given sets)
@@ -67,7 +80,7 @@ For each entity, determine:
 - **Invariants**: Constraints that must always hold
 - **Operations**: State transitions with preconditions and effects
 
-### 3. Generate the Specification
+### 4. Generate the Specification
 
 Create a LaTeX file with this structure:
 
@@ -157,11 +170,11 @@ attribute2' = attribute2
 \end{document}
 ```
 
-### 4. Write the File
+### 5. Write the File
 
 Save to `docs/<system_name>.tex` where `<system_name>` is derived from the focus hint or codebase name.
 
-### 5. Type-Check with Fuzz
+### 6. Type-Check with Fuzz
 
 Run:
 ```bash
@@ -172,7 +185,7 @@ If errors occur:
 - Fix type errors iteratively
 - Common issues: missing BOOL free type, tuple projection (use schema fields), cardinality on complex expressions
 
-### 6. Report Results
+### 7. Report Results
 
 Summarize:
 - Entities modeled

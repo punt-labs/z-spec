@@ -14,7 +14,18 @@ File: $ARGUMENTS
 
 ## Process
 
-### 0. Ensure TeX Files Available
+### 0. Check Prerequisites
+
+Verify fuzz is installed:
+
+```bash
+which fuzz >/dev/null 2>&1 || echo "FUZZ_NOT_FOUND"
+```
+
+**If fuzz not found**: Stop and tell the user:
+> fuzz is not installed. Run `/z setup` first to install the Z specification tools.
+
+### 1. Ensure TeX Files Available
 
 Before checking, ensure fuzz.sty is available in the docs/ directory:
 
@@ -36,7 +47,7 @@ if [ ! -f docs/fuzz.sty ]; then
 fi
 ```
 
-### 1. Locate the Specification
+### 2. Locate the Specification
 
 If a file path is provided, use it directly.
 
@@ -44,7 +55,7 @@ If no file specified:
 - Look in `docs/` for `.tex` files containing Z specifications
 - Present options if multiple files exist
 
-### 2. Run Fuzz Type-Checker
+### 3. Run Fuzz Type-Checker
 
 ```bash
 fuzz -t <file>.tex
@@ -52,7 +63,7 @@ fuzz -t <file>.tex
 
 The `-t` flag reports types of global definitions, which helps verify the specification is correctly typed.
 
-### 3. Interpret Results
+### 4. Interpret Results
 
 **Success**: Fuzz outputs the types of all definitions without errors.
 
@@ -76,7 +87,7 @@ Common errors and fixes:
 | `Syntax error at symbol "true"` | Using `true`/`false` | Define BOOL free type with btrue/bfalse |
 | `Type mismatch` | Wrong type in expression | Check types in fuzz output |
 
-### 4. Report Results
+### 5. Report Results
 
 If successful:
 - Confirm the specification type-checks

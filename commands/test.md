@@ -20,7 +20,21 @@ Parse arguments:
 
 ## Process
 
-### 0. Ensure TeX Files Available
+### 0. Check Prerequisites
+
+Verify probcli is installed:
+
+```bash
+PROBCLI="${PROBCLI:-$HOME/Applications/ProB/probcli}"
+if ! which probcli >/dev/null 2>&1 && [ ! -x "$PROBCLI" ]; then
+    echo "PROBCLI_NOT_FOUND"
+fi
+```
+
+**If probcli not found**: Stop and tell the user:
+> probcli is not installed. Run `/z setup` first to install the Z specification tools.
+
+### 1. Ensure TeX Files Available
 
 Before testing, ensure fuzz.sty is available in the docs/ directory:
 
@@ -42,7 +56,7 @@ if [ ! -f docs/fuzz.sty ]; then
 fi
 ```
 
-### 1. Locate probcli
+### 2. Locate probcli
 
 Check for probcli:
 ```bash
@@ -55,12 +69,12 @@ fi
 
 If not found, inform user how to install ProB.
 
-### 2. Locate the Specification
+### 3. Locate the Specification
 
 If a file path is provided, use it directly.
 If no file specified, look in `docs/` for `.tex` files.
 
-### 3. Run Validation Checks
+### 4. Run Validation Checks
 
 Execute these checks in sequence:
 
@@ -132,7 +146,7 @@ Look for:
 - `COUNTER EXAMPLE FOUND` - found a bug
 - `not all transitions were computed` - incomplete (bounded result)
 
-### 4. Summarize Results
+### 5. Summarize Results
 
 Report in table format:
 
@@ -151,7 +165,7 @@ Include:
 - Operations discovered
 - Any warnings (unbounded enumeration, incomplete exploration)
 
-### 5. Handle Failures
+### 6. Handle Failures
 
 If errors found:
 - Show the counter-example trace
