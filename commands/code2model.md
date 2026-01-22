@@ -4,7 +4,7 @@ argument-hint: "[focus area or system description]"
 allowed-tools: Bash(fuzz:*), Bash(which:*), Bash(pdflatex:*), Read, Glob, Grep
 ---
 
-# Create Z Specification
+# /z code2model - Code to Model
 
 You are creating a formal Z specification for the key stateful entities in a system. The specification will be type-checked with fuzz and should be compatible with probcli for animation and model checking.
 
@@ -343,6 +343,84 @@ If you have multiple entity types (e.g., `CharacterStat` and `State`), operation
 
 1. **Combine into single state schema** (recommended for animation)
 2. **Accept that sub-entity operations work independently** (operations on `CharacterStat` won't affect `State` variables)
+
+## Updating Existing Specifications
+
+When updating an existing `.tex` file (rather than creating new):
+
+### 1. Read Existing Specification
+
+Load the current `.tex` file and understand:
+- Current basic types and free types
+- Existing schemas and their structure
+- Operations defined
+- Invariants in place
+
+### 2. Analyze Requested Changes
+
+Common change types:
+
+| Change Type | Actions Required |
+|-------------|------------------|
+| Add new entity | Add schema, init schema, basic operations |
+| Add attribute | Update schema, update init, update operations that should reference it |
+| Add operation | Add operation schema, ensure frame conditions |
+| Add invariant | Add predicate to schema, verify existing ops maintain it |
+| Modify operation | Update preconditions/effects, check consistency |
+| Remove element | Remove definition, check for dangling references |
+| Rename | Update all references consistently |
+
+### 3. Apply Changes
+
+When modifying:
+
+1. **Maintain consistency**: If adding an attribute, ensure all `\Delta` operations either update it or explicitly preserve it (`attr' = attr`)
+
+2. **Preserve invariants**: New operations must maintain existing invariants
+
+3. **Update dependencies**: If a type changes, update all schemas and operations using it
+
+4. **Add needed types**: If the change requires new enumerations or basic types, add them
+
+### Example Updates
+
+**Adding a new attribute** ("Add email to User schema"):
+1. If needed, add basic type: `[EMAIL]`
+2. Add to schema declaration: `email : EMAIL`
+3. Add to init: `email' = defaultEmail` (or leave unconstrained)
+4. Update all `\Delta User` operations to preserve: `email' = email`
+
+**Adding a new operation** ("Add a delete operation for sessions"):
+```latex
+\begin{schema}{DeleteSession}
+\Delta SessionStore \\
+sessionId? : SESSIONID
+\where
+sessionId? \in \dom sessions \\
+sessions' = \{ sessionId? \} \ndres sessions
+\end{schema}
+```
+
+**Adding an invariant** ("Ensure balance is never negative"):
+1. Add to schema predicate: `balance \geq 0`
+2. Review all operations that modify `balance` to ensure they maintain this
+3. May need to add preconditions to prevent violations
+
+**Strengthening a type** ("Make usernames unique"):
+- Change from `\pfun` to `\pinj`:
+  - Before: `users : USERNAME \pfun UserData`
+  - After: `users : USERNAME \pinj UserData`
+- This automatically enforces uniqueness via the injection constraint
+
+### 4. Regenerate PDF
+
+After any changes to the `.tex` file, regenerate the PDF:
+
+```bash
+cd docs && pdflatex <file>.tex && pdflatex <file>.tex
+```
+
+Run twice to ensure TOC and references are updated.
 
 ## Reference
 

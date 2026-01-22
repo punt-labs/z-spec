@@ -2,14 +2,14 @@
 description: Generate code from a Z specification
 ---
 
-# /z generate - Spec to Code
+# /z model2code - Model to Code
 
 Generate implementation code and unit tests from a Z specification.
 
 ## Usage
 
 ```
-/z generate [spec.tex] [language]
+/z model2code [spec.tex] [language]
 ```
 
 **Arguments:**

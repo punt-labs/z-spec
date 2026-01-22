@@ -16,33 +16,32 @@ description: Show Z specification plugin help and quick reference
 | Command | Description |
 |---------|-------------|
 | `/z setup` | Install and configure fuzz and probcli |
-| `/z create [focus]` | Generate a Z specification from codebase or description |
+| `/z code2model [focus]` | Create or update a Z specification from codebase |
 | `/z check [file]` | Type-check a specification with fuzz |
 | `/z test [file]` | Validate and animate with probcli |
-| `/z update [file] [changes]` | Modify an existing specification |
 | `/z elaborate [spec] [design]` | Enhance spec with narrative from design docs |
-| `/z generate [spec] [lang]` | Generate code and tests from a Z specification |
+| `/z model2code [spec] [lang]` | Generate code and tests from a Z specification |
 | `/z cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
 | `/z help` | Show this help |
 
 ## Examples
 
 ```
-/z create the user authentication system
-/z create A library book lending system with members and loans
+/z code2model the user authentication system
+/z code2model A library book lending system with members and loans
+/z code2model docs/auth.tex add a logout operation  # Update existing
 /z check docs/auth.tex
 /z test docs/auth.tex -v
-/z update docs/auth.tex add a logout operation
 /z elaborate docs/auth.tex DESIGN.md
 /z elaborate docs/system.tex              # Uses DESIGN.md by default
-/z generate docs/auth.tex swift           # Generate Swift code from spec
-/z generate                               # Auto-detect spec and language
+/z model2code docs/auth.tex swift         # Generate Swift code from spec
+/z model2code                             # Auto-detect spec and language
 /z cleanup                                # Remove tooling files from docs/
 ```
 
 ## Automatic TeX File Management
 
-The `/z create`, `/z check`, and `/z test` commands automatically:
+The `/z code2model`, `/z check`, and `/z test` commands automatically:
 1. Copy `fuzz.sty` and Metafont files to `docs/` if missing
 2. Add appropriate patterns to `.gitignore`
 
