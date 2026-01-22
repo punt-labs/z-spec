@@ -14,6 +14,28 @@ File: $ARGUMENTS
 
 ## Process
 
+### 0. Ensure TeX Files Available
+
+Before checking, ensure fuzz.sty is available in the docs/ directory:
+
+```bash
+if [ ! -f docs/fuzz.sty ]; then
+    if [ -f /usr/local/share/texmf/tex/latex/fuzz.sty ]; then
+        cp /usr/local/share/texmf/tex/latex/fuzz.sty docs/
+        cp /usr/local/share/texmf/fonts/source/public/oxsz/*.mf docs/
+    else
+        curl -sL -o docs/fuzz.sty "https://raw.githubusercontent.com/Spivoxity/fuzz/master/tex/fuzz.sty"
+        for mf in oxsz.mf oxsz10.mf oxsz5.mf oxsz6.mf oxsz7.mf oxsz8.mf oxsz9.mf zarrow.mf zletter.mf zsymbol.mf; do
+            curl -sL -o "docs/$mf" "https://raw.githubusercontent.com/Spivoxity/fuzz/master/tex/$mf"
+        done
+    fi
+    # Update .gitignore
+    for pattern in "docs/fuzz.sty" "docs/*.mf" "docs/*.pk" "docs/*.tfm" "docs/*.aux" "docs/*.log" "docs/*.fuzz" "docs/*.toc"; do
+        grep -qxF "$pattern" .gitignore 2>/dev/null || echo "$pattern" >> .gitignore
+    done
+fi
+```
+
 ### 1. Locate the Specification
 
 If a file path is provided, use it directly.

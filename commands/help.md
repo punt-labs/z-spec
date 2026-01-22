@@ -21,6 +21,7 @@ description: Show Z specification plugin help and quick reference
 | `/z test [file]` | Validate and animate with probcli |
 | `/z update [file] [changes]` | Modify an existing specification |
 | `/z elaborate [spec] [design]` | Enhance spec with narrative from design docs |
+| `/z cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
 | `/z help` | Show this help |
 
 ## Examples
@@ -33,7 +34,16 @@ description: Show Z specification plugin help and quick reference
 /z update docs/auth.tex add a logout operation
 /z elaborate docs/auth.tex DESIGN.md
 /z elaborate docs/system.tex              # Uses DESIGN.md by default
+/z cleanup                                # Remove tooling files from docs/
 ```
+
+## Automatic TeX File Management
+
+The `/z create`, `/z check`, and `/z test` commands automatically:
+1. Copy `fuzz.sty` and Metafont files to `docs/` if missing
+2. Add appropriate patterns to `.gitignore`
+
+Use `/z cleanup` to remove these tooling files when done. Your `.tex` source and `.pdf` output are preserved.
 
 ## Quick Z Reference
 

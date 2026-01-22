@@ -15,9 +15,10 @@ Parse as:
 - `check` - Check what's installed and report status
 - `fuzz` - Install fuzz type-checker
 - `probcli` - Install ProB command-line interface
-- `tex` - Copy TeX files (fuzz.sty, *.mf) to project docs/ directory
-- `all` - Install everything including TeX files
+- `all` - Install fuzz and probcli
 - (no argument) - Same as `check`
+
+**Note**: TeX files (fuzz.sty, *.mf) are automatically copied to your project's `docs/` directory when you run `/z create`, `/z check`, or `/z test`. Use `/z cleanup` to remove them.
 
 ## Process
 
@@ -203,70 +204,7 @@ export PROB_HOME="$HOME/Applications/ProB"
 xattr -d com.apple.quarantine ~/Applications/ProB/probcli
 ```
 
-### 5. Copy TeX Files to Project
-
-Z specifications require `fuzz.sty` and Metafont files. Rather than configure system TeX paths, copy them directly to the project's `docs/` directory.
-
-#### Check Local Installation First
-
-```bash
-# Standard install location from `make install`
-LOCAL_STY="/usr/local/share/texmf/tex/latex/fuzz.sty"
-LOCAL_MF="/usr/local/share/texmf/fonts/source/public/oxsz"
-
-if [ -f "$LOCAL_STY" ]; then
-    echo "Found fuzz.sty at $LOCAL_STY"
-fi
-
-if [ -d "$LOCAL_MF" ]; then
-    echo "Found Metafont files at $LOCAL_MF"
-fi
-```
-
-#### Copy from Local Install
-
-If files exist locally:
-
-```bash
-# Create docs directory if needed
-mkdir -p docs
-
-# Copy fuzz.sty
-cp /usr/local/share/texmf/tex/latex/fuzz.sty docs/
-
-# Copy Metafont files (needed for PDF compilation with Z symbols)
-cp /usr/local/share/texmf/fonts/source/public/oxsz/*.mf docs/
-```
-
-#### Fallback: Download from GitHub
-
-If local files not found, download from the fuzz repository:
-
-```bash
-mkdir -p docs
-cd docs
-
-# Required: fuzz.sty
-curl -LO "https://raw.githubusercontent.com/Spivoxity/fuzz/master/tex/fuzz.sty"
-
-# Metafont files for Z symbols
-for mf in oxsz.mf oxsz10.mf oxsz5.mf oxsz6.mf oxsz7.mf oxsz8.mf oxsz9.mf zarrow.mf zletter.mf zsymbol.mf; do
-    curl -LO "https://raw.githubusercontent.com/Spivoxity/fuzz/master/tex/$mf"
-done
-```
-
-#### Verify TeX Files
-
-```bash
-ls -la docs/fuzz.sty docs/*.mf
-```
-
-Expected files:
-- `fuzz.sty` - LaTeX style defining Z notation commands
-- `oxsz*.mf` - Metafont sources for Z symbol font
-- `zarrow.mf`, `zletter.mf`, `zsymbol.mf` - Additional symbol definitions
-
-### 6. Verify Installation
+### 5. Verify Installation
 
 After installation, verify everything works:
 
@@ -309,7 +247,7 @@ fuzz -t /tmp/test_spec.tex && echo "fuzz: OK"
 probcli /tmp/test_spec.tex -init && echo "probcli: OK"
 ```
 
-### 7. Report Results
+### 6. Report Results
 
 Summarize what was done and current status:
 
