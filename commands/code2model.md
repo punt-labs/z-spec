@@ -185,7 +185,7 @@ attribute2' = attribute2
 
 Save to `docs/<system_name>.tex` where `<system_name>` is derived from the focus hint or codebase name.
 
-### 5.1 Format with tex-fmt (if available)
+### 6. Format with tex-fmt (if available)
 
 If tex-fmt is installed, format the LaTeX for consistent style:
 
@@ -197,7 +197,7 @@ fi
 
 This ensures consistent indentation and line breaks. See `reference/latex-style.md` for formatting guidelines.
 
-### 6. Type-Check with Fuzz
+### 7. Type-Check with Fuzz
 
 Run:
 ```bash
@@ -208,7 +208,7 @@ If errors occur:
 - Fix type errors iteratively
 - Common issues: missing BOOL free type, tuple projection (use schema fields), cardinality on complex expressions
 
-### 7. Report Results
+### 8. Report Results
 
 Summarize:
 - Entities modeled

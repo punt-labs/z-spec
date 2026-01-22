@@ -238,8 +238,8 @@ class TestIntervalCalculator:
 
 | Constraint Type | JUnit 5 Assertion | Example |
 |-----------------|-------------------|---------|
-| Upper bound | `assertTrue(x <= N)`, `assertThat(x).isLessThanOrEqualTo(N)` | `assertTrue(interval <= 30)` |
-| Lower bound | `assertTrue(x >= N)`, `assertThat(x).isGreaterThanOrEqualTo(N)` | `assertTrue(level >= 1)` |
+| Upper bound | `assertTrue(x <= N)` | `assertTrue(interval <= 30)` |
+| Lower bound | `assertTrue(x >= N)` | `assertTrue(level >= 1)` |
 | Equality | `assertEquals(expected, actual)` | `assertEquals(2, result)` |
 | Boolean | `assertTrue(...)`, `assertFalse(...)` | `assertTrue(isValid)` |
 | Null | `assertNull(...)`, `assertNotNull(...)` | `assertNotNull(session)` |
