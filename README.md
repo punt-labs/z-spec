@@ -27,7 +27,7 @@ mkdir -p ~/.claude/plugins/local-plugins/.claude-plugin
 mkdir -p ~/.claude/plugins/local-plugins/plugins
 
 # Clone this repo
-git clone https://github.com/jmf-pobox/claude-z-spec-plugin.git \
+git clone https://github.com/punt-labs/z-spec.git \
     ~/.claude/plugins/local-plugins/plugins/z-spec
 
 # Create marketplace.json
