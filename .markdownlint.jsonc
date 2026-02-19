@@ -1,0 +1,26 @@
+{
+  // Multiple blank lines — used for visual separation in command files
+  "MD012": false,
+  // Disable line length — tables, URLs, and descriptions routinely exceed any limit
+  "MD013": false,
+  // Blanks around headings — reference docs use compact formatting
+  "MD022": false,
+  // Duplicate headings — repeated section names are expected in skill/reference files
+  "MD024": false,
+  // Ordered list prefix — intentional numbering
+  "MD029": false,
+  // Blanks around fences — Z notation examples are embedded inline
+  "MD031": false,
+  // Blanks around lists — compact list formatting in reference material
+  "MD032": false,
+  // Bare URLs — reference links are acceptable
+  "MD034": false,
+  // Emphasis as heading — setup commands use emphasis for option labels
+  "MD036": false,
+  // Fenced code language — some code blocks are pseudocode or Z notation
+  "MD040": false,
+  // Blanks around tables — compact formatting in help/reference commands
+  "MD058": false,
+  // Disable table column style — compact pipes are fine
+  "MD060": false
+}
