@@ -3,6 +3,7 @@
   "description": "Create, validate, and test formal Z specifications for stateful systems using fuzz and probcli",
   "author": {
     "name": "jfreeman",
-    "email": "jfreeman@example.com"
+    "email": "hello@punt-labs.com",
+    "organization": "Punt Labs"
   }
 }
