@@ -351,15 +351,15 @@ class TestAdvanceLevel:
     def test_rejected_low_accuracy(self):
         """Partition 5: accuracy=89 (below threshold) -> no change"""
         state = State(level=5, attempts=10, correct=8)
-        # Should raise or return without changing state
-        with pytest.raises(PreconditionError):
-            state.advance_level(accuracy=89)
+        # Operation should not change observable state for rejected inputs
+        state.advance_level(accuracy=89)
+        assert state.level == 5  # unchanged
 
     def test_rejected_at_max_level(self):
         """Partition 6: level=26 (at max) -> no change"""
         state = State(level=26, attempts=10, correct=8)
-        with pytest.raises(PreconditionError):
-            state.advance_level(accuracy=95)
+        state.advance_level(accuracy=95)
+        assert state.level == 26  # unchanged
 ```
 
 Example (Swift/XCTest):
