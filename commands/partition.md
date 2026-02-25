@@ -93,10 +93,10 @@ classify it:
 
 | Classification | Rule | Example |
 |----------------|------|---------|
-| **Precondition** | References only unprimed state vars and/or inputs | `level < 26` |
+| **Precondition** | References only unprimed state vars and/or inputs (including input-only constraints) | `level < 26` |
 | **Effect** | References primed variables (`x'`) | `level' = level + 1` |
 | **Frame** | Has form `x' = x` (no change) | `attempts' = attempts` |
-| **Input constraint** | Constrains only input variables | `accuracy? \geq 90` |
+| **Input constraint** | Special case of **Precondition** that constrains only input variables; always include these in the precondition set when generating (including rejected) partitions | `accuracy? \geq 90` |
 | **Output definition** | Defines output in terms of state/inputs | `result! = balance` |
 
 ### 5. Apply TTF Testing Tactics
