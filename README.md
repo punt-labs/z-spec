@@ -9,7 +9,7 @@ Create, validate, and test formal Z specifications for stateful systems using fu
 - **Type-check** with fuzz
 - **Animate and model-check** with probcli (ProB)
 - **Elaborate** specs with narrative from design documentation
-- **Derive test cases** from specs using TTF testing tactics (input partitioning, boundary analysis)
+- **Derive test cases** from specs using Test Template Framework (TTF) testing tactics (input partitioning, boundary analysis)
 - **ProB-compatible** output (avoids B keyword conflicts, bounded integers, flat schemas)
 
 ## Platform Support
