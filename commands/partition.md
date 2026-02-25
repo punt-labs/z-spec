@@ -150,17 +150,18 @@ apply type-based standard partitions:
 For each constraint involving a comparison, generate test values
 at and around the boundary:
 
-| Constraint | Boundary Values |
-|------------|-----------------|
-| `x \geq N` | `{N-1, N, N+1}` |
-| `x \leq N` | `{N-1, N, N+1}` |
-| `x > N` | `{N, N+1}` |
-| `x < N` | `{N-1, N}` |
-| `x = N` | `{N-1, N, N+1}` |
-| `x \in A \upto B` | `{A-1, A, A+1, B-1, B, B+1}` |
+| Constraint | Boundary Values (respecting the type domain) |
+|------------|-----------------------------------------------|
+| `x \geq N` | Values just below, at, and just above `N` (for example `{N-1, N, N+1}`), clamped to the domain of `x` (for `\nat`, replace any negative value such as `N-1 < 0` by `0`, or treat it explicitly as a *type-violation* test). |
+| `x \leq N` | Values just below, at, and just above `N` (for example `{N-1, N, N+1}`), again only where these lie in the domain of `x`; otherwise clamp to the nearest in-domain value or mark as a *type-violation* test. |
+| `x > N` | Values at and just above `N` (for example `{N, N+1}`), adjusted so that they remain within the domain of `x` (or explicitly tagged as *type-violation* tests if they do not). |
+| `x < N` | Values just below and at `N` (for example `{N-1, N}`), using only those that are in the domain of `x`; if `N-1` would be out of domain (such as `-1` for `\nat`), clamp or treat the case as a *type-violation* test. |
+| `x = N` | Values just below, at, and just above `N` (for example `{N-1, N, N+1}`), with the same requirement to clamp to the domain of `x` or to classify any out-of-domain values as *type-violation* tests. |
+| `x \in A \upto B` | Values just outside and inside the interval (for example `{A-1, A, A+1, B-1, B, B+1}`), but only where these are in the domain of `x`; otherwise clamp `A-1`/`B+1` to the nearest in-domain value or mark such cases as *type-violation* tests rather than ordinary precondition failures. |
 | `x \in \dom f` | member, non-member |
-| `x \notin S` | member (rejected), non-member (accepted) |
+| `x \notin S` | member (predicate violated / rejected), non-member (predicate satisfied / accepted) |
 
+> Note: When applying these patterns to concrete Z types (such as `\nat`), always ensure that generated boundary values lie within the type’s domain. Values outside the domain should either be clamped to the nearest in-domain value or clearly identified as separate *type-violation* test cases, not as standard boundary/precondition tests.
 ### 6. Generate Partitions
 
 Combine the tactics to produce concrete partitions:
