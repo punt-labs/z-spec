@@ -9,6 +9,7 @@ Create, validate, and test formal Z specifications for stateful systems using fu
 - **Type-check** with fuzz
 - **Animate and model-check** with probcli (ProB)
 - **Elaborate** specs with narrative from design documentation
+- **Derive test cases** from specs using TTF testing tactics (input partitioning, boundary analysis)
 - **ProB-compatible** output (avoids B keyword conflicts, bounded integers, flat schemas)
 
 ## Platform Support
@@ -82,6 +83,7 @@ The setup command will:
 | `/z create [focus]` | Generate a Z specification from codebase or description |
 | `/z check [file]` | Type-check a specification with fuzz |
 | `/z test [file]` | Validate and animate with probcli |
+| `/z partition [spec]` | Derive test cases from spec using TTF testing tactics |
 | `/z update [file] [changes]` | Modify an existing specification |
 | `/z elaborate [spec] [design]` | Enhance spec with narrative from design docs |
 | `/z help` | Show quick reference |
@@ -93,6 +95,8 @@ The setup command will:
 /z create the payment system          # Generate spec from codebase
 /z check docs/payment.tex             # Type-check
 /z test docs/payment.tex              # Animate and model-check
+/z partition docs/payment.tex         # Derive test cases from spec
+/z partition docs/payment.tex --code  # Generate executable test code
 /z elaborate docs/payment.tex         # Add narrative from DESIGN.md
 ```
 

@@ -20,6 +20,7 @@ description: Show Z specification plugin help and quick reference
 | `/z check [file]` | Type-check a specification with fuzz |
 | `/z test [file]` | Validate and animate with probcli |
 | `/z audit [spec] [--json]` | Audit test coverage against spec constraints |
+| `/z partition [spec] [--code]` | Derive test cases from spec using TTF tactics |
 | `/z elaborate [spec] [design]` | Enhance spec with narrative from design docs |
 | `/z model2code [spec] [lang]` | Generate code and tests from a Z specification |
 | `/z cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
@@ -37,6 +38,9 @@ description: Show Z specification plugin help and quick reference
 /z elaborate docs/system.tex              # Uses DESIGN.md by default
 /z model2code docs/auth.tex swift         # Generate Swift code from spec
 /z model2code                             # Auto-detect spec and language
+/z partition docs/auth.tex                 # Derive test partitions from spec
+/z partition docs/auth.tex --code swift   # Generate partition test code
+/z partition --operation=Withdraw          # Partition a single operation
 /z audit docs/auth.tex                    # Audit test coverage against spec
 /z audit docs/auth.tex --json             # Output as JSON for CI
 /z cleanup                                # Remove tooling files from docs/
