@@ -9,16 +9,11 @@
 
 ## Quick Start
 
-First, add the Punt Labs marketplace (one-time):
+Add the Punt Labs marketplace and install (one-time):
 
 ```bash
 claude plugin marketplace add punt-labs/claude-plugins
-```
-
-Then install the plugin:
-
-```bash
-claude plugin install z-spec
+claude plugin install z-spec@punt-labs
 ```
 
 Inside Claude Code:
