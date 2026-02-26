@@ -16,6 +16,7 @@ description: Show Z specification plugin help and quick reference
 | Command | Description |
 |---------|-------------|
 | `/z setup` | Install and configure fuzz and probcli |
+| `/z doctor` | Check Z specification environment health |
 | `/z code2model [focus]` | Create or update a Z specification from codebase |
 | `/z check [file]` | Type-check a specification with fuzz |
 | `/z test [file]` | Validate and animate with probcli |
@@ -43,6 +44,7 @@ description: Show Z specification plugin help and quick reference
 /z partition --operation=Withdraw          # Partition a single operation
 /z audit docs/auth.tex                    # Audit test coverage against spec
 /z audit docs/auth.tex --json             # Output as JSON for CI
+/z doctor                                 # Check environment health
 /z cleanup                                # Remove tooling files from docs/
 ```
 
