@@ -19,7 +19,7 @@ Parse as:
 - `all` - Install fuzz and probcli
 - (no argument) - Same as `check`
 
-**Note**: TeX files (fuzz.sty, *.mf) are automatically copied to your project's `docs/` directory when you run `/z create`, `/z check`, or `/z test`. Use `/z cleanup` to remove them.
+**Note**: TeX files (fuzz.sty, *.mf) are automatically copied to your project's `docs/` directory when you run `/z-spec:create`, `/z-spec:check`, or `/z-spec:test`. Use `/z-spec:cleanup` to remove them.
 
 ## Process
 

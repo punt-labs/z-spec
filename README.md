@@ -37,14 +37,14 @@ sh install.sh
 Inside Claude Code:
 
 ```
-/z setup all                              # Install fuzz and probcli
-/z code2model the user authentication system   # Generate your first spec
-/z check docs/auth.tex                    # Type-check it
-/z test docs/auth.tex                     # Animate and model-check
+/z-spec:setup all                              # Install fuzz and probcli
+/z-spec:code2model the user authentication system   # Generate your first spec
+/z-spec:check docs/auth.tex                    # Type-check it
+/z-spec:test docs/auth.tex                     # Animate and model-check
 ```
 
 <details>
-<summary>What /z setup installs</summary>
+<summary>What /z-spec:setup installs</summary>
 
 - **fuzz** --- Z type-checker ([source](https://github.com/Spivoxity/fuzz)), includes `fuzz.sty` for LaTeX
 - **probcli** --- ProB CLI for animation and model-checking ([download](https://prob.hhu.de/w/index.php/Download)), requires Tcl/Tk
@@ -84,7 +84,7 @@ correct' = correct
 
 ### A derived partition table
 
-`/z partition` applies the [Test Template Framework](https://doi.org/10.1007/3-540-48257-1_11) (TTF) to derive conformance test cases directly from the spec's mathematics:
+`/z-spec:partition` applies the [Test Template Framework](https://doi.org/10.1007/3-540-48257-1_11) (TTF) to derive conformance test cases directly from the spec's mathematics:
 
 1. **DNF decomposition** --- split disjunctions into independent behavioral branches
 2. **Standard partitions** --- type-based equivalence classes (endpoints, midpoints, every constructor)
@@ -104,45 +104,45 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 
 ## Features
 
-- **Generate Z specs** from codebase analysis or system descriptions (`/z code2model`)
-- **Type-check** with fuzz (`/z check`)
-- **Animate and model-check** with probcli (`/z test`)
-- **Derive test cases** from specs using TTF testing tactics (`/z partition`)
-- **Generate code and tests** from specifications (`/z model2code`)
-- **Audit test coverage** against spec constraints (`/z audit`)
-- **Elaborate** specs with narrative from design documentation (`/z elaborate`)
+- **Generate Z specs** from codebase analysis or system descriptions (`/z-spec:code2model`)
+- **Type-check** with fuzz (`/z-spec:check`)
+- **Animate and model-check** with probcli (`/z-spec:test`)
+- **Derive test cases** from specs using TTF testing tactics (`/z-spec:partition`)
+- **Generate code and tests** from specifications (`/z-spec:model2code`)
+- **Audit test coverage** against spec constraints (`/z-spec:audit`)
+- **Elaborate** specs with narrative from design documentation (`/z-spec:elaborate`)
 - **ProB-compatible** output (avoids B keyword conflicts, bounded integers, flat schemas)
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/z setup [check\|fuzz\|probcli\|all]` | Install and configure fuzz and probcli |
-| `/z doctor` | Check Z specification environment health |
-| `/z code2model [focus]` | Create or update a Z specification from codebase or description |
-| `/z check [file]` | Type-check a specification with fuzz |
-| `/z test [file] [-v] [-a N] [-s N]` | Validate and animate with probcli |
-| `/z partition [spec] [--code [language]] [--operation=NAME] [--json]` | Derive test cases from spec using TTF testing tactics |
-| `/z model2code [spec] [language]` | Generate code and tests from a Z specification |
-| `/z audit [spec] [--json] [--test-dir=DIR]` | Audit test coverage against spec constraints |
-| `/z elaborate [spec] [design]` | Enhance spec with narrative from design docs |
-| `/z cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
-| `/z help` | Show quick reference |
+| `/z-spec:setup [check\|fuzz\|probcli\|all]` | Install and configure fuzz and probcli |
+| `/z-spec:doctor` | Check Z specification environment health |
+| `/z-spec:code2model [focus]` | Create or update a Z specification from codebase or description |
+| `/z-spec:check [file]` | Type-check a specification with fuzz |
+| `/z-spec:test [file] [-v] [-a N] [-s N]` | Validate and animate with probcli |
+| `/z-spec:partition [spec] [--code [language]] [--operation=NAME] [--json]` | Derive test cases from spec using TTF testing tactics |
+| `/z-spec:model2code [spec] [language]` | Generate code and tests from a Z specification |
+| `/z-spec:audit [spec] [--json] [--test-dir=DIR]` | Audit test coverage against spec constraints |
+| `/z-spec:elaborate [spec] [design]` | Enhance spec with narrative from design docs |
+| `/z-spec:cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
+| `/z-spec:help` | Show quick reference |
 
 ## Workflow
 
 ```
-/z setup                              # Install tools (first time only)
-/z doctor                             # Verify environment health
-/z code2model the payment system      # Generate spec from codebase
-/z check docs/payment.tex             # Type-check
-/z test docs/payment.tex              # Animate and model-check
-/z partition docs/payment.tex         # Derive test cases from spec
-/z partition docs/payment.tex --code  # Generate executable test code
-/z elaborate docs/payment.tex         # Add narrative from DESIGN.md
-/z model2code docs/payment.tex swift  # Generate Swift code and tests
-/z audit docs/payment.tex             # Audit test coverage against spec
-/z cleanup                            # Remove tooling files when done
+/z-spec:setup                              # Install tools (first time only)
+/z-spec:doctor                             # Verify environment health
+/z-spec:code2model the payment system      # Generate spec from codebase
+/z-spec:check docs/payment.tex             # Type-check
+/z-spec:test docs/payment.tex              # Animate and model-check
+/z-spec:partition docs/payment.tex         # Derive test cases from spec
+/z-spec:partition docs/payment.tex --code  # Generate executable test code
+/z-spec:elaborate docs/payment.tex         # Add narrative from DESIGN.md
+/z-spec:model2code docs/payment.tex swift  # Generate Swift code and tests
+/z-spec:audit docs/payment.tex             # Audit test coverage against spec
+/z-spec:cleanup                            # Remove tooling files when done
 ```
 
 <details>
@@ -188,8 +188,8 @@ claude --plugin-dir .
 
 | Source | Commands | What they run |
 |--------|----------|---------------|
-| Marketplace `z-spec` | `/z check`, `/z test`, ... | Production prompts |
-| Local `z-spec-dev` | `/z-dev check-dev`, `/z-dev test-dev`, ... | Working tree prompts |
+| Marketplace `z-spec` | `/z-spec:check`, `/z-spec:test`, ... | Production prompts |
+| Local `z-spec-dev` | `/z-spec-dev:check-dev`, `/z-spec-dev:test-dev`, ... | Working tree prompts |
 
 </details>
 
@@ -218,8 +218,8 @@ git push origin main
 .claude-plugin/
   plugin.json           # Plugin manifest (name: z-spec-dev in working tree)
 commands/
-  check.md              # /z check (prod)
-  check-dev.md          # /z-dev check-dev (dev)
+  check.md              # /z-spec:check (prod)
+  check-dev.md          # /z-spec-dev:check-dev (dev)
   ...                   # One prod + one dev variant per command
 scripts/
   release-plugin.sh     # Swap to prod name, remove -dev commands
@@ -236,7 +236,7 @@ templates/
 
 ## Thanks
 
-- [@ebowman](https://github.com/ebowman) --- `/z partition` command, bringing TTF testing tactics to Z specs
+- [@ebowman](https://github.com/ebowman) --- `/z-spec:partition` command, bringing TTF testing tactics to Z specs
 
 ## License
 

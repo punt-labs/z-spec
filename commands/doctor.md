@@ -24,7 +24,7 @@ uname -m   # arm64, x86_64, etc.
 which fuzz && fuzz -version
 ```
 
-If missing: suggest `Run /z setup fuzz`.
+If missing: suggest `Run /z-spec:setup fuzz`.
 
 ### 3. fuzz.sty (required)
 
@@ -32,7 +32,7 @@ If missing: suggest `Run /z setup fuzz`.
 kpsewhich fuzz.sty
 ```
 
-If missing: suggest `Run /z setup fuzz` then `sudo texhash`.
+If missing: suggest `Run /z-spec:setup fuzz` then `sudo texhash`.
 
 ### 4. probcli binary (required)
 
@@ -40,7 +40,7 @@ If missing: suggest `Run /z setup fuzz` then `sudo texhash`.
 which probcli || test -x "$HOME/Applications/ProB/probcli"
 ```
 
-Also check `$PROBCLI` if set. If missing: suggest `Run /z setup probcli`.
+Also check `$PROBCLI` if set. If missing: suggest `Run /z-spec:setup probcli`.
 
 ### 5. Tcl/Tk (conditional — macOS only)
 
@@ -69,7 +69,7 @@ Present results as a status table, then a summary:
 
 ## Result
 
-1 issue found. Run `/z setup` to install missing tools.
+1 issue found. Run `/z-spec:setup` to install missing tools.
 ```
 
 If all checks pass:
@@ -82,4 +82,4 @@ All checks passed. Environment is ready for Z specification work.
 
 ## Remediation
 
-For each failure, include a specific actionable fix in the Status column or below the table. Point users to `/z setup` for installation.
+For each failure, include a specific actionable fix in the Status column or below the table. Point users to `/z-spec:setup` for installation.

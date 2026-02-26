@@ -4,14 +4,14 @@ argument-hint: "[spec.tex] [language: swift, typescript, python, kotlin]"
 allowed-tools: Bash(fuzz:*), Bash(which:*), Read, Glob, Grep, Write
 ---
 
-# /z model2code - Model to Code
+# /z-spec:model2code - Model to Code
 
 Generate implementation code and unit tests from a Z specification.
 
 ## Usage
 
 ```
-/z model2code [spec.tex] [language]
+/z-spec:model2code [spec.tex] [language]
 ```
 
 **Arguments:**
@@ -332,7 +332,7 @@ Generate two files:
 ## Example
 
 ```
-/z generate docs/account.tex swift
+/z-spec:generate docs/account.tex swift
 ```
 
 This will:

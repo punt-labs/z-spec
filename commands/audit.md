@@ -4,7 +4,7 @@ argument-hint: "[spec.tex] [--json] [--test-dir=DIR]"
 allowed-tools: Read, Glob, Grep
 ---
 
-# /z audit - Test Coverage Audit
+# /z-spec:audit - Test Coverage Audit
 
 Audit unit test coverage against constraints defined in a Z specification. Extracts invariants, preconditions, effects, and bounds from the spec, then searches the test suite for coverage.
 
@@ -21,7 +21,7 @@ Parse arguments:
 
 ### 0. Prerequisites
 
-This command does not require fuzz or probcli. It reads existing Z specifications and searches test files using pattern matching. The specification should already exist (created via `/z code2model`).
+This command does not require fuzz or probcli. It reads existing Z specifications and searches test files using pattern matching. The specification should already exist (created via `/z-spec:code2model`).
 
 ### 1. Locate the Specification
 
@@ -255,7 +255,7 @@ Include framework-specific assertion patterns from `reference/test-patterns.md`.
 
 | Error | Response |
 |-------|----------|
-| Specification not found | "Error: No Z specification found. Specify path or create one with `/z code2model`." |
+| Specification not found | "Error: No Z specification found. Specify path or create one with `/z-spec:code2model`." |
 | No tests found | "Warning: No test files detected. Coverage: 0%. Use `--test-dir` to specify test location." |
 | Unsupported language | "Warning: Could not detect supported test framework. Use `--test-dir` to specify. Supported: Swift, TypeScript, Python, Kotlin." |
 | Parse error in spec | "Warning: Could not parse schema {name}. Skipping." (continue with others) |

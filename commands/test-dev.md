@@ -32,7 +32,7 @@ fi
 ```
 
 **If probcli not found**: Stop and tell the user:
-> probcli is not installed. Run `/z setup` first to install the Z specification tools.
+> probcli is not installed. Run `/z-spec:setup` first to install the Z specification tools.
 
 ### 1. Ensure TeX Files Available
 

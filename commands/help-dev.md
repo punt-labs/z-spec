@@ -7,54 +7,54 @@ description: Show Z specification plugin help and quick reference
 ## First Time? Start Here
 
 ```
-/z setup          # Check what's installed
-/z setup all      # Install fuzz and probcli with guidance
+/z-spec:setup          # Check what's installed
+/z-spec:setup all      # Install fuzz and probcli with guidance
 ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/z setup` | Install and configure fuzz and probcli |
-| `/z doctor` | Check Z specification environment health |
-| `/z code2model [focus]` | Create or update a Z specification from codebase |
-| `/z check [file]` | Type-check a specification with fuzz |
-| `/z test [file]` | Validate and animate with probcli |
-| `/z partition [spec] [--code [language]] [--operation=NAME] [--json]` | Derive test cases from spec using TTF tactics |
-| `/z model2code [spec] [lang]` | Generate code and tests from a Z specification |
-| `/z audit [spec] [--json]` | Audit test coverage against spec constraints |
-| `/z elaborate [spec] [design]` | Enhance spec with narrative from design docs |
-| `/z cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
-| `/z help` | Show this help |
+| `/z-spec:setup` | Install and configure fuzz and probcli |
+| `/z-spec:doctor` | Check Z specification environment health |
+| `/z-spec:code2model [focus]` | Create or update a Z specification from codebase |
+| `/z-spec:check [file]` | Type-check a specification with fuzz |
+| `/z-spec:test [file]` | Validate and animate with probcli |
+| `/z-spec:partition [spec] [--code [language]] [--operation=NAME] [--json]` | Derive test cases from spec using TTF tactics |
+| `/z-spec:model2code [spec] [lang]` | Generate code and tests from a Z specification |
+| `/z-spec:audit [spec] [--json]` | Audit test coverage against spec constraints |
+| `/z-spec:elaborate [spec] [design]` | Enhance spec with narrative from design docs |
+| `/z-spec:cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
+| `/z-spec:help` | Show this help |
 
 ## Examples
 
 ```
-/z code2model the user authentication system
-/z code2model A library book lending system with members and loans
-/z code2model docs/auth.tex add a logout operation  # Update existing
-/z check docs/auth.tex
-/z test docs/auth.tex -v
-/z elaborate docs/auth.tex DESIGN.md
-/z elaborate docs/system.tex              # Uses DESIGN.md by default
-/z model2code docs/auth.tex swift         # Generate Swift code from spec
-/z model2code                             # Auto-detect spec and language
-/z partition docs/auth.tex                 # Derive test partitions from spec
-/z partition docs/auth.tex --code swift   # Generate partition test code
-/z partition --operation=Withdraw          # Partition a single operation
-/z audit docs/auth.tex                    # Audit test coverage against spec
-/z audit docs/auth.tex --json             # Output as JSON for CI
-/z doctor                                 # Check environment health
-/z cleanup                                # Remove tooling files from docs/
+/z-spec:code2model the user authentication system
+/z-spec:code2model A library book lending system with members and loans
+/z-spec:code2model docs/auth.tex add a logout operation  # Update existing
+/z-spec:check docs/auth.tex
+/z-spec:test docs/auth.tex -v
+/z-spec:elaborate docs/auth.tex DESIGN.md
+/z-spec:elaborate docs/system.tex              # Uses DESIGN.md by default
+/z-spec:model2code docs/auth.tex swift         # Generate Swift code from spec
+/z-spec:model2code                             # Auto-detect spec and language
+/z-spec:partition docs/auth.tex                 # Derive test partitions from spec
+/z-spec:partition docs/auth.tex --code swift   # Generate partition test code
+/z-spec:partition --operation=Withdraw          # Partition a single operation
+/z-spec:audit docs/auth.tex                    # Audit test coverage against spec
+/z-spec:audit docs/auth.tex --json             # Output as JSON for CI
+/z-spec:doctor                                 # Check environment health
+/z-spec:cleanup                                # Remove tooling files from docs/
 ```
 
 ## Automatic TeX File Management
 
-The `/z code2model`, `/z check`, and `/z test` commands automatically:
+The `/z-spec:code2model`, `/z-spec:check`, and `/z-spec:test` commands automatically:
 1. Copy `fuzz.sty` and Metafont files to `docs/` if missing
 2. Add appropriate patterns to `.gitignore`
 
-Use `/z cleanup` to remove these tooling files when done. Your `.tex` source and `.pdf` output are preserved.
+Use `/z-spec:cleanup` to remove these tooling files when done. Your `.tex` source and `.pdf` output are preserved.
 
 ## Quick Z Reference
 

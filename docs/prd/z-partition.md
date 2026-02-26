@@ -1,10 +1,10 @@
-# PRD: /z partition
+# PRD: /z-spec:partition
 
 ## Problem
 
 The z-spec plugin can verify a Z specification is internally consistent
 (via probcli model-checking) and can check whether existing tests cover
-spec constraints (via `/z audit`). However, neither tool systematically
+spec constraints (via `/z-spec:audit`). However, neither tool systematically
 derives the **minimal complete set of test cases** needed to prove that
 an implementation conforms to the specification.
 
@@ -13,7 +13,7 @@ the code exists, but nothing guarantees the code actually follows the spec.
 
 ## Solution
 
-A new `/z partition` command that applies Test Template Framework (TTF)
+A new `/z-spec:partition` command that applies Test Template Framework (TTF)
 tactics to each operation schema in a Z specification, producing:
 
 1. A **partition table** (markdown) listing every distinct test class
@@ -48,7 +48,7 @@ For each operation schema, the command:
 - Partition table output (markdown, default)
 - Optional `--code` flag to generate executable test code
 - Language auto-detection (reuses model2code's detection)
-- Integration point: partition output feeds into `/z audit` for
+- Integration point: partition output feeds into `/z-spec:audit` for
   coverage tracking
 - Updates to `commands/help.md` and `README.md`
 
@@ -62,16 +62,16 @@ For each operation schema, the command:
 ## User Workflow
 
 ```text
-/z code2model     -> create spec from code
-/z check          -> verify spec is well-typed
-/z test           -> verify spec is internally consistent
-/z partition      -> derive required test cases from spec  <-- NEW
-/z audit          -> verify those tests exist in codebase
+/z-spec:code2model     -> create spec from code
+/z-spec:check          -> verify spec is well-typed
+/z-spec:test           -> verify spec is internally consistent
+/z-spec:partition      -> derive required test cases from spec  <-- NEW
+/z-spec:audit          -> verify those tests exist in codebase
 ```
 
 ## Success Criteria
 
-- For any operation schema with bounded inputs, `/z partition` produces
+- For any operation schema with bounded inputs, `/z-spec:partition` produces
   a partition table covering all distinct behavioral cases
 - Generated test values satisfy the partition predicates
 - Infeasible partitions are identified and excluded

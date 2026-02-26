@@ -1,10 +1,10 @@
-# SPARC Plan: /z partition
+# SPARC Plan: /z-spec:partition
 
 ## S - Specification
 
 ### Problem Statement
 
-Add a `/z partition` command that systematically derives test cases from
+Add a `/z-spec:partition` command that systematically derives test cases from
 Z operation schemas using TTF testing tactics.
 
 ### Success Criteria

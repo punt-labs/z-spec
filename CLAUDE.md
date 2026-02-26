@@ -20,7 +20,7 @@ The **`z-specification`** Quarry collection contains the authoritative Z notatio
 
 ## What NOT to Change Without Care
 
-- **`skills/z-spec/SKILL.md`** — the main skill prompt. Test by running `/z check` and `/z test` after any edit.
+- **`skills/z-spec/SKILL.md`** — the main skill prompt. Test by running `/z-spec:check` and `/z-spec:test` after any edit.
 - **Z notation conventions** — the plugin outputs ProB-compatible Z (avoids B keyword conflicts, uses bounded integers, flat schemas). These constraints are intentional.
 
 ## Issue Tracking

@@ -4,7 +4,7 @@ argument-hint: "[spec.tex] [--code [language]] [--operation=NAME] [--json]"
 allowed-tools: Read, Glob, Grep, Write
 ---
 
-# /z partition - Derive Test Cases from Z Specification
+# /z-spec:partition - Derive Test Cases from Z Specification
 
 Apply Test Template Framework (TTF) tactics to operation schemas
 in a Z specification to produce a **complete partition table** of
@@ -28,7 +28,7 @@ Parse arguments:
 
 This command requires **no external tools**. It reads an existing
 Z specification and applies testing tactics analytically. The specification
-should already exist and have been type-checked (via `/z check`).
+should already exist and have been type-checked (via `/z-spec:check`).
 
 ### 1. Locate the Specification
 
@@ -495,17 +495,17 @@ If `--code` was used, also report:
 
 ## Integration with Other Commands
 
-### With /z audit
+### With /z-spec:audit
 
-After running `/z partition`, the user can run `/z audit` to check
+After running `/z-spec:partition`, the user can run `/z-spec:audit` to check
 how many of the derived partitions already have test coverage.
 The partition table provides the "what should be tested" checklist;
 audit checks "what is actually tested."
 
-### With /z model2code
+### With /z-spec:model2code
 
-`/z model2code` generates starter tests using intuitive enumeration.
-`/z partition` generates systematic tests using formal partitioning.
+`/z-spec:model2code` generates starter tests using intuitive enumeration.
+`/z-spec:partition` generates systematic tests using formal partitioning.
 The two complement each other: model2code for quick scaffolding,
 partition for complete conformance verification.
 
@@ -513,7 +513,7 @@ partition for complete conformance verification.
 
 | Error | Response |
 |-------|----------|
-| Specification not found | "No Z specification found. Specify path or create one with `/z code2model`." |
+| Specification not found | "No Z specification found. Specify path or create one with `/z-spec:code2model`." |
 | No operation schemas | "No operation schemas found (schemas with `\Delta` or `\Xi`). Nothing to partition." |
 | Parse error in schema | "Could not parse schema {name}. Skipping." (continue with others) |
 | Unsupported language for --code | "Language not supported for code generation. Supported: Swift, TypeScript, Python, Kotlin. Showing partition table only." |

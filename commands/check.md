@@ -23,7 +23,7 @@ which fuzz >/dev/null 2>&1 || echo "FUZZ_NOT_FOUND"
 ```
 
 **If fuzz not found**: Stop and tell the user:
-> fuzz is not installed. Run `/z setup` first to install the Z specification tools.
+> fuzz is not installed. Run `/z-spec:setup` first to install the Z specification tools.
 
 ### 1. Ensure TeX Files Available
 

@@ -4,7 +4,7 @@ argument-hint: "[focus area or system description]"
 allowed-tools: Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(which:*), Bash(pdflatex:*), Read, Glob, Grep
 ---
 
-# /z code2model - Code to Model
+# /z-spec:code2model - Code to Model
 
 You are creating a formal Z specification for the key stateful entities in a system. The specification will be type-checked with fuzz and should be compatible with probcli for animation and model checking.
 
@@ -23,7 +23,7 @@ which fuzz >/dev/null 2>&1 || echo "FUZZ_NOT_FOUND"
 ```
 
 **If fuzz not found**: Stop and tell the user:
-> fuzz is not installed. Run `/z setup` first to install the Z specification tools.
+> fuzz is not installed. Run `/z-spec:setup` first to install the Z specification tools.
 
 Do not proceed with specification creation until fuzz is available.
 
