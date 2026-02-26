@@ -5,11 +5,11 @@ set -euo pipefail
 # The tagged commit has only prod artifacts; the marketplace cache clones from it.
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PLUGIN_JSON="${REPO_ROOT}/.claude-plugin/plugin.json"
-COMMANDS_DIR="${REPO_ROOT}/commands"
+PLUGIN_JSON=".claude-plugin/plugin.json"
+COMMANDS_DIR="commands"
 
 # Swap plugin name from *-dev to prod
-current_name="$(python3 -c "import json; print(json.load(open('${PLUGIN_JSON}'))['name'])")"
+current_name="$(python3 -c "import json; print(json.load(open('${REPO_ROOT}/${PLUGIN_JSON}'))['name'])")"
 prod_name="${current_name%-dev}"
 
 if [[ "$current_name" == "$prod_name" ]]; then
@@ -20,17 +20,17 @@ fi
 echo "Swapping plugin name: ${current_name} → ${prod_name}"
 python3 -c "
 import json, pathlib
-p = pathlib.Path('${PLUGIN_JSON}')
+p = pathlib.Path('${REPO_ROOT}/${PLUGIN_JSON}')
 d = json.loads(p.read_text())
 d['name'] = '${prod_name}'
 p.write_text(json.dumps(d, indent=2) + '\n')
 "
 
-# Remove -dev commands
+# Remove -dev commands (repo-relative paths for git)
 dev_files=()
 while IFS= read -r -d '' f; do
-  dev_files+=("$f")
-done < <(find "$COMMANDS_DIR" -name '*-dev.md' -print0)
+  dev_files+=("${COMMANDS_DIR}/$(basename "$f")")
+done < <(find "${REPO_ROOT}/${COMMANDS_DIR}" -name '*-dev.md' -print0)
 
 if [[ ${#dev_files[@]} -eq 0 ]]; then
   echo "No -dev commands found in ${COMMANDS_DIR}" >&2

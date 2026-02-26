@@ -20,6 +20,6 @@
 # Node.js dependencies
 node_modules/
 
-.claude/
+.claude/*
 !.claude/settings.json
 !.claude/hooks/
