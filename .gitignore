@@ -13,3 +13,13 @@
 *.fuzz
 *.synctex.gz
 *.pdf
+
+# MCP (project-local, not part of plugin distribution)
+.mcp.json
+
+# Node.js dependencies
+node_modules/
+
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
