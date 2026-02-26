@@ -118,6 +118,7 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 | Command | Description |
 |---------|-------------|
 | `/z setup [check\|fuzz\|probcli\|all]` | Install and configure fuzz and probcli |
+| `/z doctor` | Check Z specification environment health |
 | `/z code2model [focus]` | Create or update a Z specification from codebase or description |
 | `/z check [file]` | Type-check a specification with fuzz |
 | `/z test [file] [-v] [-a N] [-s N]` | Validate and animate with probcli |
@@ -132,6 +133,7 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 
 ```
 /z setup                              # Install tools (first time only)
+/z doctor                             # Verify environment health
 /z code2model the payment system      # Generate spec from codebase
 /z check docs/payment.tex             # Type-check
 /z test docs/payment.tex              # Animate and model-check
