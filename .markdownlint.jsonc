@@ -22,5 +22,7 @@
   // Blanks around tables — compact formatting in help/reference commands
   "MD058": false,
   // Disable table column style — compact pipes are fine
-  "MD060": false
+  "MD060": false,
+  // Allow HTML elements — details/summary for collapsible sections in README
+  "MD033": { "allowed_elements": ["details", "summary"] }
 }
