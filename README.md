@@ -1,6 +1,93 @@
 # Z Specification Plugin for Claude Code
 
-Create, validate, and test formal Z specifications for stateful systems using fuzz and ProB.
+> Formal specifications that type-check, animate, and generate tests --- from English to math to code.
+
+[![License](https://img.shields.io/github/license/punt-labs/z-spec)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/punt-labs/z-spec/docs.yml?label=CI)](https://github.com/punt-labs/z-spec/actions/workflows/docs.yml)
+
+**Platforms:** macOS, Linux
+
+## Quick Start
+
+First, add the Punt Labs marketplace (one-time):
+
+```bash
+claude plugin marketplace add punt-labs/claude-plugins
+```
+
+Then install the plugin:
+
+```bash
+claude plugin install z-spec
+```
+
+Inside Claude Code:
+
+```
+/z setup all                              # Install fuzz and probcli
+/z code2model the user authentication system   # Generate your first spec
+/z check docs/auth.tex                    # Type-check it
+/z test docs/auth.tex                     # Animate and model-check
+```
+
+<details>
+<summary>What /z setup installs</summary>
+
+- **fuzz** --- Z type-checker ([source](https://github.com/Spivoxity/fuzz)), includes `fuzz.sty` for LaTeX
+- **probcli** --- ProB CLI for animation and model-checking ([download](https://prob.hhu.de/w/index.php/Download)), requires Tcl/Tk
+
+Setup auto-detects your platform (macOS Intel/Apple Silicon, Linux) and guides you through each install.
+
+</details>
+
+## What It Looks Like
+
+### A generated spec
+
+```latex
+\begin{schema}{State}
+level : \nat \\
+attempts : \nat \\
+correct : \nat
+\where
+level \geq 1 \\
+level \leq 26 \\
+correct \leq attempts \\
+attempts \leq 10000
+\end{schema}
+
+\begin{schema}{AdvanceLevel}
+\Delta State \\
+accuracy? : \nat
+\where
+accuracy? \geq 90 \\
+accuracy? \leq 100 \\
+level < 26 \\
+level' = level + 1 \\
+attempts' = attempts \\
+correct' = correct
+\end{schema}
+```
+
+### A derived partition table
+
+`/z partition` applies the [Test Template Framework](https://doi.org/10.1007/3-540-48257-1_11) (TTF) to derive conformance test cases directly from the spec's mathematics:
+
+1. **DNF decomposition** --- split disjunctions into independent behavioral branches
+2. **Standard partitions** --- type-based equivalence classes (endpoints, midpoints, every constructor)
+3. **Boundary analysis** --- values at and around each constraint edge
+
+For the `AdvanceLevel` schema above:
+
+| # | Class | Inputs | Pre-state | Expected |
+|---|-------|--------|-----------|----------|
+| 1 | Happy path | accuracy=95 | level=5 | level'=6 |
+| 2 | Boundary: min accuracy | accuracy=90 | level=5 | level'=6 |
+| 3 | Boundary: max level | accuracy=95 | level=25 | level'=26 |
+| 4 | Rejected: low accuracy | accuracy=89 | level=5 | no change |
+| 5 | Rejected: at max | accuracy=95 | level=26 | no change |
+
+Add `--code swift` (or python, typescript, kotlin) to generate executable test cases.
 
 ## Features
 
@@ -12,45 +99,6 @@ Create, validate, and test formal Z specifications for stateful systems using fu
 - **Audit test coverage** against spec constraints (`/z audit`)
 - **Elaborate** specs with narrative from design documentation (`/z elaborate`)
 - **ProB-compatible** output (avoids B keyword conflicts, bounded integers, flat schemas)
-
-## Platform Support
-
-**macOS and Linux only.** Windows is not currently supported.
-
-The plugin relies on Unix shell commands and paths. fuzz and probcli are also primarily Unix tools.
-
-## Quick Start
-
-### 1. Install the Plugin
-
-Install from the Claude Code marketplace:
-
-```bash
-claude plugin install z-spec
-```
-
-### 2. Install Dependencies
-
-Once the plugin is installed, use the setup command to install fuzz and probcli:
-
-```
-/z setup          # Check what's already installed
-/z setup all      # Install everything with guided help
-```
-
-The setup command will:
-
-- Detect your platform (macOS Intel/Apple Silicon, Linux)
-- Check for existing installations
-- Guide you through installing fuzz (Z type-checker)
-- Guide you through installing probcli (ProB CLI) including Tcl/Tk dependencies
-- Verify everything works
-
-### 3. Create Your First Spec
-
-```
-/z code2model the user authentication system
-```
 
 ## Commands
 
@@ -82,34 +130,44 @@ The setup command will:
 /z cleanup                            # Remove tooling files when done
 ```
 
-## Dependencies
+<details>
+<summary>Reference: ProB compatibility</summary>
 
-The plugin requires two external tools:
+The plugin generates specs that work with both fuzz and probcli:
 
-### fuzz
+| Issue | Solution |
+|-------|----------|
+| B keyword conflict | Use `ZBOOL ::= ztrue \| zfalse` |
+| Abstract functions | Provide concrete mappings |
+| Unbounded integers | Add bounds in invariants |
+| Nested schemas | Flatten into single State schema |
+| Unbounded inputs | Add upper bounds to inputs |
 
-The Z type-checker. Compiled from source.
+</details>
 
-- Repository: <https://github.com/Spivoxity/fuzz>
-- Includes `fuzz.sty` for LaTeX
+<details>
+<summary>Reference: spec structure</summary>
 
-### probcli
+Generated specs follow this structure:
 
-The ProB command-line interface for animation and model-checking.
+1. **Basic Types** --- Given sets (`[USERID, TIMESTAMP]`)
+2. **Free Types** --- Enumerations (`Status ::= active | inactive`)
+3. **Global Constants** --- Configuration values
+4. **State Schemas** --- Entities with invariants
+5. **Initialization** --- Valid initial states
+6. **Operations** --- State transitions
+7. **System Invariants** --- Key properties summary
 
-- Download: <https://prob.hhu.de/w/index.php/Download>
-- Requires Tcl/Tk libraries
-
-**Don't install these manually** — use `/z setup` for guided installation.
+</details>
 
 ## Development
 
-### Dev/Prod Namespace Isolation
+<details>
+<summary>Dev/prod namespace isolation</summary>
 
 The working tree uses `name: "z-spec-dev"` in `plugin.json`. The marketplace release uses `name: "z-spec"`. This lets developers run both side by side:
 
 ```bash
-# Load the local dev plugin alongside the marketplace version
 claude --plugin-dir .
 ```
 
@@ -118,7 +176,10 @@ claude --plugin-dir .
 | Marketplace `z-spec` | `/z check`, `/z test`, ... | Production prompts |
 | Local `z-spec-dev` | `/z-dev check-dev`, `/z-dev test-dev`, ... | Working tree prompts |
 
-### Release Flow
+</details>
+
+<details>
+<summary>Release flow</summary>
 
 ```bash
 # 1. Prepare release (swaps name to prod, removes -dev commands)
@@ -133,7 +194,10 @@ bash scripts/restore-dev-plugin.sh
 git push origin main
 ```
 
-### Project Structure
+</details>
+
+<details>
+<summary>Project structure</summary>
 
 ```
 .claude-plugin/
@@ -153,79 +217,12 @@ templates/
   preamble.tex          # LaTeX preamble for generated specs
 ```
 
-## ProB Compatibility
+</details>
 
-The plugin generates specs that work with both fuzz and probcli:
+## Thanks
 
-| Issue | Solution |
-|-------|----------|
-| B keyword conflict | Use `ZBOOL ::= ztrue \| zfalse` |
-| Abstract functions | Provide concrete mappings |
-| Unbounded integers | Add bounds in invariants |
-| Nested schemas | Flatten into single State schema |
-| Unbounded inputs | Add upper bounds to inputs |
-
-## Specification Structure
-
-Generated specs follow this structure:
-
-1. **Basic Types** — Given sets (`[USERID, TIMESTAMP]`)
-2. **Free Types** — Enumerations (`Status ::= active | inactive`)
-3. **Global Constants** — Configuration values
-4. **State Schemas** — Entities with invariants
-5. **Initialization** — Valid initial states
-6. **Operations** — State transitions
-7. **System Invariants** — Key properties summary
-
-## Example Output
-
-```latex
-\begin{schema}{State}
-level : \nat \\
-attempts : \nat \\
-correct : \nat
-\where
-level \geq 1 \\
-level \leq 26 \\
-correct \leq attempts \\
-attempts \leq 10000
-\end{schema}
-
-\begin{schema}{AdvanceLevel}
-\Delta State \\
-accuracy? : \nat
-\where
-accuracy? \geq 90 \\
-accuracy? \leq 100 \\
-level < 26 \\
-level' = level + 1 \\
-attempts' = attempts \\
-correct' = correct
-\end{schema}
-```
-
-## Test Case Derivation (`/z partition`)
-
-`/z partition` applies the [Test Template Framework](https://doi.org/10.1007/3-540-48257-1_11) (TTF) to derive conformance test cases directly from the mathematics of your Z operations. Rather than writing tests by intuition, the spec's structure determines what must be tested.
-
-The command applies three tactics:
-
-1. **DNF decomposition** — operations with disjunctions (`\lor`) or conditionals encode multiple behaviors. Each disjunct becomes a separate behavioral branch requiring independent testing.
-2. **Standard partitions** — type-based equivalence classes for each input and state variable (e.g., bounded `\nat` yields endpoint and midpoint values; free types yield every constructor).
-3. **Boundary analysis** — values at and around each constraint edge, catching off-by-one errors in the implementation.
-
-For the `AdvanceLevel` example above, this produces:
-
-| # | Class | Inputs | Pre-state | Expected |
-|---|-------|--------|-----------|----------|
-| 1 | Happy path | accuracy=95 | level=5 | level'=6 |
-| 2 | Boundary: min accuracy | accuracy=90 | level=5 | level'=6 |
-| 3 | Boundary: max level | accuracy=95 | level=25 | level'=26 |
-| 4 | Rejected: low accuracy | accuracy=89 | level=5 | no change |
-| 5 | Rejected: at max | accuracy=95 | level=26 | no change |
-
-Add `--code swift` (or python, typescript, kotlin) to generate executable test cases from the partition table.
+- [@ebowman](https://github.com/ebowman) --- `/z partition` command, bringing TTF testing tactics to Z specs
 
 ## License
 
-MIT License — see [LICENSE](LICENSE)
+MIT License --- see [LICENSE](LICENSE)
