@@ -37,8 +37,8 @@ sh install.sh
 Inside Claude Code:
 
 ```
-/z-spec:setup all                                    # Install fuzz and probcli
-/z-spec:code2model the user authentication system    # Generate your first spec
+/z-spec:setup all                                   # Install fuzz and probcli
+/z-spec:code2model the user authentication system   # Generate your first spec
 /z-spec:check docs/auth.tex                         # Type-check it
 /z-spec:test docs/auth.tex                          # Animate and model-check
 ```
