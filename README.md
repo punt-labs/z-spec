@@ -7,6 +7,7 @@ Create, validate, and test formal Z specifications for stateful systems using fu
 - **Generate Z specs** from codebase analysis or system descriptions (`/z code2model`)
 - **Type-check** with fuzz (`/z check`)
 - **Animate and model-check** with probcli (`/z test`)
+- **Derive test cases** from specs using TTF testing tactics (`/z partition`)
 - **Generate code and tests** from specifications (`/z model2code`)
 - **Audit test coverage** against spec constraints (`/z audit`)
 - **Elaborate** specs with narrative from design documentation (`/z elaborate`)
@@ -59,6 +60,7 @@ The setup command will:
 | `/z code2model [focus]` | Create or update a Z specification from codebase or description |
 | `/z check [file]` | Type-check a specification with fuzz |
 | `/z test [file] [-v] [-a N] [-s N]` | Validate and animate with probcli |
+| `/z partition [spec] [--code [language]] [--operation=NAME] [--json]` | Derive test cases from spec using TTF testing tactics |
 | `/z model2code [spec] [language]` | Generate code and tests from a Z specification |
 | `/z audit [spec] [--json] [--test-dir=DIR]` | Audit test coverage against spec constraints |
 | `/z elaborate [spec] [design]` | Enhance spec with narrative from design docs |
@@ -72,6 +74,8 @@ The setup command will:
 /z code2model the payment system      # Generate spec from codebase
 /z check docs/payment.tex             # Type-check
 /z test docs/payment.tex              # Animate and model-check
+/z partition docs/payment.tex         # Derive test cases from spec
+/z partition docs/payment.tex --code  # Generate executable test code
 /z elaborate docs/payment.tex         # Add narrative from DESIGN.md
 /z model2code docs/payment.tex swift  # Generate Swift code and tests
 /z audit docs/payment.tex             # Audit test coverage against spec
@@ -199,6 +203,28 @@ attempts' = attempts \\
 correct' = correct
 \end{schema}
 ```
+
+## Test Case Derivation (`/z partition`)
+
+`/z partition` applies the [Test Template Framework](https://doi.org/10.1007/3-540-48257-1_11) (TTF) to derive conformance test cases directly from the mathematics of your Z operations. Rather than writing tests by intuition, the spec's structure determines what must be tested.
+
+The command applies three tactics:
+
+1. **DNF decomposition** — operations with disjunctions (`\lor`) or conditionals encode multiple behaviors. Each disjunct becomes a separate behavioral branch requiring independent testing.
+2. **Standard partitions** — type-based equivalence classes for each input and state variable (e.g., bounded `\nat` yields endpoint and midpoint values; free types yield every constructor).
+3. **Boundary analysis** — values at and around each constraint edge, catching off-by-one errors in the implementation.
+
+For the `AdvanceLevel` example above, this produces:
+
+| # | Class | Inputs | Pre-state | Expected |
+|---|-------|--------|-----------|----------|
+| 1 | Happy path | accuracy=95 | level=5 | level'=6 |
+| 2 | Boundary: min accuracy | accuracy=90 | level=5 | level'=6 |
+| 3 | Boundary: max level | accuracy=95 | level=25 | level'=26 |
+| 4 | Rejected: low accuracy | accuracy=89 | level=5 | no change |
+| 5 | Rejected: at max | accuracy=95 | level=26 | no change |
+
+Add `--code swift` (or python, typescript, kotlin) to generate executable test cases from the partition table.
 
 ## License
 
