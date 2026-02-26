@@ -4,11 +4,12 @@ Create, validate, and test formal Z specifications for stateful systems using fu
 
 ## Features
 
-- **Guided setup** for fuzz and probcli installation
-- **Generate Z specs** from codebase analysis or system descriptions
-- **Type-check** with fuzz
-- **Animate and model-check** with probcli (ProB)
-- **Elaborate** specs with narrative from design documentation
+- **Generate Z specs** from codebase analysis or system descriptions (`/z code2model`)
+- **Type-check** with fuzz (`/z check`)
+- **Animate and model-check** with probcli (`/z test`)
+- **Generate code and tests** from specifications (`/z model2code`)
+- **Audit test coverage** against spec constraints (`/z audit`)
+- **Elaborate** specs with narrative from design documentation (`/z elaborate`)
 - **ProB-compatible** output (avoids B keyword conflicts, bounded integers, flat schemas)
 
 ## Platform Support
@@ -21,35 +22,10 @@ The plugin relies on Unix shell commands and paths. fuzz and probcli are also pr
 
 ### 1. Install the Plugin
 
+Install from the Claude Code marketplace:
+
 ```bash
-# Create local marketplace if it doesn't exist
-mkdir -p ~/.claude/plugins/local-plugins/.claude-plugin
-mkdir -p ~/.claude/plugins/local-plugins/plugins
-
-# Clone this repo
-git clone https://github.com/punt-labs/z-spec.git \
-    ~/.claude/plugins/local-plugins/plugins/z-spec
-
-# Create marketplace.json
-cat > ~/.claude/plugins/local-plugins/.claude-plugin/marketplace.json << 'EOF'
-{
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "local",
-  "description": "Local plugins",
-  "owner": { "name": "local", "email": "local@example.com" },
-  "plugins": [{
-    "name": "z-spec",
-    "description": "Create, validate, and test formal Z specifications",
-    "version": "1.0.0",
-    "source": "./plugins/z-spec",
-    "category": "development"
-  }]
-}
-EOF
-
-# Register marketplace and install
-claude plugin marketplace add ~/.claude/plugins/local-plugins
-claude plugin install z-spec@local
+claude plugin install z-spec
 ```
 
 ### 2. Install Dependencies
@@ -62,6 +38,7 @@ Once the plugin is installed, use the setup command to install fuzz and probcli:
 ```
 
 The setup command will:
+
 - Detect your platform (macOS Intel/Apple Silicon, Linux)
 - Check for existing installations
 - Guide you through installing fuzz (Z type-checker)
@@ -71,29 +48,34 @@ The setup command will:
 ### 3. Create Your First Spec
 
 ```
-/z create the user authentication system
+/z code2model the user authentication system
 ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/z setup` | **Start here** - Install and configure fuzz and probcli |
-| `/z create [focus]` | Generate a Z specification from codebase or description |
+| `/z setup [check\|fuzz\|probcli\|all]` | Install and configure fuzz and probcli |
+| `/z code2model [focus]` | Create or update a Z specification from codebase or description |
 | `/z check [file]` | Type-check a specification with fuzz |
-| `/z test [file]` | Validate and animate with probcli |
-| `/z update [file] [changes]` | Modify an existing specification |
+| `/z test [file] [-v] [-a N] [-s N]` | Validate and animate with probcli |
+| `/z model2code [spec] [language]` | Generate code and tests from a Z specification |
+| `/z audit [spec] [--json] [--test-dir=DIR]` | Audit test coverage against spec constraints |
 | `/z elaborate [spec] [design]` | Enhance spec with narrative from design docs |
+| `/z cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
 | `/z help` | Show quick reference |
 
 ## Workflow
 
 ```
 /z setup                              # Install tools (first time only)
-/z create the payment system          # Generate spec from codebase
+/z code2model the payment system      # Generate spec from codebase
 /z check docs/payment.tex             # Type-check
 /z test docs/payment.tex              # Animate and model-check
 /z elaborate docs/payment.tex         # Add narrative from DESIGN.md
+/z model2code docs/payment.tex swift  # Generate Swift code and tests
+/z audit docs/payment.tex             # Audit test coverage against spec
+/z cleanup                            # Remove tooling files when done
 ```
 
 ## Dependencies
@@ -103,16 +85,69 @@ The plugin requires two external tools:
 ### fuzz
 
 The Z type-checker. Compiled from source.
-- Repository: https://github.com/Spivoxity/fuzz
+
+- Repository: <https://github.com/Spivoxity/fuzz>
 - Includes `fuzz.sty` for LaTeX
 
 ### probcli
 
 The ProB command-line interface for animation and model-checking.
-- Download: https://prob.hhu.de/w/index.php/Download
+
+- Download: <https://prob.hhu.de/w/index.php/Download>
 - Requires Tcl/Tk libraries
 
-**Don't install these manually** - use `/z setup` for guided installation.
+**Don't install these manually** — use `/z setup` for guided installation.
+
+## Development
+
+### Dev/Prod Namespace Isolation
+
+The working tree uses `name: "z-spec-dev"` in `plugin.json`. The marketplace release uses `name: "z-spec"`. This lets developers run both side by side:
+
+```bash
+# Load the local dev plugin alongside the marketplace version
+claude --plugin-dir .
+```
+
+| Source | Commands | What they run |
+|--------|----------|---------------|
+| Marketplace `z-spec` | `/z check`, `/z test`, ... | Production prompts |
+| Local `z-spec-dev` | `/z-dev check-dev`, `/z-dev test-dev`, ... | Working tree prompts |
+
+### Release Flow
+
+```bash
+# 1. Prepare release (swaps name to prod, removes -dev commands)
+bash scripts/release-plugin.sh
+
+# 2. Tag the release
+git tag v0.1.0
+git push origin v0.1.0
+
+# 3. Restore dev state on main
+bash scripts/restore-dev-plugin.sh
+git push origin main
+```
+
+### Project Structure
+
+```
+.claude-plugin/
+  plugin.json           # Plugin manifest (name: z-spec-dev in working tree)
+commands/
+  check.md              # /z check (prod)
+  check-dev.md          # /z-dev check-dev (dev)
+  ...                   # One prod + one dev variant per command
+scripts/
+  release-plugin.sh     # Swap to prod name, remove -dev commands
+  restore-dev-plugin.sh # Restore dev state after tagging
+reference/
+  z-notation.md         # Z notation cheat sheet
+  schema-patterns.md    # Common patterns and ProB tips
+  probcli-guide.md      # probcli command reference
+templates/
+  preamble.tex          # LaTeX preamble for generated specs
+```
 
 ## ProB Compatibility
 
@@ -130,19 +165,13 @@ The plugin generates specs that work with both fuzz and probcli:
 
 Generated specs follow this structure:
 
-1. **Basic Types** - Given sets (`[USERID, TIMESTAMP]`)
-2. **Free Types** - Enumerations (`Status ::= active | inactive`)
-3. **Global Constants** - Configuration values
-4. **State Schemas** - Entities with invariants
-5. **Initialization** - Valid initial states
-6. **Operations** - State transitions
-7. **System Invariants** - Key properties summary
-
-## Reference Files
-
-- `reference/z-notation.md` - Z notation cheat sheet
-- `reference/schema-patterns.md` - Common patterns and ProB tips
-- `reference/probcli-guide.md` - probcli command reference
+1. **Basic Types** — Given sets (`[USERID, TIMESTAMP]`)
+2. **Free Types** — Enumerations (`Status ::= active | inactive`)
+3. **Global Constants** — Configuration values
+4. **State Schemas** — Entities with invariants
+5. **Initialization** — Valid initial states
+6. **Operations** — State transitions
+7. **System Invariants** — Key properties summary
 
 ## Example Output
 
@@ -173,4 +202,4 @@ correct' = correct
 
 ## License
 
-MIT License - see [LICENSE](LICENSE)
+MIT License — see [LICENSE](LICENSE)
