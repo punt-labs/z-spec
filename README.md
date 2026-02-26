@@ -72,31 +72,34 @@ The setup command will:
 ### 3. Create Your First Spec
 
 ```
-/z create the user authentication system
+/z code2model the user authentication system
 ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/z setup` | **Start here** - Install and configure fuzz and probcli |
-| `/z create [focus]` | Generate a Z specification from codebase or description |
+| `/z setup` | **Start here** — Install and configure fuzz and probcli |
+| `/z code2model [focus]` | Create or update a Z specification from codebase or description |
 | `/z check [file]` | Type-check a specification with fuzz |
 | `/z test [file]` | Validate and animate with probcli |
-| `/z partition [spec]` | Derive test cases from spec using TTF testing tactics |
-| `/z update [file] [changes]` | Modify an existing specification |
+| `/z partition [spec] [--code [language]] [--operation=NAME] [--json]` | Derive test cases from spec using TTF testing tactics |
+| `/z audit [spec] [--json]` | Audit test coverage against spec constraints |
 | `/z elaborate [spec] [design]` | Enhance spec with narrative from design docs |
+| `/z model2code [spec] [lang]` | Generate code and tests from a Z specification |
+| `/z cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
 | `/z help` | Show quick reference |
 
 ## Workflow
 
 ```
 /z setup                              # Install tools (first time only)
-/z create the payment system          # Generate spec from codebase
+/z code2model the payment system      # Generate spec from codebase
 /z check docs/payment.tex             # Type-check
 /z test docs/payment.tex              # Animate and model-check
 /z partition docs/payment.tex         # Derive test cases from spec
 /z partition docs/payment.tex --code  # Generate executable test code
+/z audit docs/payment.tex             # Audit test coverage against spec
 /z elaborate docs/payment.tex         # Add narrative from DESIGN.md
 ```
 

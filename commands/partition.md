@@ -86,27 +86,15 @@ predicates. Resolve their concrete values.
 Scan `\begin{zed}` blocks for free type definitions referenced
 in the operation. Record all constructors.
 
-### 4. Classify Predicates
+### 4. DNF Decomposition
 
-For each predicate clause in the operation's `\where` block,
-classify it:
-
-| Classification | Rule | Example |
-|----------------|------|---------|
-| **Precondition** | References only unprimed state vars and/or inputs (including input-only constraints) | `level < 26` |
-| **Effect** | References primed variables (`x'`) | `level' = level + 1` |
-| **Frame** | Has form `x' = x` (no change) | `attempts' = attempts` |
-| **Input constraint** | Special case of **Precondition** that constrains only input variables; always include these in the precondition set when generating (including rejected) partitions | `accuracy? \geq 90` |
-| **Output definition** | Defines output in terms of state/inputs | `result! = balance` |
-
-### 5. Apply TTF Testing Tactics
-
-For each operation, apply three tactics in sequence:
-
-#### Tactic 1: DNF Decomposition
+**Before classifying predicates**, decompose the operation's `\where`
+block into Disjunctive Normal Form. Disjunctive clauses mix
+preconditions, effects, and outputs — classification is only
+meaningful *within* a branch.
 
 If the predicate contains disjunction (`\lor`) or conditionals
-(`\IF ... \THEN ... \ELSE`), decompose into Disjunctive Normal Form.
+(`\IF ... \THEN ... \ELSE`), split into DNF branches.
 Each disjunct becomes a separate **behavioral branch**.
 
 Example:
@@ -128,14 +116,29 @@ If the predicate has no disjunction, the operation has a single branch.
 **Handle implications**: `P \implies Q` is equivalent to
 `\lnot P \lor Q`. Decompose accordingly.
 
-#### Tactic 2: Standard Partitions
+### 5. Classify Predicates (per branch)
+
+For each DNF branch, classify each predicate clause:
+
+| Classification | Rule | Example |
+|----------------|------|---------|
+| **Precondition** | References only unprimed state vars and/or inputs (including input-only constraints) | `level < 26`, `accuracy? \geq 90` |
+| **Effect** | References primed variables (`x'`) | `level' = level + 1` |
+| **Frame** | Has form `x' = x` (no change) | `attempts' = attempts` |
+| **Output definition** | Defines output in terms of state/inputs | `result! = balance` |
+
+### 6. Apply TTF Testing Tactics
+
+For each operation, apply two tactics to each branch:
+
+#### Tactic 1: Standard Partitions
 
 For each input and relevant state variable in each branch,
 apply type-based standard partitions:
 
 | Variable Type | Standard Partitions |
 |---------------|---------------------|
-| `\nat` with `x \geq a` and `x \leq b` | `{a, a+1, (a+b) div 2, b-1, b}` |
+| `\nat` with `x \geq a` and `x \leq b` | `{a, a+1, (a+b) div 2, b-1, b}` — clamp to `[a,b]` and deduplicate for small ranges (e.g., `a=b` yields `{a}`; `b=a+1` yields `{a, a+1}`) |
 | `\nat` with only lower bound `x \geq a` | `{a, a+1, a+10}` |
 | `\nat_1` (positive natural) | `{1, 2, 10}` |
 | `\nat` (unconstrained) | `{0, 1, 5}` |
@@ -145,7 +148,7 @@ apply type-based standard partitions:
 | `\seq X` (sequence) | `{\langle\rangle, \langle x \rangle, \langle x, y \rangle}` |
 | Given set `[X]` | Use symbolic names: `{x1, x2, x3}` |
 
-#### Tactic 3: Boundary Analysis
+#### Tactic 2: Boundary Analysis
 
 For each constraint involving a comparison, generate test values
 at and around the boundary:
@@ -162,7 +165,7 @@ at and around the boundary:
 | `x \notin S` | member (predicate violated / rejected), non-member (predicate satisfied / accepted) |
 
 > Note: When applying these patterns to concrete Z types (such as `\nat`), always ensure that generated boundary values lie within the type’s domain. Values outside the domain should either be clamped to the nearest in-domain value or clearly identified as separate *type-violation* test cases, not as standard boundary/precondition tests.
-### 6. Generate Partitions
+### 7. Generate Partitions
 
 Combine the tactics to produce concrete partitions:
 
@@ -214,7 +217,7 @@ Common contradictions:
 
 Mark pruned partitions with a note explaining why they were removed.
 
-### 7. Format Output
+### 8. Format Output
 
 #### Markdown Output (default)
 
@@ -299,11 +302,11 @@ For each operation, produce:
 }
 ```
 
-### 8. Generate Test Code (--code flag)
+### 9. Generate Test Code (--code flag)
 
 If `--code` is specified, generate executable test code.
 
-#### 8a. Detect Target Language
+#### 9a. Detect Target Language
 
 If language specified after `--code`, use it.
 
@@ -316,7 +319,7 @@ Otherwise auto-detect from project files (same logic as `model2code`):
 | `pyproject.toml`, `setup.py`, `requirements.txt` | Python |
 | `build.gradle.kts`, `pom.xml` | Kotlin |
 
-#### 8b. Generate Test Cases
+#### 9b. Generate Test Cases
 
 For each accepted and rejected partition, generate a test case
 using the language's test framework. Consult `reference/test-patterns.md`
@@ -329,33 +332,33 @@ Example (Python/pytest):
 ```python
 class TestAdvanceLevel:
 
-    def test_happy_path_normal_advance(self):
+    def test_advance_level_happy_path_1(self):
         """Partition 1: accuracy=95, level=5 -> level'=6"""
         state = State(level=5, attempts=10, correct=8)
         state.advance_level(accuracy=95)
         assert state.level == 6
         assert state.attempts == 10  # frame: unchanged
 
-    def test_boundary_min_accuracy(self):
+    def test_advance_level_boundary_min_accuracy_2(self):
         """Partition 2: accuracy=90 (threshold), level=5 -> level'=6"""
         state = State(level=5, attempts=10, correct=8)
         state.advance_level(accuracy=90)
         assert state.level == 6
 
-    def test_boundary_max_level(self):
+    def test_advance_level_boundary_max_level_3(self):
         """Partition 3: accuracy=95, level=25 -> level'=26"""
         state = State(level=25, attempts=10, correct=8)
         state.advance_level(accuracy=95)
         assert state.level == 26
 
-    def test_rejected_low_accuracy(self):
+    def test_advance_level_rejected_low_accuracy_5(self):
         """Partition 5: accuracy=89 (below threshold) -> no change"""
         state = State(level=5, attempts=10, correct=8)
         # Operation should not change observable state for rejected inputs
         state.advance_level(accuracy=89)
         assert state.level == 5  # unchanged
 
-    def test_rejected_at_max_level(self):
+    def test_advance_level_rejected_at_max_level_6(self):
         """Partition 6: level=26 (at max) -> no change"""
         state = State(level=26, attempts=10, correct=8)
         state.advance_level(accuracy=95)
@@ -415,7 +418,8 @@ describe('AdvanceLevel', () => {
   // Partition 5: Rejected - accuracy below threshold
   it('does not advance with accuracy below 90%', () => {
     const state = createState({ level: 5, attempts: 10, correct: 8 });
-    expect(() => advanceLevel(state, { accuracy: 89 })).toThrow();
+    advanceLevel(state, { accuracy: 89 });
+    expect(state.level).toBe(5); // unchanged
   });
 });
 ```
@@ -438,14 +442,13 @@ class AdvanceLevelTest {
     @Test
     fun `does not advance with accuracy below 90`() {
         val state = State(level = 5, attempts = 10, correct = 8)
-        assertThrows<PreconditionError> {
-            state.advanceLevel(accuracy = 89)
-        }
+        state.advanceLevel(accuracy = 89)
+        assertEquals(5, state.level) // unchanged
     }
 }
 ```
 
-#### 8c. Write Test File
+#### 9c. Write Test File
 
 Write the generated tests to a file following project conventions:
 
@@ -457,7 +460,7 @@ Write the generated tests to a file following project conventions:
 **Do not overwrite existing test files.** Use the `Partition` suffix
 to distinguish from hand-written or model2code-generated tests.
 
-### 9. Report Summary
+### 10. Report Summary
 
 After generating all partitions, report a summary:
 

@@ -24,25 +24,25 @@ Z operation schemas using TTF testing tactics.
 FOR each operation schema (has \Delta or \Xi):
   1. Extract: state vars, inputs(?), outputs(!), primed vars(')
   2. Extract predicate clauses from \where block
-  3. Classify each clause:
-     - precondition (references only unprimed state + inputs)
-     - effect (references primed variables)
-     - frame (x' = x)
-  4. IF predicate contains \lor or \IF:
+  3. IF predicate contains \lor or \IF:
      - Split into DNF branches (each branch = separate behavior)
-  5. FOR each DNF branch:
-     a. Identify input/state variable domains from types + constraints
-     b. Apply Standard Partition tactics:
+  4. FOR each DNF branch:
+     a. Classify each clause within this branch:
+        - precondition (references only unprimed state + inputs)
+        - effect (references primed variables)
+        - frame (x' = x)
+     b. Identify input/state variable domains from types + constraints
+     c. Apply Standard Partition tactics:
         - Numeric in range [a,b]: {a, a+1, midpoint, b-1, b}
         - Enum: each value
         - Set: {empty, singleton, general}
         - Boolean: {ztrue, zfalse}
-     c. Apply boundary analysis at each constraint edge
-     d. Combine partitions (cross-product, pruned)
-     e. Check feasibility: does combined predicate have contradictions?
-     f. Generate concrete test values satisfying the partition
-  6. Add "rejection" partitions: negate preconditions to test guards
-  7. Emit partition table
+     d. Apply boundary analysis at each constraint edge
+     e. Combine partitions (cross-product, pruned)
+     f. Check feasibility: does combined predicate have contradictions?
+     g. Generate concrete test values satisfying the partition
+  5. Add "rejection" partitions: negate preconditions to test guards
+  6. Emit partition table
 ```
 
 ### Output Format
