@@ -219,6 +219,10 @@ templates/
 
 </details>
 
+## Thanks
+
+- [@ebowman](https://github.com/ebowman) --- `/z partition` command, bringing TTF testing tactics to Z specs
+
 ## License
 
 MIT License --- see [LICENSE](LICENSE)
