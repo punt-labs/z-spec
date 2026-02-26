@@ -9,12 +9,30 @@
 
 ## Quick Start
 
-Add the Punt Labs marketplace and install (one-time):
+```bash
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/SHAPLACEHOLDER/install.sh | sh
+```
+
+<details>
+<summary>Manual install (if you already have the marketplace)</summary>
 
 ```bash
-claude plugin marketplace add punt-labs/claude-plugins
 claude plugin install z-spec@punt-labs
 ```
+
+</details>
+
+<details>
+<summary>Verify before running</summary>
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/SHAPLACEHOLDER/install.sh -o install.sh
+shasum -a 256 install.sh
+cat install.sh
+sh install.sh
+```
+
+</details>
 
 Inside Claude Code:
 
