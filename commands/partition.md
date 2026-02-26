@@ -165,11 +165,12 @@ at and around the boundary:
 | `x \notin S` | member (predicate violated / rejected), non-member (predicate satisfied / accepted) |
 
 > Note: When applying these patterns to concrete Z types (such as `\nat`), always ensure that generated boundary values lie within the type’s domain. Values outside the domain should either be clamped to the nearest in-domain value or clearly identified as separate *type-violation* test cases, not as standard boundary/precondition tests.
+
 ### 7. Generate Partitions
 
 Combine the tactics to produce concrete partitions:
 
-#### 6a. Accepted Partitions
+#### 7a. Accepted Partitions
 
 For each behavioral branch, cross the standard partitions of all
 inputs and relevant state variables, keeping only combinations that
@@ -180,7 +181,7 @@ satisfy the branch predicate. For each feasible combination:
 3. Compute the expected post-state by applying the effects
 4. Record any expected outputs
 
-#### 6b. Rejected Partitions
+#### 7b. Rejected Partitions
 
 For each precondition, generate a partition where that precondition
 is violated (negated) while other preconditions hold. These test
@@ -197,7 +198,7 @@ For each rejected partition, record:
 - The pre-state
 - The expected behavior: "precondition fails" (operation should not execute)
 
-#### 6c. Invariant Preservation Partitions
+#### 7c. Invariant Preservation Partitions
 
 For each state schema invariant, generate at least one partition
 that exercises the invariant's boundary after an operation:
@@ -206,7 +207,7 @@ that exercises the invariant's boundary after an operation:
   include a partition where `level = 25` and the operation runs
   (testing that `level' = 26` still satisfies the invariant)
 
-#### 6d. Prune Infeasible Partitions
+#### 7d. Prune Infeasible Partitions
 
 Remove any partition where the combined predicates are contradictory.
 Common contradictions:
@@ -325,7 +326,11 @@ For each accepted and rejected partition, generate a test case
 using the language's test framework. Consult `reference/test-patterns.md`
 for assertion patterns.
 
-**Test naming convention**: `test_<Operation>_<PartitionClass>_<Number>`
+**Test naming convention**: Each test name should identify the operation,
+partition class, and partition number. Use language-idiomatic style:
+Python uses `test_<operation>_<class>_<number>`, Swift uses
+`test<Class>_<description>()`, TypeScript/Kotlin use natural language
+descriptions. Include the partition number in a doc comment.
 
 Example (Python/pytest):
 
