@@ -10,7 +10,7 @@
 ## Quick Start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/SHAPLACEHOLDER/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/f0e8132/install.sh | sh
 ```
 
 <details>
@@ -26,7 +26,7 @@ claude plugin install z-spec@punt-labs
 <summary>Verify before running</summary>
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/SHAPLACEHOLDER/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/f0e8132/install.sh -o install.sh
 shasum -a 256 install.sh
 cat install.sh
 sh install.sh
