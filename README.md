@@ -76,7 +76,6 @@ The setup command will:
 /z test docs/payment.tex              # Animate and model-check
 /z partition docs/payment.tex         # Derive test cases from spec
 /z partition docs/payment.tex --code  # Generate executable test code
-/z audit docs/payment.tex             # Audit test coverage against spec
 /z elaborate docs/payment.tex         # Add narrative from DESIGN.md
 /z model2code docs/payment.tex swift  # Generate Swift code and tests
 /z audit docs/payment.tex             # Audit test coverage against spec
