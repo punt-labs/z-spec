@@ -10,8 +10,9 @@ else
   BOLD='' GREEN='' YELLOW='' NC=''
 fi
 
-info() { printf '%b==>%b %s\n' "$BOLD" "$NC" "$1"; }
+info() { printf '%b▶%b %s\n' "$BOLD" "$NC" "$1"; }
 ok()   { printf '  %b✓%b %s\n' "$GREEN" "$NC" "$1"; }
+warn() { printf '  %b!%b %s\n' "$YELLOW" "$NC" "$1"; }
 fail() { printf '  %b✗%b %s\n' "$YELLOW" "$NC" "$1"; exit 1; }
 
 MARKETPLACE_REPO="punt-labs/claude-plugins"
@@ -54,7 +55,7 @@ cleanup_https_rewrite() {
 trap cleanup_https_rewrite EXIT INT TERM
 
 if ! ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=5 -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
-  printf '  %b%s%b %s\n' "$YELLOW" "!" "$NC" "SSH auth to GitHub unavailable, using HTTPS fallback"
+  warn "SSH auth to GitHub unavailable, using HTTPS fallback"
   git config --global url."https://github.com/".insteadOf "git@github.com:"
   NEED_HTTPS_REWRITE=1
 fi
