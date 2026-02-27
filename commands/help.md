@@ -23,6 +23,9 @@ description: Show Z specification plugin help and quick reference
 | `/z-spec:partition [spec] [--code [language]] [--operation=NAME] [--json]` | Derive test cases from spec using TTF tactics |
 | `/z-spec:model2code [spec] [lang]` | Generate code and tests from a Z specification |
 | `/z-spec:prove [spec] [--obligations=all\|init\|preserve] [--no-mathlib]` | Generate Lean 4 proof obligations from spec |
+| `/z-spec:contracts [spec] [lang] [--invariants-only] [--wrap]` | Generate runtime contracts (pre/post/invariant) from spec |
+| `/z-spec:oracle [spec] [lang] [--sequences N] [--steps N]` | Property-based testing with Lean model as oracle |
+| `/z-spec:refine [spec] [lang] [--lean] [--generate-abstraction]` | Verify code refines spec via abstraction function |
 | `/z-spec:audit [spec] [--json]` | Audit test coverage against spec constraints |
 | `/z-spec:elaborate [spec] [design]` | Enhance spec with narrative from design docs |
 | `/z-spec:cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
@@ -45,6 +48,11 @@ description: Show Z specification plugin help and quick reference
 /z-spec:partition --operation=Withdraw          # Partition a single operation
 /z-spec:prove docs/auth.tex                    # Generate Lean 4 proof obligations
 /z-spec:prove docs/auth.tex --no-mathlib       # Standalone Lean (no Mathlib)
+/z-spec:contracts docs/auth.tex typescript     # Generate runtime assertion functions
+/z-spec:contracts docs/auth.tex --wrap         # With wrapper functions
+/z-spec:oracle docs/auth.tex typescript        # Property-based testing vs Lean model
+/z-spec:refine docs/auth.tex typescript        # Verify code refines spec
+/z-spec:refine docs/auth.tex --generate-abstraction  # Auto-scaffold abstraction fn
 /z-spec:audit docs/auth.tex                    # Audit test coverage against spec
 /z-spec:audit docs/auth.tex --json             # Output as JSON for CI
 /z-spec:doctor                                 # Check environment health
@@ -130,6 +138,6 @@ For detailed documentation, consult:
 
 - **fuzz**: https://github.com/Spivoxity/fuzz
 - **probcli**: https://prob.hhu.de/w/index.php/Download
-- **lean** (optional): https://lean-lang.org/install/ (for `/z-spec:prove`)
+- **lean** (optional): https://lean-lang.org/install/ (for `/z-spec:prove`, `/z-spec:oracle`, `/z-spec:refine --lean`)
 
 Set probcli path: `export PROBCLI="$HOME/Applications/ProB/probcli"`
