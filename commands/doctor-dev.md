@@ -1,6 +1,6 @@
 ---
 description: Check Z specification environment health
-allowed-tools: Bash(which:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(kpsewhich:*), Bash(brew:*), Bash(test:*), Bash(uname:*), Read
+allowed-tools: Bash(which:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(kpsewhich:*), Bash(brew:*), Bash(test:*), Bash(uname:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Read
 ---
 
 # Z Environment Health Check
@@ -52,6 +52,30 @@ which wish || brew list tcl-tk 2>/dev/null
 
 If missing on macOS: suggest `brew install tcl-tk`.
 
+### 6. elan (optional — for /z-spec:prove)
+
+```bash
+which elan && elan --version
+```
+
+If missing: suggest `Run /z-spec:setup lean`.
+
+### 7. lean (optional — for /z-spec:prove)
+
+```bash
+which lean && lean --version
+```
+
+If missing but elan is present: suggest `elan default leanprover/lean4:stable`.
+
+### 8. lake (optional — for /z-spec:prove)
+
+```bash
+which lake && lake --version
+```
+
+Usually installed alongside lean via elan.
+
 ## Output Format
 
 Present results as a status table, then a summary:
@@ -66,6 +90,9 @@ Present results as a status table, then a summary:
 | fuzz.sty | ✓ Found at /usr/local/texlive/.../fuzz.sty |
 | probcli | ✗ Not found |
 | Tcl/Tk | ✓ Available |
+| elan | ✓ Installed (version 3.1.1) |
+| lean | ✓ Installed (v4.16.0) |
+| lake | ✓ Installed (v4.16.0) |
 
 ## Result
 

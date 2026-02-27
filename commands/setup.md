@@ -1,7 +1,7 @@
 ---
-description: Install and configure fuzz and probcli dependencies
-argument-hint: "[check|fuzz|probcli|all]"
-allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Read, Glob
+description: Install and configure fuzz, probcli, and lean dependencies
+argument-hint: "[check|fuzz|probcli|lean|all]"
+allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Read, Glob
 ---
 
 # Setup Z Specification Tools
@@ -13,10 +13,12 @@ You are helping the user install and configure the tools needed for Z specificat
 Arguments: $ARGUMENTS
 
 Parse as:
+
 - `check` - Check what's installed and report status
 - `fuzz` - Install fuzz type-checker
 - `probcli` - Install ProB command-line interface
-- `all` - Install fuzz and probcli
+- `lean` - Install Lean 4 theorem prover (elan + lean + lake)
+- `all` - Install fuzz, probcli, and lean
 - (no argument) - Same as `check`
 
 **Note**: TeX files (fuzz.sty, *.mf) are automatically copied to your project's `docs/` directory when you run `/z-spec:create`, `/z-spec:check`, or `/z-spec:test`. Use `/z-spec:cleanup` to remove them.
@@ -46,10 +48,16 @@ kpsewhich fuzz.sty
 
 # Check Tcl/Tk (needed for probcli on some systems)
 which wish || brew list tcl-tk 2>/dev/null
+
+# Check Lean 4 (optional, for /z-spec:prove)
+which elan && elan --version
+which lean && lean --version
+which lake && lake --version
 ```
 
 Report status clearly:
-```
+
+```text
 ## Current Status
 
 | Tool | Status |
@@ -58,6 +66,9 @@ Report status clearly:
 | fuzz.sty | ✓ Found in TeX path |
 | probcli | ✗ Not found |
 | Tcl/Tk | ✓ Available |
+| elan | ✓ Installed (version X) |
+| lean | ✓ Installed (version X) |
+| lake | ✓ Installed (version X) |
 ```
 
 ### 3. Install fuzz
@@ -270,6 +281,66 @@ export PROBCLI="$HOME/Applications/ProB/probcli"
 ```
 
 Run `source ~/.zshrc` or restart your terminal.
+```
+
+### 5. Install Lean 4
+
+Lean 4 is the theorem prover used by `/z-spec:prove` to generate
+machine-checked proof obligations from Z specifications.
+
+#### Install elan (Lean version manager)
+
+```bash
+curl https://elan.lean-lang.org/elan-init.sh -sSf | sh
+```
+
+This installs `elan`, `lean`, and `lake` (the build system).
+
+After installation, source the environment:
+
+```bash
+source "$HOME/.elan/env"
+```
+
+#### Verify
+
+```bash
+elan --version
+lean --version
+lake --version
+```
+
+#### Add to PATH
+
+If `lean` isn't in PATH after installing elan:
+
+```bash
+# Add to shell profile (~/.zshrc or ~/.bashrc)
+export PATH="$HOME/.elan/bin:$PATH"
+```
+
+#### Common Issues
+
+**"elan: command not found" after install**: Run `source "$HOME/.elan/env"` or restart your terminal.
+
+**Slow first build**: The first `lake build` in a Mathlib project downloads precompiled dependencies (~2 GB). Run `lake exe cache get` first to fetch the cache.
+
+**"no toolchain installed"**: Run `elan default leanprover/lean4:stable` to set the default toolchain.
+
+### 6. Verify Installation
+
+After installation, verify everything works:
+
+```bash
+# Test fuzz
+echo '\begin{zed}[X]\end{zed}' > /tmp/test.tex
+fuzz -t /tmp/test.tex
+
+# Test probcli
+probcli -version
+
+# Test lean (if installed)
+lean --version && lake --version
 ```
 
 ## Interactive Guidance
