@@ -25,13 +25,12 @@ Z's sibling, the [B-Method](https://en.wikipedia.org/wiki/B-Method), extends the
 
 Formal specs catch entire *classes* of bugs mathematically, not just the specific inputs you happened to test. A spec invariant like `¬(radioMode = receiving ∧ toneActive)` makes it structurally impossible to miss the case where keying occurs during receive mode --- no matter how many test cases you write, the invariant covers all of them.
 
-The problem was never the value --- it was the cost. Writing a formal spec by hand takes hours of skilled effort. AI changes the equation: when Claude drafts the spec in seconds and fuzz type-checks it immediately, the cost drops to near zero. What remains is the payoff.
-
-For more context, see [Formal Methods Meet AI Coding](https://punt-labs.com/blog/formal-methods-for-ai-coding) on our blog.
+Formal specifications have always caught these bugs. They were too expensive to write by hand --- hours of skilled effort per schema. An LLM drafts the spec; fuzz type-checks it. The methods are the same; the time cost is not.
 
 ### Key references
 
 - Spivey, J.M. *[The Z Notation: A Reference Manual](https://spivey.oriel.ox.ac.uk/mike/zrm/)* --- the definitive Z reference
+- Abrial, J-R. *[The B-Book: Assigning Programs to Meanings](https://doi.org/10.1017/CBO9780511624162)* --- the definitive B-Method reference, by Z's co-creator
 - Bowen, J.P. *[Formal Specification and Documentation using Z](https://doi.org/10.1007/978-1-4471-3553-1)* --- practical applications of Z to real systems
 - Simpson, A. *Software Engineering Mathematics* and *State-Based Modelling* --- [University of Oxford](https://www.cs.ox.ac.uk/), Department of Computer Science
 
@@ -216,16 +215,16 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 
 The [B-Method](https://en.wikipedia.org/wiki/B-Method) was created by Jean-Raymond Abrial, who also co-created Z. It shares Z's mathematical foundations --- set theory, predicate logic, schemas --- but adds two things Z deliberately omits: a **substitution language** for describing how operations change state (assignments, conditionals, loops), and a **first-class refinement chain** that carries a specification through three stages: Abstract Machine (`.mch`) → Refinement (`.ref`) → Implementation (`.imp`). Each stage is verified against the previous one.
 
-This plugin offers two paths from specification to code:
+This plugin supports two paths from specification to code:
 
 | | B Refinement | Z + LLM |
 |---|---|---|
-| **Method** | Deterministic --- proof obligations at each step | Probabilistic --- LLM translates, tools verify |
-| **Guarantee** | Proven correct by construction | High confidence through layered verification |
+| **Method** | Deterministic --- proof obligations at each step | Probabilistic --- LLM translates, verification tools check |
+| **Guarantee** | Proven correct by construction | Empirical confidence through layered verification |
 | **Verification** | Machine-checked proofs (probcli) | Type-checking, model-checking, partition tests, runtime contracts, oracle PBT, abstraction function commutativity |
-| **Trade-off** | Requires writing refinement and gluing invariants by hand | Faster, but correctness is empirical, not proven |
+| **Cost** | Requires writing refinement and gluing invariants | Seconds to generate, but correctness is not proven |
 
-Both paths start from the same place: a formal specification with precise invariants and preconditions. Without a spec, an LLM is guessing what "correct" means. With one, every generated artifact --- code, tests, contracts, proofs --- has a mathematical definition to be checked against.
+Both paths start from the same place: a formal specification with precise invariants and preconditions. Without a spec, there is no mathematical definition of "correct" to check against. With one, every generated artifact --- code, tests, contracts, proofs --- can be verified against it.
 
 B support is alpha --- the commands work with probcli (no additional tools required) but have not been tested across a wide range of specifications.
 
