@@ -156,27 +156,39 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 
 ## Commands
 
+### Setup
+
 | Command | Description |
 |---------|-------------|
 | `/z-spec:setup [check\|fuzz\|probcli\|all]` | Install and configure fuzz and probcli |
-| `/z-spec:doctor` | Check Z specification environment health |
-| `/z-spec:code2model [focus]` | Create or update a Z specification from codebase or description |
-| `/z-spec:check [file]` | Type-check a specification with fuzz |
-| `/z-spec:test [file] [-v] [-a N] [-s N]` | Validate and animate with probcli |
-| `/z-spec:partition [spec] [--code [language]] [--operation=NAME] [--json]` | Derive test cases from spec using TTF testing tactics |
-| `/z-spec:model2code [spec] [language]` | Generate code and tests from a Z specification |
-| `/z-spec:prove [spec] [--obligations=all\|init\|preserve] [--no-mathlib]` | Generate Lean 4 proof obligations from spec |
-| `/z-spec:contracts [spec] [language] [--invariants-only] [--wrap] [--strip]` | Generate runtime contracts from spec |
+| `/z-spec:doctor` | Check environment health |
+| `/z-spec:help` | Show quick reference |
+| `/z-spec:cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
+
+### Z Specification
+
+| Command | Description |
+|---------|-------------|
+| `/z-spec:code2model [focus]` | Create a Z spec from codebase or description |
+| `/z-spec:check [file]` | Type-check with fuzz |
+| `/z-spec:test [file] [-v] [-a N] [-s N]` | Animate and model-check with probcli |
+| `/z-spec:elaborate [spec] [design]` | Enhance spec with narrative from design docs |
+| `/z-spec:prove [spec] [--obligations=all\|init\|preserve] [--no-mathlib]` | Generate Lean 4 proof obligations |
+| `/z-spec:partition [spec] [--code [language]] [--operation=NAME] [--json]` | Derive test cases using TTF testing tactics |
+| `/z-spec:model2code [spec] [language]` | Generate code and tests from spec |
+| `/z-spec:contracts [spec] [language] [--invariants-only] [--wrap] [--strip]` | Generate runtime assertion functions |
 | `/z-spec:oracle [spec] [language] [--sequences N] [--steps N]` | Property-based testing with Lean model as oracle |
 | `/z-spec:refine [spec] [language] [--lean] [--generate-abstraction] [--impl file]` | Verify code refines spec via abstraction function |
 | `/z-spec:audit [spec] [--json] [--test-dir=DIR]` | Audit test coverage against spec constraints |
-| `/z-spec:elaborate [spec] [design]` | Enhance spec with narrative from design docs |
-| `/z-spec:cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
-| `/z-spec:help` | Show quick reference |
-| `/z-spec:b-create [description or file.tex]` | Create a B machine or translate Z spec to B (alpha) |
-| `/z-spec:b-check [machine.mch]` | Type-check a B machine with probcli (alpha) |
-| `/z-spec:b-animate [machine.mch]` | Animate and model-check a B machine (alpha) |
-| `/z-spec:b-refine [machine.mch] [refinement.ref]` | Create or verify a B refinement (alpha) |
+
+### B-Method (alpha)
+
+| Command | Description |
+|---------|-------------|
+| `/z-spec:b-create [description or file.tex]` | Create a B machine or translate Z spec to B |
+| `/z-spec:b-check [machine.mch]` | Type-check with probcli |
+| `/z-spec:b-animate [machine.mch]` | Animate and model-check with probcli |
+| `/z-spec:b-refine [machine.mch] [refinement.ref]` | Create or verify a refinement |
 
 ## Workflow
 
