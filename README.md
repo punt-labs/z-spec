@@ -7,6 +7,32 @@
 
 **Platforms:** macOS, Linux
 
+## What is Z?
+
+[Z](https://en.wikipedia.org/wiki/Z_notation) ("zed") is a formal specification language based on set theory and first-order predicate logic. It was developed at the University of Oxford in the late 1970s and is standardized as [ISO 13568](https://www.iso.org/standard/21573.html).
+
+A Z specification describes a system as:
+
+- **States** --- the data a system holds (e.g., a set of users, a counter, a mode flag)
+- **Invariants** --- constraints that must always be true (e.g., `correct ≤ attempts`, `level ≥ 1`)
+- **Operations** --- transitions between states, with preconditions and effects
+
+The specification says *what* a system does, not *how*. When a type-checker ([fuzz](https://spivey.oriel.ox.ac.uk/mike/fuzz/)) accepts a spec, the description is internally consistent. When an animator ([ProB](https://prob.hhu.de/)) explores the state space, you see every reachable configuration --- including ones you forgot to think about.
+
+### Why use formal specs?
+
+Formal specs catch entire *classes* of bugs mathematically, not just the specific inputs you happened to test. A spec invariant like `¬(radioMode = receiving ∧ toneActive)` makes it structurally impossible to miss the case where keying occurs during receive mode --- no matter how many test cases you write, the invariant covers all of them.
+
+The problem was never the value --- it was the cost. Writing a formal spec by hand takes hours of skilled effort. AI changes the equation: when Claude drafts the spec in seconds and fuzz type-checks it immediately, the cost drops to near zero. What remains is the payoff.
+
+For more context, see [Formal Methods Meet AI Coding](https://punt-labs.com/blog/formal-methods-for-ai-coding) on our blog.
+
+### Key references
+
+- Spivey, J.M. *[The Z Notation: A Reference Manual](https://spivey.oriel.ox.ac.uk/mike/zrm/)* --- the definitive Z reference
+- Bowen, J.P. *[Formal Specification and Documentation using Z](https://doi.org/10.1007/978-1-4471-3553-1)* --- practical applications of Z to real systems
+- Simpson, A. *Software Engineering Mathematics* and *State-Based Modelling* --- [University of Oxford](https://www.cs.ox.ac.uk/), Department of Computer Science
+
 ## Quick Start
 
 ```bash
