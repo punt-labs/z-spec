@@ -82,7 +82,7 @@ community. Key advantages:
 | `X \fun Y` | `X -> Y` | Total function |
 | `\seq X` | `List X` | Finite sequence |
 | `\bag X` | `Multiset X` | Mathlib multiset |
-| `X \cross Y` | `X x Y` | Product type |
+| `X \cross Y` | `X × Y` | Product type |
 | `ZBOOL` | `Bool` | No B-keyword conflict in Lean |
 | `x \mapsto y` | `(x, y)` | Pair in relation |
 | `\dom f` | Domain definition | Via Mathlib or custom |
@@ -117,8 +117,8 @@ the operation produces a state where the invariant still holds.
 
 ```lean
 theorem op_precondition_satisfiable :
-    exists (s : State) (input : InputType),
-      s.invariant /\ op_precondition s input := by sorry
+    ∃ (s : State) (input : InputType),
+      s.invariant ∧ op_precondition s input := by sorry
 ```
 
 Proves: the precondition is not vacuously true (there exist valid

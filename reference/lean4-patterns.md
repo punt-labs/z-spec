@@ -13,10 +13,10 @@ Patterns for translating Z specifications to Lean 4 with Mathlib.
 | `\finset X` | `Finset X` | `Mathlib.Data.Finset.Basic` |
 | `X \pfun Y` | `X -> Option Y` | (built-in) |
 | `X \fun Y` | `X -> Y` | (built-in) |
-| `X \rel Y` | `Finset (X x Y)` | `Mathlib.Data.Finset.Basic` |
+| `X \rel Y` | `Finset (X × Y)` | `Mathlib.Data.Finset.Basic` |
 | `\seq X` | `List X` | (built-in) |
 | `\seq_1 X` | `List X` (with `s != []`) | (built-in) |
-| `X \cross Y` | `X x Y` | (built-in) |
+| `X \cross Y` | `X × Y` | (built-in) |
 | `\emptyset` | `{}` or `Finset.empty` | `Mathlib.Data.Finset.Basic` |
 | `ZBOOL` | `Bool` or custom inductive | (built-in) |
 
@@ -198,7 +198,7 @@ There exists a valid state in which the precondition holds.
 
 ```lean
 theorem deposit_precondition_satisfiable :
-    exists s : Account, Account.inv s /\ s.status = Status.active := by
+    ∃ s : Account, Account.inv s ∧ s.status = Status.active := by
   exact ⟨{ balance := 0, status := Status.active },
          fun _ => Nat.zero_le _, rfl⟩
 ```
@@ -237,7 +237,7 @@ example (s : Status) : s = Status.pending ∨ s = Status.active
 | `\finset`, `\power` | `Mathlib.Data.Finset.Basic` |
 | `\pfun` (partial function) | `Mathlib.Data.PFun` |
 | `#` (cardinality) | `Mathlib.Data.Finset.Card` |
-| `\nat` arithmetic proofs | `Mathlib.Tactic.Omega` |
+| `\nat` arithmetic proofs | (built-in since Lean 4.3.0) |
 | `\num` (integers) | `Mathlib.Data.Int.Basic` |
 | `\seq` (sequences as lists) | `Mathlib.Data.List.Basic` |
 | `\dom`, `\ran` | `Mathlib.Order.RelClasses` |
@@ -281,11 +281,17 @@ name = "MySpec"
 version = "0.1.0"
 leanOptions = [["autoImplicit", false]]
 
+[[lean_lib]]
+name = "MySpec"
+
 [[require]]
 name = "mathlib"
 scope = "leanprover-community"
-version = "git#master"
+rev = "main"
 ```
+
+> Pin `rev` to a specific Mathlib commit SHA for reproducible builds
+> that match your `lean-toolchain` version.
 
 Set `autoImplicit = false` to prevent accidental free variables.
 

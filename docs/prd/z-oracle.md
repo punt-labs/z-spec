@@ -59,19 +59,22 @@ For each specification, the command generates:
 
 ## Oracle Protocol
 
-The Lean executable communicates via JSON over stdin/stdout:
+The Lean executable communicates via newline-delimited JSON (NDJSON)
+over stdin/stdout:
 
 ```json
 // Input (one command per line)
 {"op": "Deposit", "args": {"amount": 50}}
 {"op": "Withdraw", "args": {"amount": 30}}
 
-// Output (state after each command)
-{"state": {"balance": 50}, "ok": true}
-{"state": {"balance": 20}, "ok": true}
+// Output (state after each command — flat state object)
+{"balance": 50, "status": "active"}
+{"balance": 20, "status": "active"}
 ```
 
-Precondition violations return `{"ok": false, "reason": "..."}`.
+On startup, the oracle outputs the initial state before reading any
+commands. If an operation's precondition is not met, the oracle
+outputs the state unchanged (no mutation).
 
 ## User Workflow
 

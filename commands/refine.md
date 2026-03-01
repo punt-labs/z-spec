@@ -1,6 +1,6 @@
 ---
 description: Verify code refines Z specification via abstraction function and commutativity checks
-argument-hint: "[spec.tex] [language: swift|typescript|python|kotlin] [--lean] [--generate-abstraction]"
+argument-hint: "[spec.tex] [language: swift|typescript|python|kotlin] [--lean] [--generate-abstraction] [--impl file]"
 allowed-tools: Bash(which:*), Bash(fuzz:*), Bash(lean:*), Bash(lake:*), Read, Glob, Grep, Write
 ---
 
@@ -30,6 +30,7 @@ Parse arguments:
 - `--lean` - also generate Lean 4 commutativity proofs in `proofs/`
 - `--generate-abstraction` - auto-generate abstraction function scaffold
   (otherwise walk the user through defining it interactively)
+- `--impl <file>` - path to implementation file (default: auto-detect from project)
 
 ## Process
 

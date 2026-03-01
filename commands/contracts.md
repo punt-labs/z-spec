@@ -1,6 +1,6 @@
 ---
 description: Generate runtime contracts (preconditions, postconditions, invariants) from a Z specification
-argument-hint: "[spec.tex] [language: swift|typescript|python|kotlin] [--invariants-only] [--wrap]"
+argument-hint: "[spec.tex] [language: swift|typescript|python|kotlin] [--invariants-only] [--wrap] [--strip]"
 allowed-tools: Bash(fuzz:*), Bash(which:*), Read, Glob, Grep, Write
 ---
 
@@ -26,6 +26,7 @@ Parse arguments:
 - Second positional argument or auto-detect: target language (swift, typescript, python, kotlin)
 - `--invariants-only`: generate only state invariant checks (no operation contracts)
 - `--wrap`: also generate wrapper functions with before/after assertion sandwiches
+- `--strip`: emit no-op stubs (empty function bodies) for production builds
 
 ## Process
 
@@ -515,6 +516,23 @@ export function getBalanceWithContracts(state: Account): number {
   return result;
 }
 ```
+
+### 6b. Strip Mode (--strip flag)
+
+If `--strip` is specified, generate the same function signatures
+but with empty bodies. This produces no-op stubs that compile
+identically to the real contracts, allowing production builds to
+link against the same interface without runtime overhead.
+
+For each assertion function, emit an empty body:
+
+- **TypeScript**: `export function assertAccountInvariant(state: Account): void { }`
+- **Swift**: `func assertAccountInvariant(_ state: Account) { }`
+- **Python**: `def assert_account_invariant(state: Account) -> None: pass`
+- **Kotlin**: `fun assertAccountInvariant(state: Account): Unit { }`
+
+If `--wrap` and `--strip` are both specified, wrappers delegate
+to the underlying operation directly without assertion calls.
 
 ### 7. Write Output File
 
