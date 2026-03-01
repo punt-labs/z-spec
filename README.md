@@ -152,7 +152,7 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 - **Data refinement verification** via abstraction function commutativity (`/z-spec:refine`)
 - **Elaborate** specs with narrative from design documentation (`/z-spec:elaborate`)
 - **ProB-compatible** output (avoids B keyword conflicts, bounded integers, flat schemas)
-- **B-Method support** --- create, type-check, animate, and refine B machines (`/z-spec:b-create`, `/z-spec:b-check`, `/z-spec:b-animate`, `/z-spec:b-refine`)
+- **B-Method support** (alpha) --- create, type-check, animate, and refine B machines (`/z-spec:b-create`, `/z-spec:b-check`, `/z-spec:b-animate`, `/z-spec:b-refine`)
 
 ## Commands
 
@@ -166,17 +166,17 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 | `/z-spec:partition [spec] [--code [language]] [--operation=NAME] [--json]` | Derive test cases from spec using TTF testing tactics |
 | `/z-spec:model2code [spec] [language]` | Generate code and tests from a Z specification |
 | `/z-spec:prove [spec] [--obligations=all\|init\|preserve] [--no-mathlib]` | Generate Lean 4 proof obligations from spec |
-| `/z-spec:contracts [spec] [language] [--invariants-only] [--wrap]` | Generate runtime contracts from spec |
+| `/z-spec:contracts [spec] [language] [--invariants-only] [--wrap] [--strip]` | Generate runtime contracts from spec |
 | `/z-spec:oracle [spec] [language] [--sequences N] [--steps N]` | Property-based testing with Lean model as oracle |
-| `/z-spec:refine [spec] [language] [--lean] [--generate-abstraction]` | Verify code refines spec via abstraction function |
+| `/z-spec:refine [spec] [language] [--lean] [--generate-abstraction] [--impl file]` | Verify code refines spec via abstraction function |
 | `/z-spec:audit [spec] [--json] [--test-dir=DIR]` | Audit test coverage against spec constraints |
 | `/z-spec:elaborate [spec] [design]` | Enhance spec with narrative from design docs |
 | `/z-spec:cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
 | `/z-spec:help` | Show quick reference |
-| `/z-spec:b-create [description or file.tex]` | Create a B machine or translate Z spec to B |
-| `/z-spec:b-check [machine.mch]` | Type-check a B machine with probcli |
-| `/z-spec:b-animate [machine.mch]` | Animate and model-check a B machine |
-| `/z-spec:b-refine [machine.mch] [refinement.ref]` | Create or verify a B refinement |
+| `/z-spec:b-create [description or file.tex]` | Create a B machine or translate Z spec to B (alpha) |
+| `/z-spec:b-check [machine.mch]` | Type-check a B machine with probcli (alpha) |
+| `/z-spec:b-animate [machine.mch]` | Animate and model-check a B machine (alpha) |
+| `/z-spec:b-refine [machine.mch] [refinement.ref]` | Create or verify a B refinement (alpha) |
 
 ## Workflow
 
@@ -198,9 +198,13 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 /z-spec:cleanup                            # Remove tooling files when done
 ```
 
-### B-Method Workflow
+### B-Method Workflow (alpha)
 
-B-Method adds a refinement chain on top of Z's mathematical foundations: Abstract Machine -> Refinement -> Implementation. probcli handles B natively --- no additional tools required.
+> **What is B?** The [B-Method](https://en.wikipedia.org/wiki/B-Method) is a formal method developed by Jean-Raymond Abrial (who also co-created Z). It shares Z's mathematical foundations --- set theory, predicate logic, schemas --- but adds two things Z deliberately omits: a **substitution language** for describing how operations change state (assignments, conditionals, loops), and a **first-class refinement chain** that carries a specification through three stages: Abstract Machine (`.mch`) → Refinement (`.ref`) → Implementation (`.imp`). Each stage is verified against the previous one, producing a provably correct path from spec to code.
+>
+> Where Z is a specification language (it says *what*, never *how*), B is a development method (it says *what*, then progressively says *how*, with proofs at each step). If you have a Z spec and want to carry it toward implementation with machine-checked refinement, translating to B is the natural next step.
+
+B support is alpha --- the commands work with probcli (no additional tools required) but have not been tested across a wide range of specifications.
 
 ```
 /z-spec:b-create A user registry with add and remove  # Create B machine
