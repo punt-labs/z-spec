@@ -31,6 +31,15 @@ description: Show Z specification plugin help and quick reference
 | `/z-spec:cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
 | `/z-spec:help` | Show this help |
 
+### B-Method Commands
+
+| Command | Description |
+|---------|-------------|
+| `/z-spec:b-create [description or file.tex]` | Create a B machine or translate Z spec to B |
+| `/z-spec:b-check [machine.mch]` | Type-check a B machine with probcli |
+| `/z-spec:b-animate [machine.mch]` | Animate and model-check a B machine |
+| `/z-spec:b-refine [machine.mch] [refinement.ref]` | Create or verify a B refinement |
+
 ## Examples
 
 ```
@@ -57,6 +66,17 @@ description: Show Z specification plugin help and quick reference
 /z-spec:audit docs/auth.tex --json             # Output as JSON for CI
 /z-spec:doctor                                 # Check environment health
 /z-spec:cleanup                                # Remove tooling files from docs/
+```
+
+### B-Method Examples
+
+```
+/z-spec:b-create A counter with increment and reset     # B machine from description
+/z-spec:b-create docs/counter.tex                       # Translate Z spec to B machine
+/z-spec:b-check specs/counter.mch                       # Type-check B machine
+/z-spec:b-animate specs/counter.mch                     # Animate and model-check
+/z-spec:b-refine specs/counter.mch                      # Create refinement machine
+/z-spec:b-refine specs/counter.mch specs/counter_r.ref  # Verify existing refinement
 ```
 
 ## Automatic TeX File Management
@@ -129,6 +149,8 @@ For detailed documentation, consult:
 | `reference/probcli-guide.md` | ProB CLI options and usage |
 | `reference/test-patterns.md` | Test assertion patterns by language |
 | `reference/lean4-patterns.md` | Z-to-Lean 4 translation patterns |
+| `reference/b-notation.md` | B-Method notation syntax and types |
+| `reference/b-machine-patterns.md` | B machine patterns and Z-to-B translation |
 
 ## Requirements
 

@@ -152,6 +152,7 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 - **Data refinement verification** via abstraction function commutativity (`/z-spec:refine`)
 - **Elaborate** specs with narrative from design documentation (`/z-spec:elaborate`)
 - **ProB-compatible** output (avoids B keyword conflicts, bounded integers, flat schemas)
+- **B-Method support** --- create, type-check, animate, and refine B machines (`/z-spec:b-create`, `/z-spec:b-check`, `/z-spec:b-animate`, `/z-spec:b-refine`)
 
 ## Commands
 
@@ -172,6 +173,10 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 | `/z-spec:elaborate [spec] [design]` | Enhance spec with narrative from design docs |
 | `/z-spec:cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
 | `/z-spec:help` | Show quick reference |
+| `/z-spec:b-create [description or file.tex]` | Create a B machine or translate Z spec to B |
+| `/z-spec:b-check [machine.mch]` | Type-check a B machine with probcli |
+| `/z-spec:b-animate [machine.mch]` | Animate and model-check a B machine |
+| `/z-spec:b-refine [machine.mch] [refinement.ref]` | Create or verify a B refinement |
 
 ## Workflow
 
@@ -191,6 +196,24 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 /z-spec:model2code docs/payment.tex swift  # Generate Swift code and tests
 /z-spec:audit docs/payment.tex             # Audit test coverage against spec
 /z-spec:cleanup                            # Remove tooling files when done
+```
+
+### B-Method Workflow
+
+B-Method adds a refinement chain on top of Z's mathematical foundations: Abstract Machine -> Refinement -> Implementation. probcli handles B natively --- no additional tools required.
+
+```
+/z-spec:b-create A user registry with add and remove  # Create B machine
+/z-spec:b-check specs/registry.mch                    # Type-check
+/z-spec:b-animate specs/registry.mch                  # Animate and model-check
+/z-spec:b-refine specs/registry.mch                   # Create refinement machine
+/z-spec:b-refine specs/registry.mch specs/registry_r.ref  # Verify refinement
+```
+
+Or translate an existing Z spec to B:
+
+```
+/z-spec:b-create docs/registry.tex                    # Z-to-B translation
 ```
 
 <details>
@@ -268,6 +291,8 @@ git push origin main
 commands/
   check.md              # /z-spec:check (prod)
   check-dev.md          # /z-spec-dev:check-dev (dev)
+  b-check.md            # /z-spec:b-check (prod, B-Method)
+  b-check-dev.md        # /z-spec-dev:b-check-dev (dev, B-Method)
   ...                   # One prod + one dev variant per command
 scripts/
   release-plugin.sh     # Swap to prod name, remove -dev commands
@@ -276,6 +301,8 @@ reference/
   z-notation.md         # Z notation cheat sheet
   schema-patterns.md    # Common patterns and ProB tips
   probcli-guide.md      # probcli command reference
+  b-notation.md         # B-Method notation reference
+  b-machine-patterns.md # B machine patterns and Z-to-B translation
 templates/
   preamble.tex          # LaTeX preamble for generated specs
 ```

@@ -225,7 +225,7 @@ After installation, verify everything works:
 echo '\begin{zed}[X]\end{zed}' > /tmp/test.tex
 fuzz -t /tmp/test.tex
 
-# Test probcli
+# Test probcli with Z
 probcli -version
 ```
 
@@ -258,6 +258,24 @@ EOF
 fuzz -t /tmp/test_spec.tex && echo "fuzz: OK"
 probcli /tmp/test_spec.tex -init && echo "probcli: OK"
 ```
+
+Test probcli with a B machine:
+
+```bash
+cat > /tmp/test_machine.mch << 'EOF'
+MACHINE TestMachine
+VARIABLES count
+INVARIANT count : NAT & count <= 100
+INITIALISATION count := 0
+OPERATIONS
+    increment = PRE count < 100 THEN count := count + 1 END
+END
+EOF
+
+probcli /tmp/test_machine.mch -init && echo "probcli B: OK"
+```
+
+**Note**: probcli handles both Z specifications (`.tex`) and B machines (`.mch`, `.ref`, `.imp`). No additional tools are needed for B-Method work.
 
 ### 6. Report Results
 

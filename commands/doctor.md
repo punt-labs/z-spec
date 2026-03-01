@@ -42,6 +42,8 @@ which probcli || test -x "$HOME/Applications/ProB/probcli"
 
 Also check `$PROBCLI` if set. If missing: suggest `Run /z-spec:setup probcli`.
 
+probcli handles both Z specifications (`.tex`) and B machines (`.mch`, `.ref`, `.imp`).
+
 ### 5. Tcl/Tk (conditional — macOS only)
 
 Only check on Darwin:
