@@ -219,11 +219,18 @@ name = "ZSpec"
 version = "0.1.0"
 leanOptions = []
 
+[[lean_lib]]
+name = "ZSpec"
+
 [[require]]
 name = "mathlib"
 scope = "leanprover-community"
-version = "git#master"
+rev = "main"
 ```
+
+> **Note**: Mathlib's `main` branch tracks the latest Lean 4. For
+> reproducible builds, pin `rev` to a specific commit SHA compatible
+> with your `lean-toolchain` version.
 
 **lakefile.toml** (with `--no-mathlib`):
 
@@ -232,6 +239,9 @@ version = "git#master"
 name = "ZSpec"
 version = "0.1.0"
 leanOptions = []
+
+[[lean_lib]]
+name = "ZSpec"
 ```
 
 After creating the project, run `lake update` to fetch dependencies:
@@ -262,8 +272,8 @@ mappings and code patterns described below.
 | `\seq X` | `List X` | Built-in lists |
 | `X \pfun Y` | `X -> Option Y` | Partial function as option-returning |
 | `X \fun Y` | `X -> Y` | Total function |
-| `X \cross Y` | `X x Y` | Product type |
-| `X \rel Y` | `Finset (X x Y)` | Relation as set of pairs |
+| `X \cross Y` | `X × Y` | Product type |
+| `X \rel Y` | `Finset (X × Y)` | Relation as set of pairs |
 | `a \upto b` | `Finset.range` or `Finset.Icc a b` | Integer range |
 | `\# S` | `S.card` | Finset cardinality |
 | `S \cup T` | `S \cup T` | Finset union |
@@ -437,7 +447,7 @@ behavioral branches (disjunction in the predicate), model it as
 a function that pattern-matches on the branch condition:
 
 ```lean
-def tryWithdraw (s : Account) (amount : Nat) : Account x Bool :=
+def tryWithdraw (s : Account) (amount : Nat) : Account × Bool :=
   if amount <= s.balance then
     ({ s with balance := s.balance - amount }, true)
   else
