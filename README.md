@@ -1,6 +1,6 @@
 # Z Specification Plugin for Claude Code
 
-> Formal specifications that type-check, animate, and generate tests --- from English to math to code.
+> Formal Z specifications and B machines that type-check, animate, and refine --- from English to math to code.
 
 [![License](https://img.shields.io/github/license/punt-labs/z-spec)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/punt-labs/z-spec/docs.yml?label=CI)](https://github.com/punt-labs/z-spec/actions/workflows/docs.yml)
@@ -18,6 +18,8 @@ A Z specification describes a system as:
 - **Operations** --- transitions between states, with preconditions and effects
 
 The specification says *what* a system does, not *how*. When a type-checker ([fuzz](https://spivey.oriel.ox.ac.uk/mike/fuzz/)) accepts a spec, the description is internally consistent. When an animator ([ProB](https://prob.hhu.de/)) explores the state space, you see every reachable configuration --- including ones you forgot to think about.
+
+Z's sibling, the [B-Method](https://en.wikipedia.org/wiki/B-Method), extends the same mathematical foundations with a substitution language and a deterministic refinement chain from spec to code. This plugin supports both --- see [B-Method](#b-method-workflow-alpha) below.
 
 ### Why use formal specs?
 
@@ -212,9 +214,18 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 
 ### B-Method Workflow (alpha)
 
-> **What is B?** The [B-Method](https://en.wikipedia.org/wiki/B-Method) is a formal method developed by Jean-Raymond Abrial (who also co-created Z). It shares Z's mathematical foundations --- set theory, predicate logic, schemas --- but adds two things Z deliberately omits: a **substitution language** for describing how operations change state (assignments, conditionals, loops), and a **first-class refinement chain** that carries a specification through three stages: Abstract Machine (`.mch`) → Refinement (`.ref`) → Implementation (`.imp`). Each stage is verified against the previous one, producing a provably correct path from spec to code.
->
-> Where Z is a specification language (it says *what*, never *how*), B is a development method (it says *what*, then progressively says *how*, with proofs at each step). If you have a Z spec and want to carry it toward implementation with machine-checked refinement, translating to B is the natural next step.
+The [B-Method](https://en.wikipedia.org/wiki/B-Method) was created by Jean-Raymond Abrial, who also co-created Z. It shares Z's mathematical foundations --- set theory, predicate logic, schemas --- but adds two things Z deliberately omits: a **substitution language** for describing how operations change state (assignments, conditionals, loops), and a **first-class refinement chain** that carries a specification through three stages: Abstract Machine (`.mch`) → Refinement (`.ref`) → Implementation (`.imp`). Each stage is verified against the previous one.
+
+This plugin offers two paths from specification to code:
+
+| | B Refinement | Z + LLM |
+|---|---|---|
+| **Method** | Deterministic --- proof obligations at each step | Probabilistic --- LLM translates, tools verify |
+| **Guarantee** | Proven correct by construction | High confidence through layered verification |
+| **Verification** | Machine-checked proofs (probcli) | Type-checking, model-checking, partition tests, runtime contracts, oracle PBT, abstraction function commutativity |
+| **Trade-off** | Requires writing refinement and gluing invariants by hand | Faster, but correctness is empirical, not proven |
+
+Both paths start from the same place: a formal specification with precise invariants and preconditions. Without a spec, an LLM is guessing what "correct" means. With one, every generated artifact --- code, tests, contracts, proofs --- has a mathematical definition to be checked against.
 
 B support is alpha --- the commands work with probcli (no additional tools required) but have not been tested across a wide range of specifications.
 
