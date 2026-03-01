@@ -22,6 +22,7 @@ description: Show Z specification plugin help and quick reference
 | `/z-spec:test [file]` | Validate and animate with probcli |
 | `/z-spec:partition [spec] [--code [language]] [--operation=NAME] [--json]` | Derive test cases from spec using TTF tactics |
 | `/z-spec:model2code [spec] [lang]` | Generate code and tests from a Z specification |
+| `/z-spec:prove [spec] [--obligations=all\|init\|preserve] [--no-mathlib]` | Generate Lean 4 proof obligations from spec |
 | `/z-spec:audit [spec] [--json]` | Audit test coverage against spec constraints |
 | `/z-spec:elaborate [spec] [design]` | Enhance spec with narrative from design docs |
 | `/z-spec:cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
@@ -42,6 +43,8 @@ description: Show Z specification plugin help and quick reference
 /z-spec:partition docs/auth.tex                 # Derive test partitions from spec
 /z-spec:partition docs/auth.tex --code swift   # Generate partition test code
 /z-spec:partition --operation=Withdraw          # Partition a single operation
+/z-spec:prove docs/auth.tex                    # Generate Lean 4 proof obligations
+/z-spec:prove docs/auth.tex --no-mathlib       # Standalone Lean (no Mathlib)
 /z-spec:audit docs/auth.tex                    # Audit test coverage against spec
 /z-spec:audit docs/auth.tex --json             # Output as JSON for CI
 /z-spec:doctor                                 # Check environment health
@@ -117,13 +120,16 @@ For detailed documentation, consult:
 | `reference/latex-style.md` | LaTeX formatting guidelines |
 | `reference/probcli-guide.md` | ProB CLI options and usage |
 | `reference/test-patterns.md` | Test assertion patterns by language |
+| `reference/lean4-patterns.md` | Z-to-Lean 4 translation patterns |
 
 ## Requirements
 
 **Platform**: macOS or Linux only (Windows not supported)
 
 **Tools**:
+
 - **fuzz**: https://github.com/Spivoxity/fuzz
 - **probcli**: https://prob.hhu.de/w/index.php/Download
+- **lean** (optional): https://lean-lang.org/install/ (for `/z-spec:prove`)
 
 Set probcli path: `export PROBCLI="$HOME/Applications/ProB/probcli"`

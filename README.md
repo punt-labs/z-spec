@@ -83,6 +83,7 @@ Inside Claude Code:
 
 - **fuzz** --- Z type-checker ([source](https://github.com/Spivoxity/fuzz)), includes `fuzz.sty` for LaTeX
 - **probcli** --- ProB CLI for animation and model-checking ([download](https://prob.hhu.de/w/index.php/Download)), requires Tcl/Tk
+- **lean** (optional) --- Lean 4 theorem prover for `/z-spec:prove` ([install](https://lean-lang.org/install/))
 
 Setup auto-detects your platform (macOS Intel/Apple Silicon, Linux) and guides you through each install.
 
@@ -145,6 +146,7 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 - **Derive test cases** from specs using TTF testing tactics (`/z-spec:partition`)
 - **Generate code and tests** from specifications (`/z-spec:model2code`)
 - **Audit test coverage** against spec constraints (`/z-spec:audit`)
+- **Generate Lean 4 proof obligations** for machine-checked correctness (`/z-spec:prove`)
 - **Elaborate** specs with narrative from design documentation (`/z-spec:elaborate`)
 - **ProB-compatible** output (avoids B keyword conflicts, bounded integers, flat schemas)
 
@@ -159,6 +161,7 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 | `/z-spec:test [file] [-v] [-a N] [-s N]` | Validate and animate with probcli |
 | `/z-spec:partition [spec] [--code [language]] [--operation=NAME] [--json]` | Derive test cases from spec using TTF testing tactics |
 | `/z-spec:model2code [spec] [language]` | Generate code and tests from a Z specification |
+| `/z-spec:prove [spec] [--obligations=all\|init\|preserve] [--no-mathlib]` | Generate Lean 4 proof obligations from spec |
 | `/z-spec:audit [spec] [--json] [--test-dir=DIR]` | Audit test coverage against spec constraints |
 | `/z-spec:elaborate [spec] [design]` | Enhance spec with narrative from design docs |
 | `/z-spec:cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
@@ -174,6 +177,7 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 /z-spec:test docs/payment.tex              # Animate and model-check
 /z-spec:partition docs/payment.tex         # Derive test cases from spec
 /z-spec:partition docs/payment.tex --code  # Generate executable test code
+/z-spec:prove docs/payment.tex             # Generate Lean 4 proof obligations
 /z-spec:elaborate docs/payment.tex         # Add narrative from DESIGN.md
 /z-spec:model2code docs/payment.tex swift  # Generate Swift code and tests
 /z-spec:audit docs/payment.tex             # Audit test coverage against spec
