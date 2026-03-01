@@ -147,6 +147,9 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 - **Generate code and tests** from specifications (`/z-spec:model2code`)
 - **Audit test coverage** against spec constraints (`/z-spec:audit`)
 - **Generate Lean 4 proof obligations** for machine-checked correctness (`/z-spec:prove`)
+- **Generate runtime contracts** (preconditions, postconditions, invariants) from specs (`/z-spec:contracts`)
+- **Property-based testing** with Lean model as oracle (`/z-spec:oracle`)
+- **Data refinement verification** via abstraction function commutativity (`/z-spec:refine`)
 - **Elaborate** specs with narrative from design documentation (`/z-spec:elaborate`)
 - **ProB-compatible** output (avoids B keyword conflicts, bounded integers, flat schemas)
 
@@ -162,6 +165,9 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 | `/z-spec:partition [spec] [--code [language]] [--operation=NAME] [--json]` | Derive test cases from spec using TTF testing tactics |
 | `/z-spec:model2code [spec] [language]` | Generate code and tests from a Z specification |
 | `/z-spec:prove [spec] [--obligations=all\|init\|preserve] [--no-mathlib]` | Generate Lean 4 proof obligations from spec |
+| `/z-spec:contracts [spec] [language] [--invariants-only] [--wrap]` | Generate runtime contracts from spec |
+| `/z-spec:oracle [spec] [language] [--sequences N] [--steps N]` | Property-based testing with Lean model as oracle |
+| `/z-spec:refine [spec] [language] [--lean] [--generate-abstraction]` | Verify code refines spec via abstraction function |
 | `/z-spec:audit [spec] [--json] [--test-dir=DIR]` | Audit test coverage against spec constraints |
 | `/z-spec:elaborate [spec] [design]` | Enhance spec with narrative from design docs |
 | `/z-spec:cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
@@ -178,6 +184,9 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 /z-spec:partition docs/payment.tex         # Derive test cases from spec
 /z-spec:partition docs/payment.tex --code  # Generate executable test code
 /z-spec:prove docs/payment.tex             # Generate Lean 4 proof obligations
+/z-spec:contracts docs/payment.tex         # Generate runtime assertion functions
+/z-spec:oracle docs/payment.tex            # Property-based testing vs Lean model
+/z-spec:refine docs/payment.tex            # Verify code refines spec
 /z-spec:elaborate docs/payment.tex         # Add narrative from DESIGN.md
 /z-spec:model2code docs/payment.tex swift  # Generate Swift code and tests
 /z-spec:audit docs/payment.tex             # Audit test coverage against spec
