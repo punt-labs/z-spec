@@ -337,7 +337,7 @@ templates/
 
 ## Thanks
 
-- [@ebowman](https://github.com/ebowman) --- `/z-spec:partition` command, bringing TTF testing tactics to Z specs
+- [@ebowman](https://github.com/ebowman) --- `/z-spec:partition`, `/z-spec:prove`, `/z-spec:contracts`, `/z-spec:oracle`, and `/z-spec:refine` commands
 
 ## License
 
