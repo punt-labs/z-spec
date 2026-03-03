@@ -19,9 +19,10 @@
 *.blg
 *.run.xml
 
-# PDFs (except PR/FAQ deliverable)
+# PDFs (except deliverables)
 *.pdf
 !prfaq.pdf
+!examples/*.pdf
 
 # MCP (project-local, not part of plugin distribution)
 .mcp.json

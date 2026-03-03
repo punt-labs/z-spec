@@ -1,0 +1,347 @@
+%
+% search-panel.tex
+%
+% Z Specification for Search Panel UI Coordination
+% Formal model of the interaction between search input, results list,
+% and detail view in quarry-menubar.
+%
+
+\documentclass[a4paper,10pt,fleqn]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{fuzz}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+\begin{document}
+
+\title{Search Panel: A Z Specification}
+\author{Formal Model of Search UI Coordination}
+\date{March 2026}
+\hypersetup{
+  pdftitle={Search Panel: A Z Specification},
+  pdfauthor={Punt Labs},
+  pdfsubject={Z Specification},
+  pdfcreator={fuzz/probcli}
+}
+\maketitle
+
+\tableofcontents
+\newpage
+
+\section{Introduction}
+
+This specification models the coordination between three UI components in
+\texttt{quarry-menubar}: the search input field, the results list, and the
+detail view. The content pane shows either the results list or a single
+result's detail --- never both.
+
+The key property is that clearing the search input must reset all
+downstream state: results, the selected result (detail view), and the
+highlighted result (list cursor). The current implementation violates this
+invariant when the query is already empty and a programmatic clear is
+issued, because the reactive change handler only fires on value
+\emph{transitions}, not on assignments to the same value.
+
+\section{Basic Types}
+
+\begin{zed}
+  [RESULTID]
+\end{zed}
+
+A result identifier. In the implementation, each search result carries a
+unique ID used for list selection and detail navigation.
+
+\section{Free Types}
+
+\begin{zed}
+  SearchState ::= idle | loading | hasResults | noResults | searchError
+\end{zed}
+
+The lifecycle of a search request. \texttt{idle} means no query is active.
+\texttt{loading} means a request is in flight. The remaining three are
+terminal states for a completed search.
+
+\begin{zed}
+  ZBOOL ::= ztrue | zfalse
+\end{zed}
+
+\section{Global Constants}
+
+\begin{axdef}
+  maxResults : \nat
+  \where
+  maxResults = 50
+\end{axdef}
+
+Upper bound on the number of results returned by a single search. Exists
+for ProB animation --- the actual implementation has no hard cap, but
+the semantic search API returns a bounded result set.
+
+\section{State}
+
+A single flat schema captures all UI coordination state. The search
+input, search lifecycle, result set, detail selection, and list cursor
+are modeled together so that their invariants are expressed in one place.
+
+\begin{schema}{State}
+  queryEmpty : ZBOOL \\
+  searchState : SearchState \\
+  results : \finset RESULTID \\
+  selectedResult : \finset RESULTID \\
+  highlightedResult : \finset RESULTID
+  \where
+  %
+  % Optional values: at most one element
+  %
+  \# selectedResult \leq 1 \\
+  \# highlightedResult \leq 1 \\
+  %
+  % Selection must come from the result set
+  %
+  selectedResult \subseteq results \\
+  highlightedResult \subseteq results \\
+  %
+  % Results only exist when search has completed with results
+  %
+  searchState \neq hasResults \implies results = \emptyset \\
+  %
+  % CRITICAL INVARIANT: empty query clears everything downstream
+  %
+  queryEmpty = ztrue \implies searchState = idle \\
+  queryEmpty = ztrue \implies selectedResult = \emptyset \\
+  queryEmpty = ztrue \implies highlightedResult = \emptyset \\
+  %
+  % Cannot select a result for detail unless results exist
+  %
+  searchState \neq hasResults \implies selectedResult = \emptyset \\
+  %
+  % Detail view and list cursor are mutually exclusive:
+  % when viewing detail, the list is not rendered, so no highlight
+  %
+  selectedResult \neq \emptyset \implies highlightedResult = \emptyset \\
+  %
+  % Bounded result set for animation
+  %
+  \# results \leq maxResults
+\end{schema}
+
+\begin{schema}{Init}
+  State'
+  \where
+  queryEmpty' = ztrue \\
+  searchState' = idle \\
+  results' = \emptyset \\
+  selectedResult' = \emptyset \\
+  highlightedResult' = \emptyset
+\end{schema}
+
+\section{Operations}
+
+\subsection{EnterQuery}
+
+The user types a non-empty string into the search field. This starts a
+debounced search. The search state moves to \texttt{loading} and any
+previous results and selections are cleared.
+
+\begin{schema}{EnterQuery}
+  \Delta State
+  \where
+  queryEmpty' = zfalse \\
+  searchState' = loading \\
+  results' = \emptyset \\
+  selectedResult' = \emptyset \\
+  highlightedResult' = \emptyset
+\end{schema}
+
+\subsection{ClearQuery}
+
+The user deletes all text from the search field (backspace, select-all
+then delete, or any other mechanism). This is the operation that must
+enforce the critical invariant: everything downstream resets.
+
+\begin{schema}{ClearQuery}
+  \Delta State \\
+  \where
+  queryEmpty = zfalse \\
+  queryEmpty' = ztrue \\
+  searchState' = idle \\
+  results' = \emptyset \\
+  selectedResult' = \emptyset \\
+  highlightedResult' = \emptyset
+\end{schema}
+
+\subsection{ReceiveResults}
+
+An asynchronous search completes with a non-empty result set. The query
+must still be non-empty (the user has not cleared it while the search was
+in flight).
+
+\begin{schema}{ReceiveResults}
+  \Delta State \\
+  newResults? : \finset RESULTID
+  \where
+  searchState = loading \\
+  queryEmpty = zfalse \\
+  newResults? \neq \emptyset \\
+  \# newResults? \leq maxResults \\
+  searchState' = hasResults \\
+  results' = newResults? \\
+  selectedResult' = \emptyset \\
+  highlightedResult' = \emptyset \\
+  queryEmpty' = queryEmpty
+\end{schema}
+
+\subsection{ReceiveEmpty}
+
+A search completes with no results.
+
+\begin{schema}{ReceiveEmpty}
+  \Delta State
+  \where
+  searchState = loading \\
+  queryEmpty = zfalse \\
+  searchState' = noResults \\
+  results' = \emptyset \\
+  selectedResult' = \emptyset \\
+  highlightedResult' = \emptyset \\
+  queryEmpty' = queryEmpty
+\end{schema}
+
+\subsection{ReceiveError}
+
+A search fails.
+
+\begin{schema}{ReceiveError}
+  \Delta State
+  \where
+  searchState = loading \\
+  queryEmpty = zfalse \\
+  searchState' = searchError \\
+  results' = \emptyset \\
+  selectedResult' = \emptyset \\
+  highlightedResult' = \emptyset \\
+  queryEmpty' = queryEmpty
+\end{schema}
+
+\subsection{SelectResult}
+
+The user clicks a result (or presses Enter on a highlighted result) to
+open the detail view. The result must be in the current result set.
+Highlighting is cleared because the detail view replaces the list.
+
+\begin{schema}{SelectResult}
+  \Delta State \\
+  result? : RESULTID
+  \where
+  searchState = hasResults \\
+  result? \in results \\
+  selectedResult' = \{ result? \} \\
+  highlightedResult' = \emptyset \\
+  results' = results \\
+  searchState' = searchState \\
+  queryEmpty' = queryEmpty
+\end{schema}
+
+\subsection{HighlightResult}
+
+The user arrow-keys to highlight a result in the list. Only available
+when the detail view is not showing (selectedResult is empty).
+
+\begin{schema}{HighlightResult}
+  \Delta State \\
+  result? : RESULTID
+  \where
+  searchState = hasResults \\
+  selectedResult = \emptyset \\
+  result? \in results \\
+  highlightedResult' = \{ result? \} \\
+  selectedResult' = selectedResult \\
+  results' = results \\
+  searchState' = searchState \\
+  queryEmpty' = queryEmpty
+\end{schema}
+
+\subsection{ClearHighlight}
+
+The user presses Escape when a result is highlighted but no detail is
+open. The highlight is cleared.
+
+\begin{schema}{ClearHighlight}
+  \Delta State
+  \where
+  selectedResult = \emptyset \\
+  highlightedResult \neq \emptyset \\
+  highlightedResult' = \emptyset \\
+  selectedResult' = selectedResult \\
+  results' = results \\
+  searchState' = searchState \\
+  queryEmpty' = queryEmpty
+\end{schema}
+
+\subsection{CloseDetail}
+
+The user presses Escape or the Back button while viewing a detail. The
+detail view closes and the results list is shown again. The query and
+results are preserved.
+
+\begin{schema}{CloseDetail}
+  \Delta State
+  \where
+  selectedResult \neq \emptyset \\
+  selectedResult' = \emptyset \\
+  highlightedResult' = \emptyset \\
+  results' = results \\
+  searchState' = searchState \\
+  queryEmpty' = queryEmpty
+\end{schema}
+
+\subsection{ProgrammaticClear}
+
+An external trigger clears the search state (e.g., switching databases).
+This must reset everything regardless of the current query value --- this
+is where the implementation bug manifests, because the reactive handler
+only fires on value \emph{changes}.
+
+\begin{schema}{ProgrammaticClear}
+  \Delta State
+  \where
+  queryEmpty' = ztrue \\
+  searchState' = idle \\
+  results' = \emptyset \\
+  selectedResult' = \emptyset \\
+  highlightedResult' = \emptyset
+\end{schema}
+
+\subsection{ChangeCollection}
+
+The user picks a different collection filter. This clears selection and
+restarts the search if a query exists.
+
+\begin{schema}{ChangeCollection}
+  \Delta State
+  \where
+  selectedResult' = \emptyset \\
+  highlightedResult' = \emptyset \\
+  searchState' = \IF queryEmpty = ztrue \THEN idle \ELSE loading \\
+  results' = \emptyset \\
+  queryEmpty' = queryEmpty
+\end{schema}
+
+\section{System Invariants}
+
+The specification enforces these properties across all reachable states:
+
+\begin{enumerate}
+  \item \textbf{Empty query implies idle}: no search is in progress and no
+    results are displayed when the input field is empty.
+  \item \textbf{Empty query implies no selection}: neither the detail view
+    nor the list cursor can be active when the input field is empty. This
+    is the invariant violated by the current implementation.
+  \item \textbf{Selection comes from results}: you cannot view the detail
+    of a result that is not in the current result set.
+  \item \textbf{Detail and highlight are exclusive}: the detail view
+    replaces the results list, so both cannot be active simultaneously.
+  \item \textbf{Results require hasResults state}: the result set is
+    non-empty only when the search state is \texttt{hasResults}.
+\end{enumerate}
+
+\end{document}
