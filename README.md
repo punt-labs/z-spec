@@ -4,6 +4,7 @@
 
 [![License](https://img.shields.io/github/license/punt-labs/z-spec)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/punt-labs/z-spec/docs.yml?label=CI)](https://github.com/punt-labs/z-spec/actions/workflows/docs.yml)
+[![Working Backwards](https://img.shields.io/badge/Working_Backwards-hypothesis-lightgrey)](./prfaq.pdf)
 
 **Platforms:** macOS, Linux
 
