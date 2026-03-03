@@ -42,3 +42,4 @@ docs/*.aux
 docs/*.log
 docs/*.fuzz
 docs/*.toc
+.envrc
