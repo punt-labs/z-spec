@@ -1,0 +1,209 @@
+% Bibliography for Z Spec PR/FAQ
+% Sources from ./research/ and project documentation
+
+@misc{councilman2025astrogator,
+  author       = {Councilman, Aaron and Fu, David Jiahao and Gupta, Aryan and
+                  Wang, Chengxiao and Grove, David and Wang, Yu-Xiong and Adve, Vikram},
+  title        = {Towards Formal Verification of {LLM}-Generated Code from
+                  Natural Language Prompts},
+  year         = {2025},
+  url          = {https://arxiv.org/abs/2507.13290},
+  note         = {Formal query language as contract layer for LLM-generated Ansible
+                  code; verifier achieves 83\% confirmation of correct code and 92\%
+                  identification of incorrect code.},
+}
+
+@inproceedings{liu2025propertygpt,
+  author       = {Liu, Ye and Xue, Yue and Wu, Daoyuan and Sun, Yuqiang and
+                  Li, Yi and Shi, Miaolei and Liu, Yang},
+  title        = {{PropertyGPT}: {LLM}-driven Formal Verification of Smart
+                  Contracts through Retrieval-Augmented Property Generation},
+  booktitle    = {Proceedings of the Network and Distributed System Security
+                  Symposium (NDSS)},
+  year         = {2025},
+  url          = {https://www.ndss-symposium.org/ndss-paper/propertygpt-llm-driven-formal-verification-of-smart-contracts-through-retrieval-augmented-property-generation/},
+  note         = {80\% recall against human-written ground-truth properties;
+                  finds 26 known and 12 previously unknown vulnerabilities.},
+}
+
+@misc{bharadwaj2026constitutionalsdd,
+  author       = {Bharadwaj, Suhas and {others}},
+  title        = {Constitutional Spec-Driven Development: Enforcing Security by
+                  Construction in {AI}-Assisted Code Generation},
+  year         = {2026},
+  url          = {https://arxiv.org/abs/2602.02584},
+  note         = {73\% reduction in security defects vs unconstrained AI generation
+                  when code is constrained by a formal spec layer.},
+}
+
+@misc{abebe2026sdd,
+  author       = {Abebe, Solomon Lemma},
+  title        = {Specification-Driven Development: Rethinking How We Build Software
+                  in the Age of {AI}},
+  year         = {2026},
+  url          = {https://arxiv.org/abs/2602.00180},
+  note         = {AIWare 2026. Three-level taxonomy: spec-first, spec-anchored,
+                  spec-as-source. Positions formal specs as primary artifact in
+                  AI-assisted development.},
+}
+
+@misc{faria2026dafny,
+  author       = {Faria, Jo\~{a}o Pascoal and Trigo, Emanuel and Honorato, Vinicius
+                  and Abreu, Rui},
+  title        = {Automatic Generation of Formal Specification and Verification
+                  Annotations Using {LLMs} and Test Oracles},
+  year         = {2026},
+  url          = {https://arxiv.org/abs/2601.12845},
+  note         = {LLMs generate correct Dafny annotations for 98.2\% of programs
+                  within 8 repair iterations using verifier feedback.},
+}
+
+@misc{bursuc2025vericoding,
+  author       = {Bursuc, Sergiu and Ehrenborg, Theodore and Lin, Shaowei and
+                  Astefanoaei, Lacramioara and Chiosa, Ionel Emilian and Kukovec, Jure
+                  and Singh, Alok and Butterley, Oliver and Bizid, Adem and
+                  Dougherty, Quinn and Zhao, Miranda and Tan, Max and Tegmark, Max},
+  title        = {A benchmark for vericoding: formally verified program synthesis},
+  year         = {2025},
+  url          = {https://arxiv.org/abs/2509.22908},
+  note         = {LLM success rates: 82\% Dafny, 44\% Verus/Rust, 27\% Lean.
+                  Dafny improved from 68\% to 96\% in one year.},
+}
+
+@inproceedings{jin2025overcorrection,
+  author       = {Jin, Haolin and Chen, Huaming},
+  title        = {Uncovering Systematic Failures of {LLMs} in Verifying Code
+                  Against Natural Language Specifications},
+  booktitle    = {ASE 2025: 40th IEEE/ACM International Conference on Automated
+                  Software Engineering},
+  year         = {2025},
+  url          = {https://arxiv.org/abs/2508.12358},
+  note         = {LLMs exhibit systematic over-correction bias when verifying code.
+                  GPT-4o accuracy drops from 52.4\% to 11.0\% under complex prompts.},
+}
+
+@misc{beg2026acsl,
+  author       = {Beg, Arshad and O'Donoghue, Diarmuid and Monahan, Rosemary},
+  title        = {Evaluating {LLM}-Generated {ACSL} Annotations for Formal
+                  Verification},
+  year         = {2026},
+  url          = {https://arxiv.org/abs/2602.13851},
+  note         = {LLM-generated annotations show lower, more variable proof success
+                  rates and increased SMT solver instability vs tool-generated.},
+}
+
+@online{kleppmann2025fvmainstream,
+  author       = {Kleppmann, Martin},
+  title        = {Prediction: {AI} will make formal verification go mainstream},
+  year         = {2025},
+  url          = {https://martin.kleppmann.com/2025/12/08/ai-formal-verification.html},
+  urldate      = {2026-03-03},
+  note         = {LLM proof-script generation + formal checkers create a virtuous
+                  cycle. Cites seL4 (8,700 lines C, 20 person-years, 200,000 lines
+                  Isabelle) as evidence that cost barrier is collapsing.},
+}
+
+@misc{xu2024hallucination,
+  author       = {Xu, Ziwei and Jain, Sanjay and Kankanhalli, Mohan},
+  title        = {Hallucination is Inevitable: An Innate Limitation of Large
+                  Language Models},
+  year         = {2024},
+  url          = {https://arxiv.org/abs/2401.11817},
+  note         = {Proves via diagonalization that LLMs cannot eliminate hallucination
+                  for all computable functions; external symbolic reasoning required.},
+}
+
+@article{ferrari2025roadmap,
+  author       = {Ferrari, Alessio and Spoletini, Paola},
+  title        = {Formal requirements engineering and large language models:
+                  A two-way roadmap},
+  journal      = {Information and Software Technology},
+  volume       = {181},
+  pages        = {107697},
+  year         = {2025},
+  doi          = {10.1016/j.infsof.2025.107697},
+  note         = {Two symmetric paths: formal methods to guarantee LLM artifact
+                  correctness; LLMs to make formal methods more accessible.},
+}
+
+@article{woodcock2009fmsurvey,
+  author       = {Woodcock, Jim and Larsen, Peter Gorm and Bicarregui, Juan and
+                  Fitzgerald, John},
+  title        = {Formal methods: Practice and experience},
+  journal      = {ACM Computing Surveys},
+  volume       = {41},
+  number       = {4},
+  pages        = {19:1--19:36},
+  year         = {2009},
+  doi          = {10.1145/1592434.1592436},
+  note         = {Survey of 62 industrial FM projects: 92\% reported quality
+                  increases, 0\% reported decreases.},
+}
+
+@misc{cheng2025sysmobench,
+  author       = {Cheng, Qian and Tang, Ruize and Ma, Emilie and Hackett, Finn and
+                  He, Peiyang and Su, Yiming and Beschastnikh, Ivan and Huang, Yu and
+                  Ma, Xiaoxing and Xu, Tianyin},
+  title        = {{SysMoBench}: Evaluating {AI} on Formally Modeling Complex
+                  Real-World Systems},
+  year         = {2025},
+  url          = {https://arxiv.org/abs/2509.23130},
+  note         = {LLMs handle small formal modeling artifacts; significant performance
+                  gaps remain for complex real-world distributed systems in TLA+.},
+}
+
+@misc{richter2025nl2contract,
+  author       = {Richter, Cedric and Wehrheim, Heike},
+  title        = {Beyond Postconditions: Can Large Language Models infer Formal
+                  Contracts for Automatic Software Verification?},
+  year         = {2025},
+  url          = {https://arxiv.org/abs/2510.12702},
+  note         = {NL2Contract: LLMs infer full functional contracts; verifiers
+                  using these detect genuine bugs in real-world code.},
+}
+
+@standard{iso13568,
+  title        = {Information technology --- {Z} formal specification notation ---
+                  Syntax, type system and semantics},
+  organization = {International Organization for Standardization},
+  number       = {ISO/IEC 13568:2002},
+  year         = {2002},
+  note         = {The international standard for Z notation.},
+}
+
+@book{spivey1992zrm,
+  author       = {Spivey, J. Michael},
+  title        = {The {Z} Notation: A Reference Manual},
+  edition      = {2nd},
+  publisher    = {Prentice Hall},
+  year         = {1992},
+  url          = {https://spivey.oriel.ox.ac.uk/mike/zrm/},
+  note         = {The definitive Z reference, by fuzz's creator.},
+}
+
+@misc{beg2025verifai,
+  author       = {Beg, Arshad and O'Donoghue, Diarmuid and Monahan, Rosemary},
+  title        = {Leveraging {LLMs} for Formal Software Requirements: Challenges
+                  and Prospects},
+  year         = {2025},
+  url          = {https://arxiv.org/abs/2507.14330},
+  note         = {VERIFAI project: NL-to-formal-spec conversion identified as the
+                  critical bottleneck for safety-critical systems.},
+}
+
+@online{slashdata2025devpop,
+  author       = {{SlashData}},
+  title        = {Global Developer Population Trends 2025},
+  year         = {2025},
+  url          = {https://www.slashdata.co/post/global-developer-population-trends-2025-how-many-developers-are-there},
+  note         = {Estimates 36.5~million professional developers within 47.2~million
+                  total developers worldwide as of early 2025.},
+}
+
+@misc{stackoverflow2024survey,
+  title        = {Stack Overflow Developer Survey 2024},
+  author       = {{Stack Overflow}},
+  year         = {2024},
+  url          = {https://survey.stackoverflow.co/2024/},
+  note         = {76\% of developers use or plan to use AI coding tools.},
+}

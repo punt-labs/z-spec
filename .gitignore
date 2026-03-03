@@ -12,7 +12,16 @@
 *.log
 *.fuzz
 *.synctex.gz
+
+# LaTeX build intermediates (biber, hyperref)
+*.bbl
+*.bcf
+*.blg
+*.run.xml
+
+# PDFs (except PR/FAQ deliverable)
 *.pdf
+!prfaq.pdf
 
 # MCP (project-local, not part of plugin distribution)
 .mcp.json
@@ -24,3 +33,11 @@ node_modules/
 !.claude/settings.json
 !.claude/hooks/
 .biff.local
+docs/fuzz.sty
+docs/*.mf
+docs/*.pk
+docs/*.tfm
+docs/*.aux
+docs/*.log
+docs/*.fuzz
+docs/*.toc
