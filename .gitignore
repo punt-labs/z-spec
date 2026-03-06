@@ -43,3 +43,6 @@ docs/*.log
 docs/*.fuzz
 docs/*.toc
 .envrc
+
+# Scratch/temp directory (TMPDIR set via .envrc)
+.tmp/
