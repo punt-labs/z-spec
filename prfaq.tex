@@ -192,7 +192,7 @@ The methods to solve all three problems have always worked. In a survey of 62~in
 Z Spec collapses the cost of formal specification and supports three workflows that cover the full software lifecycle.
 
 \textbf{Spec-first development.} Before writing a line of code, a developer describes the new system in natural language and runs
-{\small\texttt{/z-spec:create}}. The LLM drafts a Z specification with states, invariants, and operations. The developer runs
+{\small\texttt{/z-spec:code2model}} with a description instead of a codebase path. The LLM drafts a Z specification with states, invariants, and operations. The developer runs
 {\small\texttt{/z-spec:check}} to type-check the spec with fuzz and
 {\small\texttt{/z-spec:test}} to animate it with ProB, iterating until the specification captures the intended behavior exactly. The spec then serves as the blueprint: {\small\texttt{/z-spec:model2code}}~(\featureref{feat:model2code}) generates implementation code and tests that conform to it, and {\small\texttt{/z-spec:contracts}}~(\featureref{feat:contracts}) produces runtime assertions that enforce invariants in production. The code is correct by construction, not by accident.
 
@@ -224,8 +224,8 @@ Getting started takes three commands. First, install:
 {\small\texttt{/z-spec:setup all}}
 
 \noindent Then choose a workflow:
-{\small\texttt{/z-spec:create}} to write a spec for a new system, or
-{\small\texttt{/z-spec:code2model}} to generate one from existing code.
+{\small\texttt{/z-spec:code2model}} to write a spec for a new system, or
+{\small\texttt{/z-spec:code2model}} pointing at your codebase to generate one from existing code.
 Within five minutes, a developer can generate their first specification, type-check it, and animate its state space. No formal-methods background is required --- the LLM translates system descriptions into Z, and fuzz and ProB do the mathematical heavy lifting.
 
 \prsection{Spokesperson Quote}
@@ -268,7 +268,7 @@ Research confirms this distinction matters. When formal specifications serve as 
 \end{faqpair}
 
 \begin{faqpair}{How do I get started?}
-Three commands: (1)~install the plugin, (2)~run \texttt{/z-spec:setup all} to install fuzz and ProB, (3)~choose your workflow. For a new system, run \texttt{/z-spec:create} with a natural-language description to write the spec first. For existing code, run \texttt{/z-spec:code2model} to generate a spec from your codebase, then \texttt{/z-spec:partition} to derive test cases or \texttt{/z-spec:test} to find bugs. The LLM drafts the spec; fuzz and ProB check it. No Z notation knowledge is required to start --- the plugin generates idiomatic Z and explains what it means.
+Three commands: (1)~install the plugin, (2)~run \texttt{/z-spec:setup all} to install fuzz and ProB, (3)~choose your workflow. For a new system, run \texttt{/z-spec:code2model} with a natural-language description to write the spec first. For existing code, run \texttt{/z-spec:code2model} pointing at your codebase, then \texttt{/z-spec:partition} to derive test cases or \texttt{/z-spec:test} to find bugs. The LLM drafts the spec; fuzz and ProB check it. No Z notation knowledge is required to start --- the plugin generates idiomatic Z and explains what it means.
 \end{faqpair}
 
 \begin{faqpair}{How much does it cost?}
@@ -280,7 +280,7 @@ No. The LLM generates the specification and explains each schema in plain Englis
 \end{faqpair}
 
 \begin{faqpair}{When should I use spec-first vs.\ modeling existing code?}\label{faq:workflows}
-\textbf{New system with no code yet:} Use \texttt{/z-spec:create} to write the spec first. Iterate with \texttt{/z-spec:check} and \texttt{/z-spec:test} until the spec captures your intended behavior, then generate code and tests from it. This is the highest-value workflow --- bugs are cheapest to fix when no code exists yet.
+\textbf{New system with no code yet:} Use \texttt{/z-spec:code2model} with a natural-language description to write the spec first. Iterate with \texttt{/z-spec:check} and \texttt{/z-spec:test} until the spec captures your intended behavior, then generate code and tests from it. This is the highest-value workflow --- bugs are cheapest to fix when no code exists yet.
 
 \textbf{Existing code you want to harden:} Use \texttt{/z-spec:code2model} to generate a spec from the codebase, then \texttt{/z-spec:partition} to derive test cases and \texttt{/z-spec:contracts} to generate runtime assertions. This is valuable even when the code has no known bugs --- the spec reveals untested boundaries.
 
@@ -494,8 +494,7 @@ Defines the scope boundary for Z Spec. Features are categorized to prevent scope
 Features essential for the three core workflows. Without these, the product does not solve the problem.
 
 \begin{enumerate}[nosep,leftmargin=2.5em]
-  \featureitem{Spec-first creation}{\texttt{/z-spec:create} --- the LLM drafts a Z specification from a natural-language description of a new system, enabling spec-first development}\label{feat:create}
-  \featureitem{Spec generation from existing code}{\texttt{/z-spec:code2model} --- the LLM drafts Z specifications from codebase analysis, enabling test derivation and bug finding for existing systems}\label{feat:code2model}
+  \featureitem{Spec generation}{\texttt{/z-spec:code2model} --- the LLM drafts Z specifications from a natural-language description (spec-first development) or from codebase analysis (test derivation and bug finding for existing systems)}\label{feat:code2model}
   \featureitem{Type-checking with fuzz}{\texttt{/z-spec:check} --- verifies internal consistency of the specification}\label{feat:check}
   \featureitem{Animation and model-checking with ProB}{\texttt{/z-spec:test} --- explores the state space and finds invariant violations}\label{feat:test}
   \featureitem{Automated tool installation}{\texttt{/z-spec:setup} and \texttt{/z-spec:doctor} --- installs fuzz, ProB, and Lean; diagnoses environment issues}\label{feat:setup}
