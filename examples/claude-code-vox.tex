@@ -980,4 +980,199 @@ SessionEnd & * & EndSession & Clear state & No \\
 \hline
 \end{tabular}
 
+% ============================================================
+\section{Continuous Mode Enhancements}
+% ============================================================
+
+In continuous mode (\texttt{nmContinuous}), vox provides ambient
+audio feedback at additional lifecycle points. These are all
+fire-and-forget (async, non-blocking). They do not fire in
+on-demand mode (\texttt{nmOnDemand}) or when disabled (\texttt{nmOff}).
+
+\subsection{AcknowledgePrompt}
+
+\texttt{UserPromptSubmit} hook (async). When the user submits a
+prompt in continuous mode, vox speaks a short acknowledgment
+(``On it!'', ``Consider it done.'', etc.).
+
+\begin{schema}{AcknowledgePrompt}
+  \Xi State
+  \where
+  sessionPhase = spIdle \\
+  notifyMode = nmContinuous
+\end{schema}
+
+This is modeled as $\Xi State$ (no state change) because it is a
+pure side effect --- async audio playback that does not alter the
+state machine. The preconditions ensure it only fires in continuous
+mode while idle (prompt submission transitions to processing, but
+the async hook fires concurrently).
+
+\subsection{AnnounceSubagentStart}
+
+\texttt{SubagentStart} hook (async). When a subagent is spawned in
+continuous mode, vox speaks a short phrase (``Let me get some help
+on this one.'').
+
+\begin{schema}{AnnounceSubagentStart}
+  \Xi State \\
+  agentId? : AGENTID
+  \where
+  sessionPhase = spProcessing \\
+  notifyMode = nmContinuous \\
+  agentId? \in activeSubagents
+\end{schema}
+
+\subsection{AnnounceSubagentStop}
+
+\texttt{SubagentStop} hook (async). When a subagent finishes in
+continuous mode, vox speaks a short phrase (``Got some good input
+here.'').
+
+\begin{schema}{AnnounceSubagentStop}
+  \Xi State \\
+  agentId? : AGENTID
+  \where
+  sessionPhase = spProcessing \\
+  notifyMode = nmContinuous \\
+  agentId? \notin activeSubagents
+\end{schema}
+
+\subsection{FarewellSession}
+
+\texttt{SessionEnd} hook (async). When the session ends, vox speaks
+a farewell (``See you next time!''). Fires in both on-demand and
+continuous mode.
+
+\begin{schema}{FarewellSession}
+  \Xi State
+  \where
+  sessionPhase = spEnded \\
+  notifyMode \neq nmOff
+\end{schema}
+
+Note: \texttt{FarewellSession} fires in \texttt{spEnded} because the
+\texttt{SessionEnd} hook fires after the session has transitioned.
+This is a terminal observation --- the audio plays as the session
+shuts down.
+
+% ============================================================
+\section{Implementation Validation}
+% ============================================================
+
+This section cross-references the Z specification operations against
+the current vox implementation (hooks.json, hooks.py, shell scripts).
+
+\subsection{Built and Correct}
+
+\begin{tabular}{llll}
+\hline
+\textbf{Operation} & \textbf{Hook} & \textbf{File} & \textbf{Status} \\
+\hline
+StartSession & SessionStart & session-start.sh & Correct \\
+AccumulateSignal & PostToolUse Bash & signal.sh $\to$ handle\_post\_bash() & Correct \\
+StopHookBlock & Stop & notify.sh $\to$ handle\_stop() & Correct \\
+StopHookAllow & Stop & notify.sh $\to$ handle\_stop() & Correct \\
+StopHookSkip & Stop & notify.sh $\to$ handle\_stop() & Correct \\
+SpeakSummary & (agent action) & unmute MCP tool & Correct \\
+Notification & Notification & notify-permission.sh & Correct \\
+PreCompact & PreCompact & pre-compact.sh & Correct \\
+\hline
+\end{tabular}
+
+\textbf{Decision-block re-entry prevention:} The implementation uses
+\texttt{stop\_hook\_active} from the hook input JSON (set by Claude Code
+when the stop hook is firing during a block). The Z spec models this as
+\texttt{stopHookActive : ZBOOL}. The mechanism is correct: first fire
+blocks, second fire allows.
+
+\textbf{Signal classification:} The implementation classifies 8 signal
+types (lint-fail, lint-pass, tests-pass, tests-fail, merge-conflict,
+git-push-ok, git-commit, pr-created) plus a fallback (cmd-fail). Signals
+are timestamped and appended to \texttt{vibe\_signals} in config. The Z
+spec abstracts this as \texttt{vibeSignals : $\finset$ SIGNAL}.
+
+\textbf{Vibe tag resolution:} At Stop, the implementation maps signal
+trajectories to expressive tags (recovery arc $\to$ \texttt{[relieved]},
+shipped code $\to$ \texttt{[satisfied]}, all green $\to$
+\texttt{[excited]}, mostly failing $\to$ \texttt{[frustrated]}). The Z
+spec abstracts this as \texttt{SpeakSummary} clearing
+\texttt{vibeSignals}.
+
+\subsection{Built but Needs Adjustment}
+
+\begin{tabular}{llll}
+\hline
+\textbf{Operation} & \textbf{Issue} & \textbf{Impact} & \textbf{Fix} \\
+\hline
+EnableNotify & \multicolumn{3}{l}{Implementation does auto-enable speak --- matches spec. Correct.} \\
+DisableNotify & \multicolumn{3}{l}{Implementation clears both --- matches spec. Correct.} \\
+Mute/Unmute & \multicolumn{3}{l}{Spec requires notifyMode $\neq$ nmOff. Verify CLI enforces this.} \\
+\hline
+\end{tabular}
+
+\textbf{Signal pruning:} The implementation appends signals indefinitely
+to \texttt{vibe\_signals}. In long sessions this grows unbounded. The Z
+spec bounds it with \texttt{maxSignals}. The implementation should prune
+old signals (e.g., keep only last $N$ or signals from the current turn).
+
+\subsection{Not Yet Built}
+
+\begin{tabular}{lllll}
+\hline
+\textbf{Operation} & \textbf{Hook Event} & \textbf{Mode} & \textbf{Behavior} & \textbf{Blocking?} \\
+\hline
+AcknowledgePrompt & UserPromptSubmit & Continuous & ``On it!'' & No (async) \\
+AnnounceSubagentStart & SubagentStart & Continuous & ``Getting help'' & No (async) \\
+AnnounceSubagentStop & SubagentStop & Continuous & ``Got good input'' & No (async) \\
+FarewellSession & SessionEnd & On-demand+ & ``See you next time!'' & No (async) \\
+\hline
+\end{tabular}
+
+These are all fire-and-forget audio events with no state mutation.
+They are modeled as $\Xi State$ operations (observation only). The
+implementation requires:
+
+\begin{enumerate}
+  \item Add \texttt{UserPromptSubmit}, \texttt{SubagentStart},
+    \texttt{SubagentStop}, and \texttt{SessionEnd} sections to
+    \texttt{hooks/hooks.json} (all async).
+  \item Create dispatcher scripts (or reuse a shared dispatcher).
+  \item Add handlers in \texttt{hooks.py} following the existing
+    pattern: check \texttt{notifyMode}, pick random phrase, call
+    \texttt{vox unmute} or enqueue chime.
+  \item Phrase pools: 5--7 short phrases per event, matching the
+    existing style (STOP\_PHRASES, PERMISSION\_PHRASES, etc.).
+\end{enumerate}
+
+\subsection{Coverage Summary}
+
+\begin{tabular}{lll}
+\hline
+\textbf{Z Operation} & \textbf{Implementation} & \textbf{Status} \\
+\hline
+StartSession & session-start.sh & Correct \\
+SubmitPrompt / RejectPrompt & (base) & Correct \\
+BeginToolCall & (base) & Correct \\
+PreToolHookAllow / Deny & (base) & Correct \\
+GrantPermission / DenyPermission & (base) & Correct \\
+CompleteToolSuccess / Failure & (base) & Correct \\
+AccumulateSignal & signal.sh & Correct \\
+EnableNotify / DisableNotify & MCP tool & Correct \\
+Mute / Unmute & MCP tool & Correct \\
+SpawnSubagent / StopSubagent & (base) & Correct \\
+BeginResponse & (base) & Correct \\
+StopHookBlock & notify.sh & Correct \\
+SpeakSummary & unmute tool & Correct \\
+StopHookAllow & notify.sh & Correct \\
+StopHookSkip & notify.sh & Correct \\
+CompactContext & (base) & Correct \\
+EndSession & (base) & Correct \\
+AcknowledgePrompt & --- & \textbf{Not built} \\
+AnnounceSubagentStart & --- & \textbf{Not built} \\
+AnnounceSubagentStop & --- & \textbf{Not built} \\
+FarewellSession & --- & \textbf{Not built} \\
+\hline
+\end{tabular}
+
 \end{document}
