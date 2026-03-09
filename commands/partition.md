@@ -1,7 +1,7 @@
 ---
 description: Derive test cases from Z specification using TTF testing tactics
 argument-hint: "[spec.tex] [--code [language]] [--operation=NAME] [--json]"
-allowed-tools: Read, Glob, Grep, Write
+allowed-tools: Read, Glob, Grep, Write, mcp__plugin_lux_lux__ping, mcp__plugin_lux_lux__show
 ---
 
 # /z-spec:partition - Derive Test Cases from Z Specification
