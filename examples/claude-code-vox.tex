@@ -1,0 +1,983 @@
+%
+% claude-code-vox.tex
+%
+% Z Specification: Claude Code + Vox Notification State (Layer 2)
+% Extends the base Claude Code state machine with vox TTS notification,
+% speech mode, vibe tracking, and the Stop hook decision-block pattern.
+%
+% Type-check: fuzz -t claude-code-vox.tex
+% Animate:    probcli claude-code-vox.tex -animate 20
+%
+
+\documentclass[a4paper,10pt,fleqn]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{fuzz}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+\begin{document}
+
+\title{Claude Code + Vox: A Z Specification}
+\author{Layer 2 --- Notification and Speech State}
+\date{March 2026}
+\hypersetup{
+  pdftitle={Claude Code + Vox: A Z Specification},
+  pdfauthor={Punt Labs},
+  pdfsubject={Z Specification},
+  pdfcreator={fuzz/probcli}
+}
+\maketitle
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Introduction}
+% ============================================================
+
+This specification extends the base Claude Code state machine
+(\texttt{claude-code.tex}) with vox text-to-speech notification state.
+Vox provides spoken notifications, vibes (expressive mood tags), and
+a decision-block pattern on the \texttt{Stop} hook that ensures Claude
+speaks a summary before finishing each turn.
+
+The key properties verified by this model:
+
+\begin{enumerate}
+  \item \textbf{No infinite Stop loop}: the decision-block pattern
+    fires exactly once per turn. The \texttt{stopHookActive} flag
+    prevents re-entry.
+  \item \textbf{Speech requires notification}: \texttt{speakMode = ztrue}
+    implies \texttt{notifyMode $\neq$ nmOff}. You cannot have voice
+    without notifications.
+  \item \textbf{Vibe signals accumulate monotonically}: signals from
+    Bash tool output accumulate during a turn and are consumed at Stop.
+  \item \textbf{Notification hooks are no-ops when disabled}: when
+    \texttt{notifyMode = nmOff}, the Stop hook allows immediately
+    (no block, no speech).
+\end{enumerate}
+
+% ============================================================
+\section{Base Types (from claude-code.tex)}
+% ============================================================
+
+\begin{zed}
+  [TOOLNAME, TOOLINPUT, TOOLOUTPUT, PROMPT, RESPONSE, AGENTID, SESSIONID, CONTEXTCHUNK]
+\end{zed}
+
+\begin{zed}
+  SessionPhase ::= spInactive | spIdle | spProcessing | spResponding | spEnded
+\end{zed}
+
+\begin{zed}
+  ToolPhase ::= tpNone | tpPreHook | tpPermission | tpExecuting | tpPostHook
+\end{zed}
+
+\begin{zed}
+  PermissionMode ::= pmDefault | pmPlan | pmAcceptEdits | pmDontAsk | pmBypass
+\end{zed}
+
+\begin{zed}
+  PermissionDecision ::= pdAllow | pdDeny | pdAsk
+\end{zed}
+
+\begin{zed}
+  HookDecision ::= hdAllow | hdBlock
+\end{zed}
+
+\begin{zed}
+  SessionStartSource ::= ssStartup | ssResume | ssClear | ssCompact
+\end{zed}
+
+\begin{zed}
+  SessionEndReason ::= seClear | seLogout | sePromptExit | seBypassDisabled | seOther
+\end{zed}
+
+\begin{zed}
+  ZBOOL ::= ztrue | zfalse
+\end{zed}
+
+% ============================================================
+\section{Vox Types}
+% ============================================================
+
+\begin{zed}
+  NotifyMode ::= nmOff | nmOnDemand | nmContinuous
+\end{zed}
+
+Notification level. \texttt{nmOff} disables all notifications.
+\texttt{nmOnDemand} fires on Stop and permission/idle prompts.
+\texttt{nmContinuous} adds real-time signal announcements from a
+background watcher.
+
+\begin{zed}
+  VibeMode ::= vmAuto | vmManual | vmOff
+\end{zed}
+
+How expressive tags are selected. \texttt{vmAuto} reads signals from
+Bash output and resolves tags at Stop. \texttt{vmManual} uses explicit
+user-provided tags. \texttt{vmOff} disables vibe entirely.
+
+\begin{zed}
+  [SIGNAL]
+\end{zed}
+
+A vibe signal token (e.g., \texttt{tests-pass}, \texttt{lint-fail},
+\texttt{git-push-ok}). Accumulated during a turn from Bash tool output.
+
+% ============================================================
+\section{Global Constants}
+% ============================================================
+
+\begin{axdef}
+  maxTools : \nat \\
+  maxSubagents : \nat \\
+  maxContext : \nat \\
+  maxSignals : \nat
+  \where
+  maxTools = 5 \\
+  maxSubagents = 2 \\
+  maxContext = 3 \\
+  maxSignals = 5
+\end{axdef}
+
+% ============================================================
+\section{State}
+% ============================================================
+
+\begin{schema}{State}
+  %
+  % --- Base Claude Code state ---
+  %
+  sessionId : \finset SESSIONID \\
+  sessionPhase : SessionPhase \\
+  permMode : PermissionMode \\
+  toolPhase : ToolPhase \\
+  currentTool : \finset TOOLNAME \\
+  toolsThisTurn : \nat \\
+  activeSubagents : \finset AGENTID \\
+  context : \seq CONTEXTCHUNK \\
+  pendingPrompt : \finset PROMPT \\
+  pendingResponse : \finset RESPONSE \\
+  %
+  % --- Vox notification state ---
+  %
+  notifyMode : NotifyMode \\
+  speakMode : ZBOOL \\
+  vibeMode : VibeMode \\
+  vibeSignals : \finset SIGNAL \\
+  stopHookActive : ZBOOL \\
+  spokeSummary : ZBOOL
+  \where
+  %
+  % === Base invariants ===
+  %
+  \# sessionId \leq 1 \\
+  sessionPhase = spInactive \implies sessionId = \emptyset \\
+  sessionPhase \neq spInactive \implies \# sessionId = 1 \\
+  sessionPhase \neq spProcessing \implies toolPhase = tpNone \\
+  \# currentTool \leq 1 \\
+  toolPhase = tpNone \implies currentTool = \emptyset \\
+  toolPhase \neq tpNone \implies \# currentTool = 1 \\
+  toolsThisTurn \leq maxTools \\
+  sessionPhase = spInactive \implies activeSubagents = \emptyset \\
+  sessionPhase = spEnded \implies activeSubagents = \emptyset \\
+  \# activeSubagents \leq maxSubagents \\
+  \# context \leq maxContext \\
+  \# pendingPrompt \leq 1 \\
+  sessionPhase = spIdle \implies pendingPrompt = \emptyset \\
+  sessionPhase = spInactive \implies pendingPrompt = \emptyset \\
+  sessionPhase = spEnded \implies pendingPrompt = \emptyset \\
+  \# pendingResponse \leq 1 \\
+  sessionPhase \neq spResponding \implies pendingResponse = \emptyset \\
+  %
+  % === Vox invariants ===
+  %
+  % Speech requires notification to be enabled
+  %
+  speakMode = ztrue \implies notifyMode \neq nmOff \\
+  %
+  % Vibe signals bounded for animation
+  %
+  \# vibeSignals \leq maxSignals \\
+  %
+  % Stop hook flags only during the respond-speak-respond cycle
+  % (spProcessing with stopHookActive=ztrue is the speak phase)
+  %
+  sessionPhase = spIdle \implies stopHookActive = zfalse \\
+  sessionPhase = spInactive \implies stopHookActive = zfalse \\
+  sessionPhase = spEnded \implies stopHookActive = zfalse \\
+  %
+  sessionPhase = spIdle \implies spokeSummary = zfalse \\
+  sessionPhase = spInactive \implies spokeSummary = zfalse \\
+  sessionPhase = spEnded \implies spokeSummary = zfalse \\
+  %
+  % spokeSummary implies stopHookActive (spoke only after block)
+  %
+  spokeSummary = ztrue \implies stopHookActive = ztrue \\
+  %
+  % No vox state when inactive
+  %
+  sessionPhase = spInactive \implies vibeSignals = \emptyset \\
+  sessionPhase = spInactive \implies notifyMode = nmOff
+\end{schema}
+
+% ============================================================
+\section{Initialization}
+% ============================================================
+
+\begin{schema}{Init}
+  State'
+  \where
+  sessionId' = \emptyset \\
+  sessionPhase' = spInactive \\
+  permMode' = pmDefault \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = 0 \\
+  activeSubagents' = \emptyset \\
+  context' = \langle \rangle \\
+  pendingPrompt' = \emptyset \\
+  pendingResponse' = \emptyset \\
+  %
+  notifyMode' = nmOff \\
+  speakMode' = zfalse \\
+  vibeMode' = vmAuto \\
+  vibeSignals' = \emptyset \\
+  stopHookActive' = zfalse \\
+  spokeSummary' = zfalse
+\end{schema}
+
+% ============================================================
+\section{Vox Frame Condition}
+% ============================================================
+
+\begin{schema}{VoxFrame}
+  \Delta State
+  \where
+  notifyMode' = notifyMode \\
+  speakMode' = speakMode \\
+  vibeMode' = vibeMode \\
+  vibeSignals' = vibeSignals \\
+  stopHookActive' = stopHookActive \\
+  spokeSummary' = spokeSummary
+\end{schema}
+
+% ============================================================
+\section{Session Lifecycle Operations}
+% ============================================================
+
+\subsection{StartSession}
+
+Vox reads notification config from \texttt{.vox/config.md} at
+startup. The \texttt{SessionStart} hook sets the initial notify
+and speak modes.
+
+\begin{schema}{StartSession}
+  \Delta State \\
+  sid? : SESSIONID \\
+  source? : SessionStartSource \\
+  mode? : PermissionMode \\
+  initNotify? : NotifyMode \\
+  initSpeak? : ZBOOL
+  \where
+  sessionPhase = spInactive \\
+  %
+  % Speech requires notification
+  %
+  initSpeak? = ztrue \implies initNotify? \neq nmOff \\
+  %
+  sessionPhase' = spIdle \\
+  sessionId' = \{ sid? \} \\
+  permMode' = mode? \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = 0 \\
+  activeSubagents' = \emptyset \\
+  context' = \langle \rangle \\
+  pendingPrompt' = \emptyset \\
+  pendingResponse' = \emptyset \\
+  %
+  notifyMode' = initNotify? \\
+  speakMode' = initSpeak? \\
+  vibeMode' = vmAuto \\
+  vibeSignals' = \emptyset \\
+  stopHookActive' = zfalse \\
+  spokeSummary' = zfalse
+\end{schema}
+
+\subsection{SubmitPrompt}
+
+Clears vibe signals and stop hook state for the new turn.
+
+\begin{schema}{SubmitPrompt}
+  \Delta State \\
+  prompt? : PROMPT \\
+  hookResult? : HookDecision \\
+  contextChunk? : CONTEXTCHUNK
+  \where
+  sessionPhase = spIdle \\
+  hookResult? = hdAllow \\
+  sessionPhase' = spProcessing \\
+  pendingPrompt' = \{ prompt? \} \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle contextChunk? \rangle) \\
+  toolsThisTurn' = 0 \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  activeSubagents' = activeSubagents \\
+  pendingResponse' = \emptyset \\
+  %
+  % Reset per-turn vox state
+  %
+  vibeSignals' = \emptyset \\
+  stopHookActive' = zfalse \\
+  spokeSummary' = zfalse \\
+  notifyMode' = notifyMode \\
+  speakMode' = speakMode \\
+  vibeMode' = vibeMode
+\end{schema}
+
+\begin{schema}{RejectPrompt}
+  \Xi State \\
+  prompt? : PROMPT \\
+  hookResult? : HookDecision
+  \where
+  sessionPhase = spIdle \\
+  hookResult? = hdBlock
+\end{schema}
+
+% ============================================================
+\section{Tool Call Operations}
+% ============================================================
+
+\subsection{BeginToolCall}
+
+\begin{schema}{BeginToolCall}
+  VoxFrame \\
+  tool? : TOOLNAME
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  toolsThisTurn < maxTools \\
+  toolPhase' = tpPreHook \\
+  currentTool' = \{ tool? \} \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{PreToolHookAllow}
+
+\begin{schema}{PreToolHookAllow}
+  VoxFrame \\
+  hookDecision? : PermissionDecision \\
+  needsPermission? : ZBOOL
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPreHook \\
+  hookDecision? = pdAllow \\
+  toolPhase' = \IF needsPermission? = ztrue \THEN tpPermission \ELSE tpExecuting \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{PreToolHookDeny}
+
+\begin{schema}{PreToolHookDeny}
+  VoxFrame \\
+  hookDecision? : PermissionDecision \\
+  denialContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPreHook \\
+  hookDecision? = pdDeny \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle denialContext? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{GrantPermission}
+
+\begin{schema}{GrantPermission}
+  VoxFrame
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPermission \\
+  toolPhase' = tpExecuting \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{DenyPermission}
+
+\begin{schema}{DenyPermission}
+  VoxFrame \\
+  denialContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPermission \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle denialContext? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{CompleteToolSuccess}
+
+\begin{schema}{CompleteToolSuccess}
+  VoxFrame \\
+  output? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpExecuting \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = toolsThisTurn + 1 \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle output? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{CompleteToolFailure}
+
+\begin{schema}{CompleteToolFailure}
+  VoxFrame \\
+  errorContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpExecuting \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = toolsThisTurn + 1 \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle errorContext? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ============================================================
+\section{Vox Operations}
+% ============================================================
+
+\subsection{AccumulateSignal}
+
+The \texttt{PostToolUse} Bash hook classifies command output into a
+signal token and appends it to the vibe signal history.
+
+\begin{schema}{AccumulateSignal}
+  \Delta State \\
+  signal? : SIGNAL
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  vibeMode = vmAuto \\
+  \# vibeSignals < maxSignals \\
+  %
+  vibeSignals' = vibeSignals \cup \{ signal? \} \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  notifyMode' = notifyMode \\
+  speakMode' = speakMode \\
+  vibeMode' = vibeMode \\
+  stopHookActive' = stopHookActive \\
+  spokeSummary' = spokeSummary
+\end{schema}
+
+\subsection{EnableNotify}
+
+Claude calls \texttt{/vox y} or \texttt{/vox c}. If enabling with
+speak never explicitly set, auto-enable speak.
+
+\begin{schema}{EnableNotify}
+  \Delta State \\
+  newMode? : NotifyMode
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  newMode? \neq nmOff \\
+  %
+  notifyMode' = newMode? \\
+  % Auto-enable speak when notification turns on
+  speakMode' = ztrue \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  vibeMode' = vibeMode \\
+  vibeSignals' = vibeSignals \\
+  stopHookActive' = stopHookActive \\
+  spokeSummary' = spokeSummary
+\end{schema}
+
+\subsection{DisableNotify}
+
+Claude calls \texttt{/vox n}. Disabling notification also disables
+speak (invariant: speak requires notify).
+
+\begin{schema}{DisableNotify}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  %
+  notifyMode' = nmOff \\
+  speakMode' = zfalse \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  vibeMode' = vibeMode \\
+  vibeSignals' = vibeSignals \\
+  stopHookActive' = stopHookActive \\
+  spokeSummary' = spokeSummary
+\end{schema}
+
+\subsection{Mute}
+
+Claude calls \texttt{/mute}. Switches to chimes only (speak off)
+but keeps notification enabled.
+
+\begin{schema}{Mute}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  notifyMode \neq nmOff \\
+  %
+  speakMode' = zfalse \\
+  %
+  % Notification stays on --- mute only affects voice vs chime
+  notifyMode' = notifyMode \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  vibeMode' = vibeMode \\
+  vibeSignals' = vibeSignals \\
+  stopHookActive' = stopHookActive \\
+  spokeSummary' = spokeSummary
+\end{schema}
+
+\subsection{Unmute}
+
+Claude calls \texttt{/unmute}. Enables voice (TTS).
+
+\begin{schema}{Unmute}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  notifyMode \neq nmOff \\
+  %
+  speakMode' = ztrue \\
+  notifyMode' = notifyMode \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  vibeMode' = vibeMode \\
+  vibeSignals' = vibeSignals \\
+  stopHookActive' = stopHookActive \\
+  spokeSummary' = spokeSummary
+\end{schema}
+
+% ============================================================
+\section{Response and Stop --- Decision-Block Pattern}
+% ============================================================
+
+This section models the vox Stop hook's re-entrant decision-block
+pattern. The sequence is:
+
+\begin{enumerate}
+  \item Claude finishes reasoning $\to$ \texttt{BeginResponse}
+  \item Claude streams response $\to$ attempts to stop
+  \item \textbf{First Stop}: if notify enabled, hook blocks
+    (\texttt{StopHookBlock}). Sets \texttt{stopHookActive = ztrue}.
+    Claude re-enters processing to speak.
+  \item Claude calls \texttt{unmute} to speak summary
+    (\texttt{SpeakSummary}).
+  \item Claude streams again $\to$ attempts to stop again
+  \item \textbf{Second Stop}: hook sees \texttt{stopHookActive = ztrue},
+    allows (\texttt{StopHookAllow}). Session returns to idle.
+\end{enumerate}
+
+\subsection{BeginResponse}
+
+\begin{schema}{BeginResponse}
+  VoxFrame \\
+  response? : RESPONSE
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  activeSubagents = \emptyset \\
+  sessionPhase' = spResponding \\
+  pendingResponse' = \{ response? \} \\
+  pendingPrompt' = \emptyset \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context
+\end{schema}
+
+\subsection{StopHookBlock --- First Stop (notify enabled)}
+
+The Stop hook fires. Notification is enabled and this is the first
+stop attempt (\texttt{stopHookActive = zfalse}). The hook blocks
+and injects guidance to speak a summary.
+
+\begin{schema}{StopHookBlock}
+  \Delta State
+  \where
+  sessionPhase = spResponding \\
+  notifyMode \neq nmOff \\
+  stopHookActive = zfalse \\
+  %
+  % Block: return to processing to speak
+  %
+  sessionPhase' = spProcessing \\
+  pendingResponse' = \emptyset \\
+  stopHookActive' = ztrue \\
+  spokeSummary' = zfalse \\
+  %
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  notifyMode' = notifyMode \\
+  speakMode' = speakMode \\
+  vibeMode' = vibeMode \\
+  vibeSignals' = vibeSignals
+\end{schema}
+
+\subsection{SpeakSummary}
+
+Claude calls \texttt{unmute(ephemeral=true)} to speak a summary.
+This occurs during the processing phase after \texttt{StopHookBlock}
+returned control.
+
+\begin{schema}{SpeakSummary}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  stopHookActive = ztrue \\
+  spokeSummary = zfalse \\
+  %
+  spokeSummary' = ztrue \\
+  %
+  % Consume vibe signals (resolved into tags for the speech)
+  vibeSignals' = \emptyset \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  notifyMode' = notifyMode \\
+  speakMode' = speakMode \\
+  vibeMode' = vibeMode \\
+  stopHookActive' = stopHookActive
+\end{schema}
+
+\subsection{StopHookAllow --- Second Stop (re-entry)}
+
+The Stop hook fires again. \texttt{stopHookActive = ztrue} means
+this is the second attempt --- the hook allows, and the session
+returns to idle. The \texttt{stopHookActive} and \texttt{spokeSummary}
+flags are cleared.
+
+\begin{schema}{StopHookAllow}
+  \Delta State \\
+  responseContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spResponding \\
+  stopHookActive = ztrue \\
+  %
+  sessionPhase' = spIdle \\
+  pendingResponse' = \emptyset \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle responseContext? \rangle) \\
+  toolsThisTurn' = 0 \\
+  stopHookActive' = zfalse \\
+  spokeSummary' = zfalse \\
+  %
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = \emptyset \\
+  notifyMode' = notifyMode \\
+  speakMode' = speakMode \\
+  vibeMode' = vibeMode \\
+  vibeSignals' = vibeSignals
+\end{schema}
+
+\subsection{StopHookSkip --- Notification disabled}
+
+When \texttt{notifyMode = nmOff}, the Stop hook allows immediately.
+No speech, no block.
+
+\begin{schema}{StopHookSkip}
+  \Delta State \\
+  responseContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spResponding \\
+  notifyMode = nmOff \\
+  %
+  sessionPhase' = spIdle \\
+  pendingResponse' = \emptyset \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle responseContext? \rangle) \\
+  toolsThisTurn' = 0 \\
+  stopHookActive' = zfalse \\
+  spokeSummary' = zfalse \\
+  %
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = \emptyset \\
+  notifyMode' = notifyMode \\
+  speakMode' = speakMode \\
+  vibeMode' = vibeMode \\
+  vibeSignals' = vibeSignals
+\end{schema}
+
+% ============================================================
+\section{Subagent Operations}
+% ============================================================
+
+\begin{schema}{SpawnSubagent}
+  VoxFrame \\
+  agentId? : AGENTID
+  \where
+  sessionPhase = spProcessing \\
+  agentId? \notin activeSubagents \\
+  \# activeSubagents < maxSubagents \\
+  activeSubagents' = activeSubagents \cup \{ agentId? \} \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\begin{schema}{StopSubagent}
+  VoxFrame \\
+  agentId? : AGENTID \\
+  hookResult? : HookDecision \\
+  resultContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  agentId? \in activeSubagents \\
+  hookResult? = hdAllow \\
+  activeSubagents' = activeSubagents \setminus \{ agentId? \} \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle resultContext? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ============================================================
+\section{Context and Session End}
+% ============================================================
+
+\begin{schema}{CompactContext}
+  VoxFrame \\
+  newLen? : \nat
+  \where
+  sessionPhase = spIdle \\
+  \# context > 0 \\
+  newLen? < \# context \\
+  newLen? \leq maxContext \\
+  context' = (1 \upto newLen?) \dres context \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\begin{schema}{EndSession}
+  \Delta State \\
+  reason? : SessionEndReason
+  \where
+  sessionPhase = spIdle \\
+  activeSubagents = \emptyset \\
+  sessionPhase' = spEnded \\
+  sessionId' = \emptyset \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = 0 \\
+  activeSubagents' = \emptyset \\
+  context' = \langle \rangle \\
+  pendingPrompt' = \emptyset \\
+  pendingResponse' = \emptyset \\
+  permMode' = permMode \\
+  notifyMode' = nmOff \\
+  speakMode' = zfalse \\
+  vibeMode' = vibeMode \\
+  vibeSignals' = \emptyset \\
+  stopHookActive' = zfalse \\
+  spokeSummary' = zfalse
+\end{schema}
+
+% ============================================================
+\section{System Invariants}
+% ============================================================
+
+\begin{enumerate}
+  \item \textbf{No infinite Stop loop}: \texttt{StopHookBlock} sets
+    \texttt{stopHookActive = ztrue}. \texttt{StopHookAllow} requires
+    \texttt{stopHookActive = ztrue}. There is exactly one block and
+    one allow per turn. No path enables a second block.
+
+  \item \textbf{Speech requires notification}: the state invariant
+    \texttt{speakMode = ztrue $\implies$ notifyMode $\neq$ nmOff}
+    holds across all reachable states. \texttt{DisableNotify} clears
+    both. \texttt{EnableNotify} sets both. \texttt{Mute} clears speak
+    but not notify.
+
+  \item \textbf{Signal accumulation}: \texttt{AccumulateSignal} only
+    fires when \texttt{vibeMode = vmAuto}. Signals are consumed by
+    \texttt{SpeakSummary} (cleared to $\emptyset$).
+
+  \item \textbf{stopHookActive only during responding}: the invariant
+    \texttt{sessionPhase $\neq$ spResponding $\implies$
+    stopHookActive = zfalse} ensures the flag does not leak across
+    turns. \texttt{SubmitPrompt} resets it.
+
+  \item \textbf{spokeSummary implies stopHookActive}: you can only
+    have spoken a summary after the stop hook blocked. No path sets
+    \texttt{spokeSummary = ztrue} without first setting
+    \texttt{stopHookActive = ztrue}.
+
+  \item \textbf{Notification disabled $\implies$ skip}: when
+    \texttt{notifyMode = nmOff}, only \texttt{StopHookSkip} can fire
+    (not \texttt{StopHookBlock}). The session transitions directly
+    to idle with no speech.
+\end{enumerate}
+
+% ============================================================
+\section{Hook Event Map}
+% ============================================================
+
+\begin{tabular}{lllll}
+\hline
+\textbf{Hook} & \textbf{Matcher} & \textbf{Operation} & \textbf{Vox Effect} & \textbf{Blocks?} \\
+\hline
+SessionStart & * & StartSession & Load config & No \\
+PostToolUse & Bash & AccumulateSignal & Classify output & No \\
+PostToolUse & vox\_\_notify & EnableNotify/DisableNotify & Set mode & No \\
+PostToolUse & vox\_\_speak & Mute/Unmute & Toggle voice & No \\
+Stop & * & StopHookBlock/Allow/Skip & Decision-block & Yes \\
+Notification & permission & (chime/speak) & Alert user & No \\
+Notification & idle & (chime/speak) & Alert user & No \\
+PreCompact & * & (speak ``be right back'') & Continuous only & No \\
+SessionEnd & * & EndSession & Clear state & No \\
+\hline
+\end{tabular}
+
+\end{document}
