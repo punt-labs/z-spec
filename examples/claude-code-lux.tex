@@ -1,0 +1,1067 @@
+%
+% claude-code-lux.tex
+%
+% Z Specification: Claude Code + Lux Visual Surface State (Layer 2)
+% Extends the base Claude Code state machine with lux display state and
+% consumer integration patterns for beads, quarry, biff, and z-spec.
+%
+% Type-check: fuzz -t claude-code-lux.tex
+% Animate:    probcli claude-code-lux.tex -animate 20
+%
+
+\documentclass[a4paper,10pt,fleqn]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{fuzz}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+\begin{document}
+
+\title{Claude Code + Lux: A Z Specification}
+\author{Layer 2 --- Visual Output Surface State}
+\date{March 2026}
+\hypersetup{
+  pdftitle={Claude Code + Lux: A Z Specification},
+  pdfauthor={Punt Labs},
+  pdfsubject={Z Specification},
+  pdfcreator={fuzz/probcli}
+}
+\maketitle
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Introduction}
+% ============================================================
+
+This specification extends the base Claude Code state machine
+(\texttt{claude-code.tex}) with lux visual output surface state.
+Lux is a \emph{building block} (see \texttt{integration.md}): it
+provides deterministic rendering at L1 that agents compose at L4.
+Lux has no upstream awareness --- it does not know about beads,
+biff, quarry, or any consumer. Consumers discover lux at L1 and
+use it to render visual output.
+
+The model captures two concerns:
+
+\begin{enumerate}
+  \item \textbf{Lux display state} --- whether the display is active,
+    what scene is shown, whether an interaction is pending.
+  \item \textbf{Consumer integration} --- how other tools trigger
+    lux displays via hooks and skills, gated by a display mode flag.
+\end{enumerate}
+
+The key properties verified:
+
+\begin{enumerate}
+  \item \textbf{Scene requires display}: a scene can only be active
+    when the display is enabled.
+  \item \textbf{No orphan interactions}: blocking for user interaction
+    (\texttt{recv}) requires an active scene.
+  \item \textbf{Display mode gates rendering}: when
+    \texttt{displayMode = dmOff}, no consumer triggers lux displays.
+  \item \textbf{Scene updates are safe}: \texttt{UpdateScene} requires
+    an active scene. No updates to a cleared display.
+  \item \textbf{Beads board refresh}: after bead state changes
+    (\texttt{ClaimBead}, \texttt{CloseBead}), the beads board is
+    marked stale for refresh.
+\end{enumerate}
+
+% ============================================================
+\section{Base Types (from claude-code.tex)}
+% ============================================================
+
+\begin{zed}
+  [TOOLNAME, TOOLINPUT, TOOLOUTPUT, PROMPT, RESPONSE, AGENTID, SESSIONID, CONTEXTCHUNK]
+\end{zed}
+
+\begin{zed}
+  SessionPhase ::= spInactive | spIdle | spProcessing | spResponding | spEnded
+\end{zed}
+
+\begin{zed}
+  ToolPhase ::= tpNone | tpPreHook | tpPermission | tpExecuting | tpPostHook
+\end{zed}
+
+\begin{zed}
+  PermissionMode ::= pmDefault | pmPlan | pmAcceptEdits | pmDontAsk | pmBypass
+\end{zed}
+
+\begin{zed}
+  PermissionDecision ::= pdAllow | pdDeny | pdAsk
+\end{zed}
+
+\begin{zed}
+  HookDecision ::= hdAllow | hdBlock
+\end{zed}
+
+\begin{zed}
+  SessionStartSource ::= ssStartup | ssResume | ssClear | ssCompact
+\end{zed}
+
+\begin{zed}
+  SessionEndReason ::= seClear | seLogout | sePromptExit | seBypassDisabled | seOther
+\end{zed}
+
+\begin{zed}
+  ZBOOL ::= ztrue | zfalse
+\end{zed}
+
+% ============================================================
+\section{Lux Types}
+% ============================================================
+
+\begin{zed}
+  [SCENEID, ELEMENTID]
+\end{zed}
+
+\texttt{SCENEID} identifies a displayed scene (e.g.,
+\texttt{beads-board}, \texttt{quarry-search}, \texttt{z-spec-states}).
+\texttt{ELEMENTID} identifies an interactive element within a scene
+(e.g., a button, slider, or table row).
+
+\begin{zed}
+  DisplayMode ::= dmOff | dmOn
+\end{zed}
+
+Whether lux visual output is enabled. \texttt{dmOn} means consumers
+should render visual output when appropriate. \texttt{dmOff} means
+consumers degrade to text-only. Analogous to vox's
+\texttt{notifyMode}.
+
+\begin{zed}
+  SceneKind ::= skBeads | skDashboard | skDataExplorer | skDiagram | skCustom
+\end{zed}
+
+Classification of the active scene. Used by consumer hooks to decide
+whether to update or replace the display.
+
+% ============================================================
+\section{Global Constants}
+% ============================================================
+
+\begin{axdef}
+  maxTools : \nat \\
+  maxSubagents : \nat \\
+  maxContext : \nat
+  \where
+  maxTools = 5 \\
+  maxSubagents = 2 \\
+  maxContext = 3
+\end{axdef}
+
+% ============================================================
+\section{State}
+% ============================================================
+
+\begin{schema}{State}
+  %
+  % --- Base Claude Code state ---
+  %
+  sessionId : \finset SESSIONID \\
+  sessionPhase : SessionPhase \\
+  permMode : PermissionMode \\
+  toolPhase : ToolPhase \\
+  currentTool : \finset TOOLNAME \\
+  toolsThisTurn : \nat \\
+  activeSubagents : \finset AGENTID \\
+  context : \seq CONTEXTCHUNK \\
+  pendingPrompt : \finset PROMPT \\
+  pendingResponse : \finset RESPONSE \\
+  %
+  % --- Lux display state ---
+  %
+  displayMode : DisplayMode \\
+  activeScene : \finset SCENEID \\
+  sceneKind : \finset SceneKind \\
+  pendingRecv : ZBOOL \\
+  beadsBoardStale : ZBOOL
+  \where
+  %
+  % === Base invariants ===
+  %
+  \# sessionId \leq 1 \\
+  sessionPhase = spInactive \implies sessionId = \emptyset \\
+  sessionPhase \neq spInactive \implies \# sessionId = 1 \\
+  sessionPhase \neq spProcessing \implies toolPhase = tpNone \\
+  \# currentTool \leq 1 \\
+  toolPhase = tpNone \implies currentTool = \emptyset \\
+  toolPhase \neq tpNone \implies \# currentTool = 1 \\
+  toolsThisTurn \leq maxTools \\
+  sessionPhase = spInactive \implies activeSubagents = \emptyset \\
+  sessionPhase = spEnded \implies activeSubagents = \emptyset \\
+  \# activeSubagents \leq maxSubagents \\
+  \# context \leq maxContext \\
+  \# pendingPrompt \leq 1 \\
+  sessionPhase = spIdle \implies pendingPrompt = \emptyset \\
+  sessionPhase = spInactive \implies pendingPrompt = \emptyset \\
+  sessionPhase = spEnded \implies pendingPrompt = \emptyset \\
+  \# pendingResponse \leq 1 \\
+  sessionPhase \neq spResponding \implies pendingResponse = \emptyset \\
+  %
+  % === Lux invariants ===
+  %
+  % At most one active scene
+  %
+  \# activeScene \leq 1 \\
+  \# sceneKind \leq 1 \\
+  %
+  % Scene requires display enabled
+  %
+  displayMode = dmOff \implies activeScene = \emptyset \\
+  %
+  % Scene kind tracks active scene
+  %
+  activeScene = \emptyset \implies sceneKind = \emptyset \\
+  activeScene \neq \emptyset \implies \# sceneKind = 1 \\
+  %
+  % Pending interaction requires active scene
+  %
+  pendingRecv = ztrue \implies activeScene \neq \emptyset \\
+  %
+  % Beads board staleness only when beads board is active
+  %
+  beadsBoardStale = ztrue \implies sceneKind = \{ skBeads \} \\
+  %
+  % No lux state when session is inactive
+  %
+  sessionPhase = spInactive \implies displayMode = dmOff \\
+  sessionPhase = spInactive \implies pendingRecv = zfalse \\
+  sessionPhase = spInactive \implies beadsBoardStale = zfalse
+\end{schema}
+
+% ============================================================
+\section{Initialization}
+% ============================================================
+
+\begin{schema}{Init}
+  State'
+  \where
+  sessionId' = \emptyset \\
+  sessionPhase' = spInactive \\
+  permMode' = pmDefault \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = 0 \\
+  activeSubagents' = \emptyset \\
+  context' = \langle \rangle \\
+  pendingPrompt' = \emptyset \\
+  pendingResponse' = \emptyset \\
+  %
+  displayMode' = dmOff \\
+  activeScene' = \emptyset \\
+  sceneKind' = \emptyset \\
+  pendingRecv' = zfalse \\
+  beadsBoardStale' = zfalse
+\end{schema}
+
+% ============================================================
+\section{Lux Frame Condition}
+% ============================================================
+
+\begin{schema}{LuxFrame}
+  \Delta State
+  \where
+  displayMode' = displayMode \\
+  activeScene' = activeScene \\
+  sceneKind' = sceneKind \\
+  pendingRecv' = pendingRecv \\
+  beadsBoardStale' = beadsBoardStale
+\end{schema}
+
+% ============================================================
+\section{Session Lifecycle Operations}
+% ============================================================
+
+\subsection{StartSession}
+
+Lux reads display mode from config (\texttt{.lux/config.md} or
+equivalent sentinel). If no config exists, defaults to \texttt{dmOff}.
+
+\begin{schema}{StartSession}
+  \Delta State \\
+  sid? : SESSIONID \\
+  source? : SessionStartSource \\
+  mode? : PermissionMode \\
+  initDisplay? : DisplayMode
+  \where
+  sessionPhase = spInactive \\
+  sessionPhase' = spIdle \\
+  sessionId' = \{ sid? \} \\
+  permMode' = mode? \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = 0 \\
+  activeSubagents' = \emptyset \\
+  context' = \langle \rangle \\
+  pendingPrompt' = \emptyset \\
+  pendingResponse' = \emptyset \\
+  %
+  displayMode' = initDisplay? \\
+  activeScene' = \emptyset \\
+  sceneKind' = \emptyset \\
+  pendingRecv' = zfalse \\
+  beadsBoardStale' = zfalse
+\end{schema}
+
+\subsection{SubmitPrompt}
+
+\begin{schema}{SubmitPrompt}
+  LuxFrame \\
+  prompt? : PROMPT \\
+  hookResult? : HookDecision \\
+  contextChunk? : CONTEXTCHUNK
+  \where
+  sessionPhase = spIdle \\
+  hookResult? = hdAllow \\
+  sessionPhase' = spProcessing \\
+  pendingPrompt' = \{ prompt? \} \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle contextChunk? \rangle) \\
+  toolsThisTurn' = 0 \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  activeSubagents' = activeSubagents \\
+  pendingResponse' = \emptyset
+\end{schema}
+
+\begin{schema}{RejectPrompt}
+  \Xi State \\
+  prompt? : PROMPT \\
+  hookResult? : HookDecision
+  \where
+  sessionPhase = spIdle \\
+  hookResult? = hdBlock
+\end{schema}
+
+% ============================================================
+\section{Tool Call Operations}
+% ============================================================
+
+\subsection{BeginToolCall}
+
+\begin{schema}{BeginToolCall}
+  LuxFrame \\
+  tool? : TOOLNAME
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  toolsThisTurn < maxTools \\
+  toolPhase' = tpPreHook \\
+  currentTool' = \{ tool? \} \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{PreToolHookAllow}
+
+\begin{schema}{PreToolHookAllow}
+  LuxFrame \\
+  hookDecision? : PermissionDecision \\
+  needsPermission? : ZBOOL
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPreHook \\
+  hookDecision? = pdAllow \\
+  toolPhase' = \IF needsPermission? = ztrue \THEN tpPermission \ELSE tpExecuting \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{PreToolHookDeny}
+
+\begin{schema}{PreToolHookDeny}
+  LuxFrame \\
+  hookDecision? : PermissionDecision \\
+  denialContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPreHook \\
+  hookDecision? = pdDeny \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle denialContext? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{GrantPermission}
+
+\begin{schema}{GrantPermission}
+  LuxFrame
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPermission \\
+  toolPhase' = tpExecuting \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{DenyPermission}
+
+\begin{schema}{DenyPermission}
+  LuxFrame \\
+  denialContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPermission \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle denialContext? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{CompleteToolSuccess}
+
+\begin{schema}{CompleteToolSuccess}
+  LuxFrame \\
+  output? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpExecuting \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = toolsThisTurn + 1 \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle output? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{CompleteToolFailure}
+
+\begin{schema}{CompleteToolFailure}
+  LuxFrame \\
+  errorContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpExecuting \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = toolsThisTurn + 1 \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle errorContext? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ============================================================
+\section{Lux Display Operations}
+% ============================================================
+
+\subsection{EnableDisplay}
+
+User calls \texttt{/lux y}. Enables visual output mode.
+
+\begin{schema}{EnableDisplay}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  %
+  displayMode' = dmOn \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  activeScene' = activeScene \\
+  sceneKind' = sceneKind \\
+  pendingRecv' = pendingRecv \\
+  beadsBoardStale' = beadsBoardStale
+\end{schema}
+
+\subsection{DisableDisplay}
+
+User calls \texttt{/lux n}. Disables visual output and clears
+the display.
+
+\begin{schema}{DisableDisplay}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  %
+  displayMode' = dmOff \\
+  activeScene' = \emptyset \\
+  sceneKind' = \emptyset \\
+  pendingRecv' = zfalse \\
+  beadsBoardStale' = zfalse \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{ShowScene}
+
+Claude calls \texttt{lux show()} to display a scene. Requires
+display mode enabled.
+
+\begin{schema}{ShowScene}
+  \Delta State \\
+  scene? : SCENEID \\
+  kind? : SceneKind
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  displayMode = dmOn \\
+  %
+  activeScene' = \{ scene? \} \\
+  sceneKind' = \{ kind? \} \\
+  pendingRecv' = zfalse \\
+  beadsBoardStale' = \IF kind? = skBeads \THEN zfalse \ELSE beadsBoardStale \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  displayMode' = displayMode
+\end{schema}
+
+\subsection{UpdateScene}
+
+Claude calls \texttt{lux update()} to patch the active scene.
+Requires an active scene.
+
+\begin{schema}{UpdateScene}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  activeScene \neq \emptyset \\
+  %
+  % Scene remains active; staleness may be cleared if beads refresh
+  beadsBoardStale' = zfalse \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  displayMode' = displayMode \\
+  activeScene' = activeScene \\
+  sceneKind' = sceneKind \\
+  pendingRecv' = pendingRecv
+\end{schema}
+
+\subsection{ClearDisplay}
+
+Claude calls \texttt{lux clear()}.
+
+\begin{schema}{ClearDisplay}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  %
+  activeScene' = \emptyset \\
+  sceneKind' = \emptyset \\
+  pendingRecv' = zfalse \\
+  beadsBoardStale' = zfalse \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  displayMode' = displayMode
+\end{schema}
+
+\subsection{WaitForInteraction}
+
+Claude calls \texttt{lux recv()} to block for user interaction.
+
+\begin{schema}{WaitForInteraction}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  activeScene \neq \emptyset \\
+  pendingRecv = zfalse \\
+  %
+  pendingRecv' = ztrue \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  displayMode' = displayMode \\
+  activeScene' = activeScene \\
+  sceneKind' = sceneKind \\
+  beadsBoardStale' = beadsBoardStale
+\end{schema}
+
+\subsection{ReceiveInteraction}
+
+User interacts with the display (button click, row selection, etc.).
+
+\begin{schema}{ReceiveInteraction}
+  \Delta State \\
+  interactionContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  pendingRecv = ztrue \\
+  %
+  pendingRecv' = zfalse \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle interactionContext? \rangle) \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  displayMode' = displayMode \\
+  activeScene' = activeScene \\
+  sceneKind' = sceneKind \\
+  beadsBoardStale' = beadsBoardStale
+\end{schema}
+
+% ============================================================
+\section{Consumer Integration Operations}
+% ============================================================
+
+These operations model how other tools trigger lux displays.
+They are gated by \texttt{displayMode = dmOn} --- when lux is
+disabled, consumers degrade to text-only.
+
+\subsection{MarkBeadsBoardStale}
+
+A bead state change occurs (\texttt{bd update}, \texttt{bd close},
+\texttt{bd create}). If the beads board is the active scene,
+mark it stale so Claude knows to refresh.
+
+\begin{schema}{MarkBeadsBoardStale}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  displayMode = dmOn \\
+  sceneKind = \{ skBeads \} \\
+  %
+  beadsBoardStale' = ztrue \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  displayMode' = displayMode \\
+  activeScene' = activeScene \\
+  sceneKind' = sceneKind \\
+  pendingRecv' = pendingRecv
+\end{schema}
+
+% ============================================================
+\section{Subagent Operations}
+% ============================================================
+
+\begin{schema}{SpawnSubagent}
+  LuxFrame \\
+  agentId? : AGENTID
+  \where
+  sessionPhase = spProcessing \\
+  agentId? \notin activeSubagents \\
+  \# activeSubagents < maxSubagents \\
+  activeSubagents' = activeSubagents \cup \{ agentId? \} \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\begin{schema}{StopSubagent}
+  LuxFrame \\
+  agentId? : AGENTID \\
+  hookResult? : HookDecision \\
+  resultContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  agentId? \in activeSubagents \\
+  hookResult? = hdAllow \\
+  activeSubagents' = activeSubagents \setminus \{ agentId? \} \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle resultContext? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ============================================================
+\section{Response, Stop, Context, and Session End}
+% ============================================================
+
+\begin{schema}{BeginResponse}
+  LuxFrame \\
+  response? : RESPONSE
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  activeSubagents = \emptyset \\
+  sessionPhase' = spResponding \\
+  pendingResponse' = \{ response? \} \\
+  pendingPrompt' = \emptyset \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context
+\end{schema}
+
+\begin{schema}{FinishResponse}
+  LuxFrame \\
+  hookResult? : HookDecision \\
+  responseContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spResponding \\
+  hookResult? = hdAllow \\
+  sessionPhase' = spIdle \\
+  pendingResponse' = \emptyset \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle responseContext? \rangle) \\
+  toolsThisTurn' = 0 \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = \emptyset
+\end{schema}
+
+\begin{schema}{ForceContinue}
+  LuxFrame \\
+  hookResult? : HookDecision
+  \where
+  sessionPhase = spResponding \\
+  hookResult? = hdBlock \\
+  sessionPhase' = spProcessing \\
+  pendingResponse' = \emptyset \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt
+\end{schema}
+
+\begin{schema}{CompactContext}
+  LuxFrame \\
+  newLen? : \nat
+  \where
+  sessionPhase = spIdle \\
+  \# context > 0 \\
+  newLen? < \# context \\
+  newLen? \leq maxContext \\
+  context' = (1 \upto newLen?) \dres context \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\begin{schema}{EndSession}
+  \Delta State \\
+  reason? : SessionEndReason
+  \where
+  sessionPhase = spIdle \\
+  activeSubagents = \emptyset \\
+  sessionPhase' = spEnded \\
+  sessionId' = \emptyset \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = 0 \\
+  activeSubagents' = \emptyset \\
+  context' = \langle \rangle \\
+  pendingPrompt' = \emptyset \\
+  pendingResponse' = \emptyset \\
+  permMode' = permMode \\
+  %
+  displayMode' = dmOff \\
+  activeScene' = \emptyset \\
+  sceneKind' = \emptyset \\
+  pendingRecv' = zfalse \\
+  beadsBoardStale' = zfalse
+\end{schema}
+
+% ============================================================
+\section{System Invariants}
+% ============================================================
+
+\begin{enumerate}
+  \item \textbf{Scene requires display}: \texttt{displayMode = dmOff
+    $\implies$ activeScene = $\emptyset$}. No scene can exist when the
+    display is disabled.
+
+  \item \textbf{No orphan interactions}: \texttt{pendingRecv = ztrue
+    $\implies$ activeScene $\neq \emptyset$}. Cannot block for
+    interaction without an active scene.
+
+  \item \textbf{Scene kind consistency}: \texttt{activeScene = $\emptyset$
+    $\implies$ sceneKind = $\emptyset$} and
+    \texttt{activeScene $\neq \emptyset$ $\implies$ $\#$sceneKind = 1}.
+
+  \item \textbf{Beads staleness scoping}: \texttt{beadsBoardStale = ztrue
+    $\implies$ sceneKind = \{skBeads\}}. Staleness only applies when the
+    beads board is the active scene.
+
+  \item \textbf{Display mode gates consumers}: \texttt{ShowScene} and
+    \texttt{MarkBeadsBoardStale} require \texttt{displayMode = dmOn}.
+    When lux is off, all visual operations are refused.
+
+  \item \textbf{Clean session boundaries}: all lux state cleared on
+    \texttt{EndSession}.
+\end{enumerate}
+
+% ============================================================
+\section{Consumer Integration Patterns}
+% ============================================================
+
+Lux is a building block. These patterns describe how consumers
+discover and use lux, following \texttt{integration.md}'s tiered
+protocol.
+
+\subsection{L0: Presence Detection}
+
+Consumers check for lux via MCP tool availability (L1 discovery):
+
+\begin{verbatim}
+  # In consumer's hook handler:
+  # Check if lux MCP tools are available in this session
+  # If available AND displayMode = dmOn: render visual output
+  # If not: degrade to text-only
+\end{verbatim}
+
+The \texttt{displayMode} flag is the L3 state that consumers read.
+When \texttt{/lux y} is called, it writes to a config file that
+consumers can check.
+
+\subsection{Beads Integration}
+
+\textbf{Trigger}: \texttt{PostToolUse} on \texttt{Bash} commands
+matching \texttt{bd create|update|close}.
+
+\textbf{Pattern}: When lux is enabled and the beads board is active,
+mark it stale. Claude sees the staleness context and re-renders the
+board with fresh data.
+
+\textbf{Degradation}: Without lux, \texttt{bd ready} outputs text.
+With lux, it renders a filterable board with search, filters, and
+detail panel.
+
+\subsection{Quarry Integration}
+
+\textbf{Trigger}: \texttt{PostToolUse} on \texttt{quarry find}.
+
+\textbf{Pattern}: When lux is enabled, render search results as an
+interactive data explorer (filterable table with document detail panel).
+Without lux, results are inline text.
+
+\subsection{PR Workflow Integration}
+
+\textbf{Trigger}: \texttt{PostToolUse} on
+\texttt{mcp\_\_github\_\_create\_pull\_request}.
+
+\textbf{Pattern}: When lux is enabled, display a PR dashboard
+showing status, checks, review comments. Without lux, PR status is
+text-only in the conversation.
+
+\subsection{Z-Spec Integration}
+
+\textbf{Trigger}: After \texttt{/z-spec:test} or \texttt{/z-spec:check}.
+
+\textbf{Pattern}: When lux is enabled, display model-check results
+as a dashboard (states explored, transitions fired, operations covered,
+invariant status). The \texttt{claude-code.lux} file we created earlier
+is an example of this pattern.
+
+\subsection{Session Dashboard}
+
+\textbf{Trigger}: \texttt{SessionStart} or explicit \texttt{/lux dashboard}.
+
+\textbf{Pattern}: Compose a session overview from multiple sources:
+git status (working tree state), beads (active issues), biff
+(unread messages, active wall), vox (notify mode). Each data source
+degrades independently.
+
+% ============================================================
+\section{Hook Event Map}
+% ============================================================
+
+\begin{tabular}{lllll}
+\hline
+\textbf{Hook} & \textbf{Matcher} & \textbf{Operation} & \textbf{Lux Effect} & \textbf{Blocks?} \\
+\hline
+SessionStart & * & StartSession & Load display config & No \\
+PostToolUse & lux\_\_* & (suppress output) & Format panel & No \\
+PostToolUse & Bash (bd *) & MarkBeadsBoardStale & Flag refresh & No \\
+PostToolUse & quarry\_\_find & (consumer) & Data explorer & No \\
+PostToolUse & github\_\_*\_pr & (consumer) & PR dashboard & No \\
+Stop & * & (consumer) & Summary visual & No \\
+SessionEnd & * & EndSession & Clear display & No \\
+\hline
+\end{tabular}
+
+\textbf{Note}: Lux itself registers only SessionStart and PostToolUse
+(suppress-output) hooks. The consumer integration hooks (Bash bd,
+quarry find, github PR) are registered by the \emph{consuming} plugins
+or by session-level configuration. Lux as a building block has no
+upstream awareness.
+
+% ============================================================
+\section{Implementation Validation}
+% ============================================================
+
+\subsection{Built and Correct}
+
+\begin{tabular}{llll}
+\hline
+\textbf{Component} & \textbf{Status} & \textbf{Notes} \\
+\hline
+SessionStart hook & Correct & Deploys commands, auto-allows tools \\
+PostToolUse suppress & Correct & Two-channel display for all MCP tools \\
+MCP tools (show, update, clear, recv, ping) & Correct & 10 tools exposed \\
+Beads board skill & Correct & /lux:beads renders filterable board \\
+Dashboard skill & Correct & /lux:dashboard composes metrics+charts \\
+Data explorer skill & Correct & /lux:data-explorer with built-in filters \\
+Diagram skill & Correct & /lux:diagram with auto-layout \\
+\hline
+\end{tabular}
+
+\subsection{Not Yet Built}
+
+\begin{tabular}{llll}
+\hline
+\textbf{Feature} & \textbf{Z Operation} & \textbf{Effort} & \textbf{Notes} \\
+\hline
+/lux y and /lux n toggle & EnableDisplay/DisableDisplay & Medium & Needs config file + command \\
+Display mode config & (L3 state) & Low & .lux/config.md with displayMode \\
+Beads board auto-refresh & MarkBeadsBoardStale & Medium & PostToolUse on Bash(bd *) \\
+Quarry search display & (consumer pattern) & Low & PostToolUse on quarry find \\
+PR dashboard & (consumer pattern) & Medium & PostToolUse on github PR \\
+Z-spec results display & (consumer pattern) & Low & Already have .lux file pattern \\
+Session dashboard & (consumer pattern) & Medium & Compose from multiple sources \\
+\hline
+\end{tabular}
+
+\subsection{Design Note: Building Block Boundary}
+
+Per \texttt{integration.md}, lux is a building block with no upstream
+awareness. The consumer integration operations in this Z spec model
+what \emph{consumers do} with lux, not what lux does itself. In
+implementation:
+
+\begin{itemize}
+  \item \texttt{ShowScene}, \texttt{UpdateScene}, \texttt{ClearDisplay},
+    \texttt{WaitForInteraction}, \texttt{ReceiveInteraction} are lux
+    MCP tools --- implemented in lux.
+  \item \texttt{EnableDisplay}, \texttt{DisableDisplay} are lux commands
+    --- implemented in lux.
+  \item \texttt{MarkBeadsBoardStale} would be a PostToolUse hook in the
+    consuming plugin (biff or a shared integration hook), not in lux.
+  \item Consumer display triggers (quarry search, PR dashboard) are
+    implemented in the consumer's hooks or skills, not in lux.
+\end{itemize}
+
+This respects the one-way arrow: consumers discover lux, lux never
+discovers consumers.
+
+\end{document}
