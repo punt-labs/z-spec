@@ -219,9 +219,9 @@ Populate the placeholders from the probcli output parsed in Steps 4–5:
 
 #### 6c. Counter-Example Trace (when failure found)
 
-If `COUNTER EXAMPLE FOUND` appears in the probcli output, render a trace diagram
+If `COUNTER EXAMPLE FOUND` appears in the probcli output, render a trace table
 as a **second tab** in the dashboard. Replace the simple `elements` array with a
-`tab_bar` containing both the dashboard and the trace:
+`tab_bar` containing both the dashboard and the trace table:
 
 ```json
 {
@@ -238,11 +238,11 @@ as a **second tab** in the dashboard. Replace the simple `elements` array with a
         ]},
         {"kind": "separator"},
         {"kind": "table", "id": "checks", "columns": ["Check", "Result", "Details"],
-         "rows": ["... same as 6b ..."],
+         "rows": [["<same rows as 6b checks table>"]],
          "flags": ["borders", "row_bg"]},
         {"kind": "separator"},
         {"kind": "table", "id": "ops_coverage", "columns": ["Operation", "Times Fired", "Status"],
-         "rows": ["... same as 6b ..."],
+         "rows": [["<same rows as 6b ops_coverage table>"]],
          "flags": ["borders", "row_bg", "resizable"]}
       ]},
       {"label": "Counter-Example Trace", "children": [
