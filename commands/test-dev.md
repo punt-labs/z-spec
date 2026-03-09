@@ -165,7 +165,114 @@ Include:
 - Operations discovered
 - Any warnings (unbounded enumeration, incomplete exploration)
 
-### 6. Handle Failures
+### 6. Visual Display (when lux available)
+
+After summarizing results in text, attempt to render an interactive lux dashboard.
+
+#### 6a. Check Lux Availability
+
+Try calling `mcp__plugin_lux_lux__ping`. If it succeeds, lux is available.
+If it fails or the tool does not exist, skip to Step 7 (text-only output is sufficient).
+
+> **Note**: Once lux-t1p ships, replace this ping check with reading `.lux/config.md` instead.
+
+#### 6b. Compose Dashboard
+
+Call `mcp__plugin_lux_lux__show` with a JSON scene:
+
+```json
+{
+  "scene_id": "z-spec-test-results",
+  "title": "<spec filename> — Model Check Results",
+  "elements": [
+    {"kind": "group", "id": "metrics", "layout": "columns", "children": [
+      {"kind": "text", "id": "m_states", "content": "States: <N>"},
+      {"kind": "text", "id": "m_trans", "content": "Transitions: <N>"},
+      {"kind": "text", "id": "m_coverage", "content": "Coverage: <N/M ops>"},
+      {"kind": "text", "id": "m_result", "content": "Result: PASS|FAIL"}
+    ]},
+    {"kind": "separator"},
+    {"kind": "table", "id": "checks", "columns": ["Check", "Result", "Details"],
+     "rows": [
+       ["Parse & Init", "PASS|FAIL", "<details>"],
+       ["Animation", "PASS|WARN|FAIL", "<coverage info>"],
+       ["CBC Assertions", "PASS|N/A|FAIL", "<details>"],
+       ["CBC Deadlock", "PASS|WARN|N/A", "<details>"],
+       ["Model Check", "PASS|WARN|FAIL", "<states/transitions>"]
+     ], "flags": ["borders", "row_bg"]},
+    {"kind": "separator"},
+    {"kind": "table", "id": "ops_coverage", "columns": ["Operation", "Times Fired", "Status"],
+     "rows": [
+       ["<op1>", "<count>", "✓ covered|✗ uncovered"],
+       ["<op2>", "<count>", "✓ covered|✗ uncovered"]
+     ], "flags": ["borders", "row_bg", "resizable"]}
+  ]
+}
+```
+
+Populate the placeholders from the probcli output parsed in Steps 4–5:
+- **States**: from `States analysed: N` in model check output
+- **Transitions**: from `Transitions fired: N` in model check output
+- **Coverage**: count of operations that were fired at least once vs total operations
+- **Result**: "PASS" if no counter-example and all checks passed; "FAIL" otherwise
+- **Operation rows**: one per operation discovered in Step 4, with fire count from animation output
+
+#### 6c. Counter-Example Trace (when failure found)
+
+If `COUNTER EXAMPLE FOUND` appears in the probcli output, render a trace diagram
+as a **second tab** in the dashboard. Replace the simple `elements` array with a
+`tab_bar` containing both the dashboard and the trace:
+
+```json
+{
+  "scene_id": "z-spec-test-results",
+  "title": "<spec filename> — Model Check Results",
+  "elements": [
+    {"kind": "tab_bar", "id": "result_tabs", "tabs": [
+      {"label": "Dashboard", "children": [
+        {"kind": "group", "id": "metrics", "layout": "columns", "children": [
+          {"kind": "text", "id": "m_states", "content": "States: <N>"},
+          {"kind": "text", "id": "m_trans", "content": "Transitions: <N>"},
+          {"kind": "text", "id": "m_coverage", "content": "Coverage: <N/M ops>"},
+          {"kind": "text", "id": "m_result", "content": "Result: FAIL"}
+        ]},
+        {"kind": "separator"},
+        {"kind": "table", "id": "checks", "columns": ["Check", "Result", "Details"],
+         "rows": ["... same as 6b ..."],
+         "flags": ["borders", "row_bg"]},
+        {"kind": "separator"},
+        {"kind": "table", "id": "ops_coverage", "columns": ["Operation", "Times Fired", "Status"],
+         "rows": ["... same as 6b ..."],
+         "flags": ["borders", "row_bg", "resizable"]}
+      ]},
+      {"label": "Counter-Example Trace", "children": [
+        {"kind": "markdown", "id": "trace_header", "content": "## Counter-Example Trace\n\nThe model checker found a state sequence that violates an invariant or assertion."},
+        {"kind": "table", "id": "trace_steps", "columns": ["Step", "Operation", "State After"],
+         "rows": [
+           ["0", "INITIALISATION", "<var1=val1, var2=val2, ...>"],
+           ["1", "<OperationName>", "<var1=val1', var2=val2', ...>"],
+           ["N", "VIOLATION", "<violating state values>"]
+         ], "flags": ["borders", "row_bg"]},
+        {"kind": "separator"},
+        {"kind": "markdown", "id": "trace_explain", "content": "**Violated**: <invariant or assertion text>\n\n**Explanation**: <why this state sequence leads to violation>"}
+      ]}
+    ]}
+  ]
+}
+```
+
+Parse the counter-example trace from probcli output:
+- Each step appears as `N: OperationName(params)` or `SETUP_CONSTANTS` / `INITIALISATION`
+- State dumps appear as `STATE = (var1=val1 & var2=val2 & ...)`
+- The final step is the violation — extract which invariant or assertion failed
+
+#### 6d. Graceful Degradation
+
+If the lux `show` call fails for any reason (tool unavailable, malformed JSON, etc.),
+continue with text-only output. Do not retry or error — lux supplements the
+conversation, it never replaces it.
+
+### 7. Handle Failures
 
 If errors found:
 - Show the counter-example trace
