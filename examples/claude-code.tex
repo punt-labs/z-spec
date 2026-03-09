@@ -1,0 +1,915 @@
+%
+% claude-code.tex
+%
+% Z Specification for Claude Code State Machine
+% Formal model of the session lifecycle, agentic loop, tool execution
+% pipeline, subagent coordination, and hook system.
+%
+% Type-check: fuzz -t claude-code.tex
+% Animate:    probcli claude-code.tex -animate 20
+%
+
+\documentclass[a4paper,10pt,fleqn]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{fuzz}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+\begin{document}
+
+\title{Claude Code: A Z Specification}
+\author{Formal Model of the Agentic Session Lifecycle}
+\date{March 2026}
+\hypersetup{
+  pdftitle={Claude Code: A Z Specification},
+  pdfauthor={Punt Labs},
+  pdfsubject={Z Specification},
+  pdfcreator={fuzz/probcli}
+}
+\maketitle
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Introduction}
+% ============================================================
+
+This specification models the state machine of Claude Code, Anthropic's
+agentic coding assistant. The model captures three concurrent state
+dimensions:
+
+\begin{enumerate}
+  \item \textbf{Session phase} --- the top-level lifecycle from startup
+    through the agentic loop to session end.
+  \item \textbf{Tool execution phase} --- the pipeline a single tool call
+    traverses: pre-hook, permission check, execution, post-hook.
+  \item \textbf{Subagent phase} --- spawning, running, and stopping of
+    subordinate agents.
+\end{enumerate}
+
+Hooks are modeled as \emph{guard conditions} on transitions. A blocking
+hook (one that can prevent a transition) appears as a precondition input
+on the operation schema. A non-blocking hook (observation only) is noted
+in the narrative but does not appear in the formal model because it
+cannot alter the state machine's reachable states.
+
+The payoff: once you know the precise states and transitions, you can
+systematically attach workflow requirements (commit discipline, lint
+gates, permission policies) to the correct hook points with confidence
+that no path through the machine escapes your controls.
+
+% ============================================================
+\section{Basic Types}
+% ============================================================
+
+\begin{zed}
+  [TOOLNAME, TOOLINPUT, TOOLOUTPUT, PROMPT, RESPONSE, AGENTID, SESSIONID, CONTEXTCHUNK]
+\end{zed}
+
+\texttt{TOOLNAME} identifies a tool (e.g., \texttt{Bash}, \texttt{Edit},
+\texttt{mcp\_\_github\_\_create\_pull\_request}). \texttt{TOOLINPUT} and
+\texttt{TOOLOUTPUT} are the opaque input and output payloads of a tool
+call. \texttt{PROMPT} is a user-submitted prompt. \texttt{RESPONSE} is
+Claude's generated text. \texttt{AGENTID} uniquely identifies a spawned
+subagent. \texttt{SESSIONID} identifies a session. \texttt{CONTEXTCHUNK}
+is a unit of conversation context (message, tool result, etc.).
+
+% ============================================================
+\section{Free Types}
+% ============================================================
+
+\begin{zed}
+  SessionPhase ::= spInactive | spIdle | spProcessing | spResponding | spEnded
+\end{zed}
+
+The session lifecycle. \texttt{spInactive} is before \texttt{SessionStart}.
+\texttt{spIdle} is waiting for user input. \texttt{spProcessing} is Claude
+reasoning and dispatching tools. \texttt{spResponding} is streaming the
+final response to the user. \texttt{spEnded} is terminal. Startup and
+shutdown hooks are modeled as atomic transitions (not intermediate states)
+because no operation is enabled during hook execution.
+
+\begin{zed}
+  ToolPhase ::= \\
+  \quad~ tpNone | tpPreHook | tpPermission | tpExecuting | tpPostHook
+\end{zed}
+
+The tool execution pipeline. \texttt{tpNone} means no tool call is
+active. \texttt{tpPreHook} is running \texttt{PreToolUse} hooks.
+\texttt{tpPermission} is awaiting user permission (if required).
+\texttt{tpExecuting} is the tool running. \texttt{tpPostHook} is
+running \texttt{PostToolUse} or \texttt{PostToolUseFailure} hooks.
+
+\begin{zed}
+  PermissionMode ::= \\
+  \quad~ pmDefault | pmPlan | pmAcceptEdits | pmDontAsk | pmBypass
+\end{zed}
+
+The five permission modes. \texttt{pmDefault} prompts for dangerous
+operations. \texttt{pmPlan} is read-only. \texttt{pmAcceptEdits}
+auto-approves edits. \texttt{pmDontAsk} auto-approves everything.
+\texttt{pmBypass} disables all permission checks.
+
+\begin{zed}
+  PermissionDecision ::= pdAllow | pdDeny | pdAsk
+\end{zed}
+
+A \texttt{PreToolUse} hook can allow, deny, or escalate to the user.
+
+\begin{zed}
+  HookDecision ::= hdAllow | hdBlock
+\end{zed}
+
+For blocking hooks on \texttt{Stop}, \texttt{SubagentStop},
+\texttt{UserPromptSubmit}, \texttt{TaskCompleted}, \texttt{TeammateIdle},
+and \texttt{ConfigChange}: the hook either allows the transition or
+blocks it.
+
+\begin{zed}
+  SessionStartSource ::= ssStartup | ssResume | ssClear | ssCompact
+\end{zed}
+
+How the session was initiated.
+
+\begin{zed}
+  SessionEndReason ::= \\
+  \quad~ seClear | seLogout | sePromptExit | seBypassDisabled | seOther
+\end{zed}
+
+Why the session ended.
+
+\begin{zed}
+  ToolResult ::= trSuccess | trFailure
+\end{zed}
+
+Whether a tool execution succeeded or failed, determining which
+post-hook fires (\texttt{PostToolUse} vs.\ \texttt{PostToolUseFailure}).
+
+\begin{zed}
+  ZBOOL ::= ztrue | zfalse
+\end{zed}
+
+% ============================================================
+\section{Global Constants}
+% ============================================================
+
+\begin{axdef}
+  maxTools : \nat \\
+  maxSubagents : \nat \\
+  maxContext : \nat
+  \where
+  maxTools = 20 \\
+  maxSubagents = 10 \\
+  maxContext = 200
+\end{axdef}
+
+Bounds for ProB animation. \texttt{maxTools} caps tools dispatched per
+turn. \texttt{maxSubagents} caps concurrent subagents.
+\texttt{maxContext} caps context window chunks.
+
+% ============================================================
+\section{State}
+% ============================================================
+
+\begin{schema}{State}
+  sessionId : \finset SESSIONID \\
+  sessionPhase : SessionPhase \\
+  permMode : PermissionMode \\
+  %
+  toolPhase : ToolPhase \\
+  currentTool : \finset TOOLNAME \\
+  toolsThisTurn : \nat \\
+  %
+  activeSubagents : \finset AGENTID \\
+  %
+  context : \seq CONTEXTCHUNK \\
+  pendingPrompt : \finset PROMPT \\
+  pendingResponse : \finset RESPONSE
+  \where
+  %
+  % Session identity: at most one active session
+  %
+  \# sessionId \leq 1 \\
+  sessionPhase = spInactive \implies sessionId = \emptyset \\
+  sessionPhase \neq spInactive \implies \# sessionId = 1 \\
+  %
+  % Tool phase is only active during processing
+  %
+  sessionPhase \neq spProcessing \implies toolPhase = tpNone \\
+  %
+  % Current tool tracks what is executing
+  %
+  \# currentTool \leq 1 \\
+  toolPhase = tpNone \implies currentTool = \emptyset \\
+  toolPhase \neq tpNone \implies \# currentTool = 1 \\
+  %
+  % Tool count bounded for animation
+  %
+  toolsThisTurn \leq maxTools \\
+  %
+  % Subagents only exist during active session
+  %
+  sessionPhase = spInactive \implies activeSubagents = \emptyset \\
+  sessionPhase = spEnded \implies activeSubagents = \emptyset \\
+  \# activeSubagents \leq maxSubagents \\
+  %
+  % Context bounded for animation
+  %
+  \# context \leq maxContext \\
+  %
+  % Pending prompt: at most one, only when processing
+  %
+  \# pendingPrompt \leq 1 \\
+  sessionPhase = spIdle \implies pendingPrompt = \emptyset \\
+  sessionPhase = spInactive \implies pendingPrompt = \emptyset \\
+  sessionPhase = spEnded \implies pendingPrompt = \emptyset \\
+  %
+  % Pending response: at most one, only when responding
+  %
+  \# pendingResponse \leq 1 \\
+  sessionPhase \neq spResponding \implies pendingResponse = \emptyset
+\end{schema}
+
+The state is \emph{flat}: session, tool, and subagent dimensions are
+composed in a single schema so that cross-cutting invariants (e.g.,
+``tool phase is \texttt{tpNone} unless session is processing'') are
+enforced directly.
+
+% ============================================================
+\section{Initialization}
+% ============================================================
+
+\begin{schema}{Init}
+  State'
+  \where
+  sessionId' = \emptyset \\
+  sessionPhase' = spInactive \\
+  permMode' = pmDefault \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = 0 \\
+  activeSubagents' = \emptyset \\
+  context' = \langle \rangle \\
+  pendingPrompt' = \emptyset \\
+  pendingResponse' = \emptyset
+\end{schema}
+
+% ============================================================
+\section{Session Lifecycle Operations}
+% ============================================================
+
+% ------------------------------------------------------------
+\subsection{StartSession}
+% ------------------------------------------------------------
+
+Transitions from \texttt{spInactive} to \texttt{spIdle}. The
+\texttt{SessionStart} hook fires during this transition (modeled
+as the \texttt{spStarting} intermediate state). \texttt{SessionStart}
+cannot block --- it is observational.
+
+\begin{schema}{StartSession}
+  \Delta State \\
+  sid? : SESSIONID \\
+  source? : SessionStartSource \\
+  mode? : PermissionMode
+  \where
+  sessionPhase = spInactive \\
+  %
+  sessionPhase' = spIdle \\
+  sessionId' = \{ sid? \} \\
+  permMode' = mode? \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = 0 \\
+  activeSubagents' = \emptyset \\
+  context' = \langle \rangle \\
+  pendingPrompt' = \emptyset \\
+  pendingResponse' = \emptyset
+\end{schema}
+
+Hook event: \texttt{SessionStart} fires with \texttt{source?} as the
+matcher value. The hook can inject \texttt{additionalContext} into the
+context window and persist environment variables via
+\texttt{CLAUDE\_ENV\_FILE}. It cannot block.
+
+% ------------------------------------------------------------
+\subsection{SubmitPrompt}
+% ------------------------------------------------------------
+
+The user submits a prompt. \texttt{UserPromptSubmit} fires and can
+block (exit 2 erases the prompt).
+
+\begin{schema}{SubmitPrompt}
+  \Delta State \\
+  prompt? : PROMPT \\
+  hookResult? : HookDecision \\
+  contextChunk? : CONTEXTCHUNK
+  \where
+  sessionPhase = spIdle \\
+  hookResult? = hdAllow \\
+  %
+  sessionPhase' = spProcessing \\
+  pendingPrompt' = \{ prompt? \} \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle contextChunk? \rangle) \\
+  toolsThisTurn' = 0 \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  %
+  % Frame: unchanged
+  %
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  activeSubagents' = activeSubagents \\
+  pendingResponse' = \emptyset
+\end{schema}
+
+If \texttt{hookResult?} were \texttt{hdBlock}, the precondition fails
+and the operation is refused --- the prompt is erased and the session
+stays in \texttt{spIdle}.
+
+\begin{schema}{RejectPrompt}
+  \Xi State \\
+  prompt? : PROMPT \\
+  hookResult? : HookDecision
+  \where
+  sessionPhase = spIdle \\
+  hookResult? = hdBlock
+\end{schema}
+
+% ------------------------------------------------------------
+\subsection{BeginToolCall}
+% ------------------------------------------------------------
+
+Claude decides to invoke a tool. Enters the \texttt{PreToolUse} hook
+phase.
+
+\begin{schema}{BeginToolCall}
+  \Delta State \\
+  tool? : TOOLNAME
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  toolsThisTurn < maxTools \\
+  %
+  toolPhase' = tpPreHook \\
+  currentTool' = \{ tool? \} \\
+  %
+  % Frame: unchanged
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ------------------------------------------------------------
+\subsection{PreToolHookAllow}
+% ------------------------------------------------------------
+
+The \texttt{PreToolUse} hook allows the tool call. If the permission
+mode requires a check, we move to \texttt{tpPermission}. Otherwise,
+we skip directly to \texttt{tpExecuting}.
+
+\begin{schema}{PreToolHookAllow}
+  \Delta State \\
+  hookDecision? : PermissionDecision \\
+  needsPermission? : ZBOOL
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPreHook \\
+  hookDecision? = pdAllow \\
+  %
+  toolPhase' = \IF needsPermission? = ztrue \THEN tpPermission \ELSE tpExecuting \\
+  %
+  % Frame: unchanged
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ------------------------------------------------------------
+\subsection{PreToolHookDeny}
+% ------------------------------------------------------------
+
+The \texttt{PreToolUse} hook denies the tool call. The tool phase
+resets to \texttt{tpNone} and Claude receives the denial reason.
+
+\begin{schema}{PreToolHookDeny}
+  \Delta State \\
+  hookDecision? : PermissionDecision \\
+  denialContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPreHook \\
+  hookDecision? = pdDeny \\
+  %
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle denialContext? \rangle) \\
+  %
+  % Frame: unchanged
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ------------------------------------------------------------
+\subsection{PreToolHookEscalate}
+% ------------------------------------------------------------
+
+The \texttt{PreToolUse} hook returns \texttt{pdAsk}, escalating to
+the permission dialog regardless of permission mode.
+
+\begin{schema}{PreToolHookEscalate}
+  \Delta State \\
+  hookDecision? : PermissionDecision
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPreHook \\
+  hookDecision? = pdAsk \\
+  %
+  toolPhase' = tpPermission \\
+  %
+  % Frame: unchanged
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ------------------------------------------------------------
+\subsection{GrantPermission}
+% ------------------------------------------------------------
+
+The user (or \texttt{PermissionRequest} hook) grants permission.
+The \texttt{PermissionRequest} hook fires during this phase and
+can allow or deny.
+
+\begin{schema}{GrantPermission}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPermission \\
+  %
+  toolPhase' = tpExecuting \\
+  %
+  % Frame: unchanged
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ------------------------------------------------------------
+\subsection{DenyPermission}
+% ------------------------------------------------------------
+
+The user (or \texttt{PermissionRequest} hook) denies permission.
+
+\begin{schema}{DenyPermission}
+  \Delta State \\
+  denialContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPermission \\
+  %
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle denialContext? \rangle) \\
+  %
+  % Frame: unchanged
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ------------------------------------------------------------
+\subsection{CompleteToolSuccess}
+% ------------------------------------------------------------
+
+The tool executes successfully. \texttt{PostToolUse} fires (non-blocking).
+
+\begin{schema}{CompleteToolSuccess}
+  \Delta State \\
+  output? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpExecuting \\
+  %
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = toolsThisTurn + 1 \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle output? \rangle) \\
+  %
+  % Frame: unchanged
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ------------------------------------------------------------
+\subsection{CompleteToolFailure}
+% ------------------------------------------------------------
+
+The tool fails. \texttt{PostToolUseFailure} fires (non-blocking).
+
+\begin{schema}{CompleteToolFailure}
+  \Delta State \\
+  errorContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpExecuting \\
+  %
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = toolsThisTurn + 1 \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle errorContext? \rangle) \\
+  %
+  % Frame: unchanged
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ============================================================
+\section{Subagent Operations}
+% ============================================================
+
+% ------------------------------------------------------------
+\subsection{SpawnSubagent}
+% ------------------------------------------------------------
+
+Claude spawns a subagent. \texttt{SubagentStart} fires (non-blocking).
+
+\begin{schema}{SpawnSubagent}
+  \Delta State \\
+  agentId? : AGENTID
+  \where
+  sessionPhase = spProcessing \\
+  agentId? \notin activeSubagents \\
+  \# activeSubagents < maxSubagents \\
+  %
+  activeSubagents' = activeSubagents \cup \{ agentId? \} \\
+  %
+  % Frame: unchanged
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ------------------------------------------------------------
+\subsection{StopSubagent}
+% ------------------------------------------------------------
+
+A subagent finishes. \texttt{SubagentStop} fires and can block (exit 2
+prevents the subagent from stopping, forcing it to continue).
+
+\begin{schema}{StopSubagent}
+  \Delta State \\
+  agentId? : AGENTID \\
+  hookResult? : HookDecision \\
+  resultContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  agentId? \in activeSubagents \\
+  hookResult? = hdAllow \\
+  %
+  activeSubagents' = activeSubagents \setminus \{ agentId? \} \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle resultContext? \rangle) \\
+  %
+  % Frame: unchanged
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ============================================================
+\section{Response and Stop Operations}
+% ============================================================
+
+% ------------------------------------------------------------
+\subsection{BeginResponse}
+% ------------------------------------------------------------
+
+Claude has finished tool calls and begins streaming a response.
+
+\begin{schema}{BeginResponse}
+  \Delta State \\
+  response? : RESPONSE
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  activeSubagents = \emptyset \\
+  %
+  sessionPhase' = spResponding \\
+  pendingResponse' = \{ response? \} \\
+  pendingPrompt' = \emptyset \\
+  %
+  % Frame: unchanged
+  %
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context
+\end{schema}
+
+% ------------------------------------------------------------
+\subsection{FinishResponse}
+% ------------------------------------------------------------
+
+Claude finishes responding. The \texttt{Stop} hook fires and can block
+(exit 2 prevents stopping, forcing Claude to continue processing).
+
+\begin{schema}{FinishResponse}
+  \Delta State \\
+  hookResult? : HookDecision \\
+  responseContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spResponding \\
+  hookResult? = hdAllow \\
+  %
+  sessionPhase' = spIdle \\
+  pendingResponse' = \emptyset \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle responseContext? \rangle) \\
+  toolsThisTurn' = 0 \\
+  %
+  % Frame: unchanged
+  %
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = \emptyset
+\end{schema}
+
+% ------------------------------------------------------------
+\subsection{ForceContiue}
+% ------------------------------------------------------------
+
+The \texttt{Stop} hook blocks the stop. Claude returns to processing.
+
+\begin{schema}{ForceContinue}
+  \Delta State \\
+  hookResult? : HookDecision
+  \where
+  sessionPhase = spResponding \\
+  hookResult? = hdBlock \\
+  %
+  sessionPhase' = spProcessing \\
+  pendingResponse' = \emptyset \\
+  %
+  % Frame: unchanged
+  %
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt
+\end{schema}
+
+% ============================================================
+\section{Context Management}
+% ============================================================
+
+% ------------------------------------------------------------
+\subsection{CompactContext}
+% ------------------------------------------------------------
+
+Context compaction occurs when the context window approaches its limit.
+\texttt{PreCompact} fires (non-blocking). The context is compressed.
+After compaction, \texttt{SessionStart} fires with \texttt{ssCompact}
+as the source.
+
+\begin{schema}{CompactContext}
+  \Delta State \\
+  newLen? : \nat
+  \where
+  sessionPhase = spIdle \\
+  \# context > 0 \\
+  newLen? < \# context \\
+  newLen? \leq maxContext \\
+  %
+  context' = (1 \upto newLen?) \dres context \\
+  %
+  % Frame: unchanged
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ============================================================
+\section{Session End}
+% ============================================================
+
+% ------------------------------------------------------------
+\subsection{EndSession}
+% ------------------------------------------------------------
+
+The session terminates. \texttt{SessionEnd} fires (non-blocking).
+All subagents must have stopped.
+
+\begin{schema}{EndSession}
+  \Delta State \\
+  reason? : SessionEndReason
+  \where
+  sessionPhase = spIdle \\
+  activeSubagents = \emptyset \\
+  %
+  sessionPhase' = spEnded \\
+  sessionId' = \emptyset \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = 0 \\
+  activeSubagents' = \emptyset \\
+  context' = \langle \rangle \\
+  pendingPrompt' = \emptyset \\
+  pendingResponse' = \emptyset \\
+  permMode' = permMode
+\end{schema}
+
+% ============================================================
+\section{Hook Event Summary}
+% ============================================================
+
+The following table maps each Claude Code hook event to its
+corresponding operation(s) in this specification and whether the hook
+can block the transition.
+
+\begin{tabular}{llll}
+\hline
+\textbf{Hook Event} & \textbf{Operation(s)} & \textbf{Blocks?} & \textbf{Modeled As} \\
+\hline
+SessionStart & StartSession & No & Transition guard \\
+UserPromptSubmit & SubmitPrompt / RejectPrompt & Yes & hookResult? \\
+PreToolUse & PreToolHookAllow / Deny / Escalate & Yes & hookDecision? \\
+PermissionRequest & GrantPermission / DenyPermission & Yes & Separate ops \\
+PostToolUse & CompleteToolSuccess & No & Side effect \\
+PostToolUseFailure & CompleteToolFailure & No & Side effect \\
+SubagentStart & SpawnSubagent & No & Side effect \\
+SubagentStop & StopSubagent & Yes & hookResult? \\
+Stop & FinishResponse / ForceContinue & Yes & hookResult? \\
+PreCompact & CompactContext & No & Side effect \\
+SessionEnd & EndSession & No & Side effect \\
+Notification & (not modeled) & No & External \\
+TeammateIdle & (not modeled) & Yes & Agent Teams \\
+TaskCompleted & (not modeled) & Yes & Task tracking \\
+ConfigChange & (not modeled) & Yes & Config system \\
+WorktreeCreate & (not modeled) & Yes & Git worktree \\
+WorktreeRemove & (not modeled) & No & Git worktree \\
+InstructionsLoaded & (not modeled) & No & Config system \\
+\hline
+\end{tabular}
+
+Events marked ``not modeled'' are orthogonal to the core state machine.
+They can be added as refinements if workflow requirements target them.
+
+% ============================================================
+\section{System Invariants}
+% ============================================================
+
+The specification enforces these properties across all reachable states:
+
+\begin{enumerate}
+  \item \textbf{Tool execution requires processing}: tool calls can only
+    occur when the session is in \texttt{spProcessing}. This prevents
+    tool dispatch during idle, responding, or ended states.
+
+  \item \textbf{Active tool requires tool phase}: a tool name is tracked
+    if and only if the tool phase is not \texttt{tpNone}. No ``orphan''
+    tool references.
+
+  \item \textbf{Subagents require active session}: subagents cannot exist
+    in \texttt{spInactive} or \texttt{spEnded}.
+
+  \item \textbf{Response requires streaming}: a pending response only
+    exists during \texttt{spResponding}.
+
+  \item \textbf{Prompt cleared on response}: the pending prompt is
+    cleared when Claude begins responding.
+
+  \item \textbf{Session identity}: exactly one session ID exists when
+    the session is active; none when inactive or ended.
+
+  \item \textbf{Clean termination}: \texttt{EndSession} requires all
+    subagents to have stopped.
+
+  \item \textbf{Blocking hooks are preconditions}: a blocking hook
+    prevents a transition by failing the precondition. The operation
+    simply does not occur --- no partial state update is possible.
+\end{enumerate}
+
+% ============================================================
+\section{Workflow Attachment Points}
+% ============================================================
+
+This section identifies where workflow standards attach to the state
+machine. Each attachment point names the hook event, the operation it
+guards, and example workflow requirements.
+
+\subsection{Pre-commit Discipline}
+
+Attach to \texttt{Stop} (FinishResponse). A hook inspects
+\texttt{git status} and blocks the stop if there are unstaged changes
+that should be committed. This forces Claude to run the session close
+protocol before declaring ``done.''
+
+\subsection{Lint and Format Gates}
+
+Attach to \texttt{PostToolUse} with matcher \texttt{Edit|Write}. After
+every file modification, run linters and formatters. Non-blocking: inject
+lint errors as context so Claude self-corrects.
+
+\subsection{Permission Policies}
+
+Attach to \texttt{PreToolUse} with tool-specific matchers. Deny
+destructive commands (\texttt{rm -rf}, \texttt{git push --force}),
+enforce read-only in plan mode, require confirmation for external API
+calls.
+
+\subsection{Subagent Governance}
+
+Attach to \texttt{SubagentStop}. Validate that subagent output meets
+quality criteria before accepting. Block the stop to force the subagent
+to continue if output is incomplete.
+
+\subsection{Prompt Validation}
+
+Attach to \texttt{UserPromptSubmit}. Validate that user prompts include
+required context (e.g., bead references for tracked work). Reject prompts
+that would start untracked work.
+
+\subsection{Session Bookkeeping}
+
+Attach to \texttt{SessionStart} and \texttt{SessionEnd}. On start: load
+project context, sync beads, set environment. On end: sync beads, verify
+clean git state, push if needed.
+
+\end{document}

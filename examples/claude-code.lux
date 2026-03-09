@@ -1,0 +1,78 @@
+{
+  "scene_id": "claude-code-spec",
+  "title": "Claude Code Z Specification",
+  "elements": [
+    {"kind": "text", "id": "header", "content": "\ud83d\udcc4 examples/claude-code.tex  \u2014  915 lines  |  fuzz \u2713 type-checked"},
+    {"kind": "separator"},
+    {"kind": "tab_bar", "id": "tabs", "tabs": [
+      {"label": "State Machine", "children": [
+        {"kind": "markdown", "id": "sm", "content": "## Three Concurrent State Dimensions\n\n### Session Phase\n```\nspInactive \u2192 spStarting \u2192 spIdle \u2192 spProcessing \u2192 spResponding \u2192 spEnded\n                             \u2191          \u2193              \u2193\n                             \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518  (ForceContinue)\n                             \u2191              \u2193\n                             \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518  (FinishResponse)\n```\n\n### Tool Phase (only during spProcessing)\n```\ntpNone \u2192 tpPreHook \u2192 tpPermission \u2192 tpExecuting \u2192 tpNone\n              \u2193 (deny)        \u2193 (deny)\n              \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2192 tpNone\n```\n\n### Subagents\n```\nactiveSubagents : finite set of AGENTID\nSpawn adds, Stop removes (blocking hook can prevent stop)\n```"},
+        {"kind": "separator"},
+        {"kind": "table", "id": "phases", "columns": ["Phase", "States", "Key Invariant"], "rows": [
+          ["Session", "spInactive, spStarting, spIdle, spProcessing, spResponding, spEnding, spEnded", "Tools only during spProcessing"],
+          ["Tool", "tpNone, tpPreHook, tpPermission, tpExecuting, tpPostHook", "Active iff session is processing"],
+          ["Subagent", "Set of AGENTID (0..10)", "Empty when inactive or ended"]
+        ], "flags": ["borders", "row_bg"]}
+      ]},
+      {"label": "Operations (18)", "children": [
+        {"kind": "table", "id": "ops", "columns": ["#", "Operation", "From \u2192 To", "Hook Event", "Blocking?"], "rows": [
+          ["1", "StartSession", "spInactive \u2192 spIdle", "SessionStart", "No"],
+          ["2", "SubmitPrompt", "spIdle \u2192 spProcessing", "UserPromptSubmit", "Yes"],
+          ["3", "RejectPrompt", "spIdle \u2192 spIdle (no change)", "UserPromptSubmit", "Yes (blocks)"],
+          ["4", "BeginToolCall", "tpNone \u2192 tpPreHook", "\u2014", "\u2014"],
+          ["5", "PreToolHookAllow", "tpPreHook \u2192 tpPermission|tpExecuting", "PreToolUse", "Yes (allow)"],
+          ["6", "PreToolHookDeny", "tpPreHook \u2192 tpNone", "PreToolUse", "Yes (deny)"],
+          ["7", "PreToolHookEscalate", "tpPreHook \u2192 tpPermission", "PreToolUse", "Yes (ask)"],
+          ["8", "GrantPermission", "tpPermission \u2192 tpExecuting", "PermissionRequest", "Yes"],
+          ["9", "DenyPermission", "tpPermission \u2192 tpNone", "PermissionRequest", "Yes"],
+          ["10", "CompleteToolSuccess", "tpExecuting \u2192 tpNone", "PostToolUse", "No"],
+          ["11", "CompleteToolFailure", "tpExecuting \u2192 tpNone", "PostToolUseFailure", "No"],
+          ["12", "SpawnSubagent", "adds to activeSubagents", "SubagentStart", "No"],
+          ["13", "StopSubagent", "removes from activeSubagents", "SubagentStop", "Yes"],
+          ["14", "BeginResponse", "spProcessing \u2192 spResponding", "\u2014", "\u2014"],
+          ["15", "FinishResponse", "spResponding \u2192 spIdle", "Stop", "Yes"],
+          ["16", "ForceContinue", "spResponding \u2192 spProcessing", "Stop", "Yes (blocks stop)"],
+          ["17", "CompactContext", "spIdle \u2192 spIdle (shrink ctx)", "PreCompact", "No"],
+          ["18", "EndSession", "spIdle \u2192 spEnded", "SessionEnd", "No"]
+        ], "flags": ["borders", "row_bg", "resizable"]}
+      ]},
+      {"label": "Hook Map", "children": [
+        {"kind": "markdown", "id": "hookintro", "content": "## Hook Events \u2192 Operations\n\nBlocking hooks appear as **precondition inputs** (`hookResult?`, `hookDecision?`). If the hook blocks, the precondition fails and no state change occurs."},
+        {"kind": "table", "id": "hooks", "columns": ["Hook Event", "Operation(s)", "Can Block?", "Decision Type"], "rows": [
+          ["SessionStart", "StartSession", "No", "additionalContext only"],
+          ["UserPromptSubmit", "SubmitPrompt / RejectPrompt", "Yes", "HookDecision (allow/block)"],
+          ["PreToolUse", "PreToolHookAllow / Deny / Escalate", "Yes", "PermissionDecision (allow/deny/ask)"],
+          ["PermissionRequest", "GrantPermission / DenyPermission", "Yes", "Separate operations"],
+          ["PostToolUse", "CompleteToolSuccess", "No", "Context injection"],
+          ["PostToolUseFailure", "CompleteToolFailure", "No", "Context injection"],
+          ["SubagentStart", "SpawnSubagent", "No", "Side effect"],
+          ["SubagentStop", "StopSubagent", "Yes", "HookDecision (allow/block)"],
+          ["Stop", "FinishResponse / ForceContinue", "Yes", "HookDecision (allow/block)"],
+          ["PreCompact", "CompactContext", "No", "Side effect"],
+          ["SessionEnd", "EndSession", "No", "Side effect"],
+          ["Notification", "(not modeled)", "No", "External"],
+          ["TeammateIdle", "(not modeled)", "Yes", "Agent Teams"],
+          ["TaskCompleted", "(not modeled)", "Yes", "Task tracking"],
+          ["ConfigChange", "(not modeled)", "Yes", "Config system"],
+          ["WorktreeCreate", "(not modeled)", "Yes", "Git worktree"],
+          ["WorktreeRemove", "(not modeled)", "No", "Git worktree"],
+          ["InstructionsLoaded", "(not modeled)", "No", "Config system"]
+        ], "flags": ["borders", "row_bg", "resizable"]}
+      ]},
+      {"label": "Invariants", "children": [
+        {"kind": "markdown", "id": "inv", "content": "## 8 System Invariants\n\n1. **Tool execution requires processing** \u2014 tool calls only during `spProcessing`\n2. **Active tool requires tool phase** \u2014 tool name tracked iff `toolPhase \u2260 tpNone`\n3. **Subagents require active session** \u2014 empty in `spInactive` and `spEnded`\n4. **Response requires streaming** \u2014 pending response only in `spResponding`\n5. **Prompt cleared on response** \u2014 cleared when `BeginResponse` fires\n6. **Session identity** \u2014 exactly one ID when active, none otherwise\n7. **Clean termination** \u2014 `EndSession` requires all subagents stopped\n8. **Blocking hooks are preconditions** \u2014 no partial state updates possible"}
+      ]},
+      {"label": "Workflow Hooks", "children": [
+        {"kind": "markdown", "id": "wf", "content": "## 6 Workflow Attachment Points\n\nThese are the precise locations where workflow standards weave onto the state machine:"},
+        {"kind": "table", "id": "wftable", "columns": ["Workflow Need", "Hook Point", "Operation", "Strategy"], "rows": [
+          ["Commit discipline", "Stop", "FinishResponse", "Block stop if git dirty \u2192 force session close protocol"],
+          ["Lint/format gates", "PostToolUse (Edit|Write)", "CompleteToolSuccess", "Inject lint errors as context \u2192 Claude self-corrects"],
+          ["Permission policies", "PreToolUse", "PreToolHookDeny", "Deny rm -rf, force push, etc."],
+          ["Subagent governance", "SubagentStop", "StopSubagent", "Validate output quality \u2192 block if incomplete"],
+          ["Prompt validation", "UserPromptSubmit", "RejectPrompt", "Require bead refs for tracked work"],
+          ["Session bookkeeping", "SessionStart / SessionEnd", "StartSession / EndSession", "Load context, sync beads, verify git state"]
+        ], "flags": ["borders", "row_bg"]}
+      ]}
+    ]}
+  ]
+}
