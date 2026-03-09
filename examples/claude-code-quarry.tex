@@ -942,4 +942,115 @@ SessionEnd & * & EndSession & Clear state & No \\
 \hline
 \end{tabular}
 
+% ============================================================
+\section{Implementation Validation}
+% ============================================================
+
+This section cross-references the Z specification against the
+current quarry implementation (\texttt{hooks/hooks.json},
+\texttt{hooks/*.sh}, \texttt{src/quarry/hooks.py}).
+
+\subsection{Critical Finding: Python Handlers Never Invoked}
+
+The quarry hook system has a \textbf{wiring gap}. Three Python
+handlers were implemented in \texttt{src/quarry/hooks.py} but are
+never called by the shell scripts registered in \texttt{hooks.json}:
+
+\begin{itemize}
+  \item \texttt{handle\_session\_start()} --- auto-registers directory
+    and runs sync. \textbf{Never invoked.} The shell script
+    \texttt{session-start.sh} only deploys commands and sets
+    permissions --- it does not call \texttt{quarry hooks session-start}.
+  \item \texttt{handle\_post\_web\_fetch()} --- ingests fetched URLs
+    into \texttt{web-captures} collection. \textbf{Not registered} in
+    \texttt{hooks.json} at all. No \texttt{PostToolUse} hook on
+    \texttt{WebFetch} exists.
+  \item \texttt{handle\_pre\_compact()} --- captures transcript as
+    session notes. \textbf{Not registered} in \texttt{hooks.json}.
+    No \texttt{PreCompact} hook exists.
+\end{itemize}
+
+\textbf{Root cause:} The implementation was split between shell
+scripts (setup/formatting) and Python handlers (knowledge capture).
+The Python handlers were written but never wired into the hook
+dispatch chain. The shell scripts do not call back to Python.
+
+\subsection{Built and Correct}
+
+\begin{tabular}{llll}
+\hline
+\textbf{Component} & \textbf{Hook} & \textbf{File} & \textbf{Status} \\
+\hline
+Command deployment & SessionStart & session-start.sh & Correct \\
+MCP tool permissions & SessionStart & session-start.sh & Correct \\
+Output formatting & PostToolUse (quarry) & suppress-output.sh & Correct \\
+Hook config parsing & (library) & hooks.py & Correct \\
+\hline
+\end{tabular}
+
+\subsection{Implemented but Not Wired}
+
+\begin{tabular}{llll}
+\hline
+\textbf{Z Operation} & \textbf{Handler} & \textbf{hooks.json} & \textbf{Fix} \\
+\hline
+StartSessionWithSync & handle\_session\_start() & Registered but & Wire shell to Python \\
+ & & shell doesn't call it & \\
+CaptureWebFetch & handle\_post\_web\_fetch() & Not registered & Add PostToolUse WebFetch \\
+CaptureBeforeCompact & handle\_pre\_compact() & Not registered & Add PreCompact entry \\
+\hline
+\end{tabular}
+
+\textbf{Fix pattern:} Each shell script needs to call
+\texttt{quarry hooks <subcommand> < /dev/stdin} to delegate to the
+Python handler. Alternatively, register the Python CLI directly as
+the hook command.
+
+\subsection{Not Yet Built}
+
+\begin{tabular}{llll}
+\hline
+\textbf{Z Operation} & \textbf{Hook Event} & \textbf{Effect} & \textbf{Effort} \\
+\hline
+InjectKnowledgeHint & SessionStart & Project standards & Medium \\
+InjectKnowledgeHint & PostToolUse Edit|Write & File-type hints & Medium \\
+InjectKnowledgeHint & PostToolUse Bash & Workflow hints & Medium \\
+EndSession cleanup & SessionEnd & Clear session state & Low \\
+\hline
+\end{tabular}
+
+\textbf{Knowledge hint injection} is the most significant new
+capability. It requires:
+
+\begin{enumerate}
+  \item A hint resolution engine that maps the current activity
+    (tool name, file path, command) to relevant quarry collections.
+  \item A PostToolUse hook on \texttt{Edit|Write} that detects the
+    file being edited and searches quarry for relevant standards.
+  \item A SessionStart hook that injects project-level conventions.
+  \item Careful scoping: hints must be short (1--3 sentences) to
+    avoid flooding context. Quarry's semantic search ranks by
+    relevance --- the top result should be the hint.
+\end{enumerate}
+
+\subsection{Coverage Summary}
+
+\begin{tabular}{lll}
+\hline
+\textbf{Z Operation} & \textbf{Implementation} & \textbf{Status} \\
+\hline
+StartSessionWithSync & hooks.py (handler exists) & \textbf{Not wired} \\
+StartSessionNoSync & hooks.py (config check) & \textbf{Not wired} \\
+SubmitPrompt / RejectPrompt & (base) & Correct \\
+Tool call operations & (base) & Correct \\
+CaptureWebFetch & hooks.py (handler exists) & \textbf{Not registered} \\
+SwitchDatabase & MCP tool & Correct \\
+SearchKnowledge & MCP tool & Correct \\
+InjectKnowledgeHint & --- & \textbf{Not built} \\
+CaptureBeforeCompact & hooks.py (handler exists) & \textbf{Not registered} \\
+CompactContext & (base) & Correct \\
+EndSession & --- & \textbf{Not built} \\
+\hline
+\end{tabular}
+
 \end{document}
