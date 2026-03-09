@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Lux visual dashboard for `/z-spec:test`** --- renders model check results (states, transitions, coverage, pass/fail) as an interactive lux dashboard when lux is available; degrades gracefully to text-only
+- **Counter-example trace visualizer** --- when model checking finds a violation, displays the trace as a step-by-step table in a second lux tab with state values and violated invariant
+- **Lux partition table for `/z-spec:partition`** --- renders test partition matrix as an interactive lux table with search and status filters when lux is available
+
 ## [0.2.0] - 2026-03-01
 
 ### Added
