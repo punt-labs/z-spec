@@ -1,0 +1,1133 @@
+%
+% claude-code-biff.tex
+%
+% Z Specification: Claude Code + Biff Workflow State (Layer 2)
+% Extends the base Claude Code state machine with biff communication
+% and workflow coordination state.
+%
+% Type-check: fuzz -t claude-code-biff.tex
+% Animate:    probcli claude-code-biff.tex -animate 20
+%
+
+\documentclass[a4paper,10pt,fleqn]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{fuzz}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+\begin{document}
+
+\title{Claude Code + Biff: A Z Specification}
+\author{Layer 2 --- Workflow Coordination State}
+\date{March 2026}
+\hypersetup{
+  pdftitle={Claude Code + Biff: A Z Specification},
+  pdfauthor={Punt Labs},
+  pdfsubject={Z Specification},
+  pdfcreator={fuzz/probcli}
+}
+\maketitle
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Introduction}
+% ============================================================
+
+This specification extends the base Claude Code state machine
+(\texttt{claude-code.tex}) with biff communication and workflow
+coordination state. Biff provides team communication primitives
+modeled after BSD Unix tools: \texttt{/plan}, \texttt{/who},
+\texttt{/finger}, \texttt{/write}, \texttt{/read}, \texttt{/wall},
+and \texttt{/talk}.
+
+The key workflow invariants enforced by this model:
+
+\begin{enumerate}
+  \item \textbf{Plan before work}: Claude must set a plan (via
+    \texttt{/plan} or auto-detect from git branch) before editing
+    files or running commands.
+  \item \textbf{Message awareness}: unread messages are surfaced
+    before Claude declares ``done'' (Stop hook).
+  \item \textbf{Wall awareness}: active wall broadcasts are injected
+    into session context at startup.
+  \item \textbf{Bead claim before work}: Claude must claim a bead
+    (\texttt{bd update --status=in\_progress}) before editing files.
+\end{enumerate}
+
+% ============================================================
+\section{Base Types (from claude-code.tex)}
+% ============================================================
+
+\begin{zed}
+  [TOOLNAME, TOOLINPUT, TOOLOUTPUT, PROMPT, RESPONSE, AGENTID, SESSIONID, CONTEXTCHUNK]
+\end{zed}
+
+\begin{zed}
+  SessionPhase ::= spInactive | spIdle | spProcessing | spResponding | spEnded
+\end{zed}
+
+\begin{zed}
+  ToolPhase ::= tpNone | tpPreHook | tpPermission | tpExecuting | tpPostHook
+\end{zed}
+
+\begin{zed}
+  PermissionMode ::= pmDefault | pmPlan | pmAcceptEdits | pmDontAsk | pmBypass
+\end{zed}
+
+\begin{zed}
+  PermissionDecision ::= pdAllow | pdDeny | pdAsk
+\end{zed}
+
+\begin{zed}
+  HookDecision ::= hdAllow | hdBlock
+\end{zed}
+
+\begin{zed}
+  SessionStartSource ::= ssStartup | ssResume | ssClear | ssCompact
+\end{zed}
+
+\begin{zed}
+  SessionEndReason ::= seClear | seLogout | sePromptExit | seBypassDisabled | seOther
+\end{zed}
+
+\begin{zed}
+  ZBOOL ::= ztrue | zfalse
+\end{zed}
+
+% ============================================================
+\section{Biff Types}
+% ============================================================
+
+\begin{zed}
+  [BEADID, USERID, MSGID, WALLTEXT]
+\end{zed}
+
+\texttt{BEADID} identifies a tracked work item. \texttt{USERID}
+identifies a team member. \texttt{MSGID} uniquely identifies a
+message. \texttt{WALLTEXT} is the content of a wall broadcast.
+
+\begin{zed}
+  PlanSource ::= psManual | psAuto
+\end{zed}
+
+How the plan was set. \texttt{psManual} is an explicit \texttt{/plan}
+command; \texttt{psAuto} is derived from the git branch name by the
+\texttt{PostToolUse} Bash hook. A manual plan blocks auto-overwrite.
+
+\begin{zed}
+  ToolCategory ::= tcEdit | tcBash | tcOther
+\end{zed}
+
+Coarse tool classification for workflow gates. \texttt{tcEdit} covers
+\texttt{Edit}, \texttt{Write}, and similar file-modifying tools.
+\texttt{tcBash} covers shell commands. \texttt{tcOther} is everything
+else (read-only tools, MCP queries, etc.).
+
+% ============================================================
+\section{Global Constants}
+% ============================================================
+
+\begin{axdef}
+  maxTools : \nat \\
+  maxSubagents : \nat \\
+  maxContext : \nat \\
+  maxUnread : \nat
+  \where
+  maxTools = 5 \\
+  maxSubagents = 2 \\
+  maxContext = 3 \\
+  maxUnread = 3
+\end{axdef}
+
+% ============================================================
+\section{State}
+% ============================================================
+
+The state combines the base Claude Code state with biff workflow
+state in a single flat schema. Base invariants are preserved and
+biff invariants are added.
+
+\begin{schema}{State}
+  %
+  % --- Base Claude Code state ---
+  %
+  sessionId : \finset SESSIONID \\
+  sessionPhase : SessionPhase \\
+  permMode : PermissionMode \\
+  toolPhase : ToolPhase \\
+  currentTool : \finset TOOLNAME \\
+  toolCategory : ToolCategory \\
+  toolsThisTurn : \nat \\
+  activeSubagents : \finset AGENTID \\
+  context : \seq CONTEXTCHUNK \\
+  pendingPrompt : \finset PROMPT \\
+  pendingResponse : \finset RESPONSE \\
+  %
+  % --- Biff workflow state ---
+  %
+  planSet : ZBOOL \\
+  planSource : \finset PlanSource \\
+  beadClaimed : \finset BEADID \\
+  unreadCount : \nat \\
+  talkActive : ZBOOL \\
+  wallActive : ZBOOL \\
+  wallText : \finset WALLTEXT
+  \where
+  %
+  % === Base invariants (from claude-code.tex) ===
+  %
+  \# sessionId \leq 1 \\
+  sessionPhase = spInactive \implies sessionId = \emptyset \\
+  sessionPhase \neq spInactive \implies \# sessionId = 1 \\
+  sessionPhase \neq spProcessing \implies toolPhase = tpNone \\
+  \# currentTool \leq 1 \\
+  toolPhase = tpNone \implies currentTool = \emptyset \\
+  toolPhase \neq tpNone \implies \# currentTool = 1 \\
+  toolsThisTurn \leq maxTools \\
+  sessionPhase = spInactive \implies activeSubagents = \emptyset \\
+  sessionPhase = spEnded \implies activeSubagents = \emptyset \\
+  \# activeSubagents \leq maxSubagents \\
+  \# context \leq maxContext \\
+  \# pendingPrompt \leq 1 \\
+  sessionPhase = spIdle \implies pendingPrompt = \emptyset \\
+  sessionPhase = spInactive \implies pendingPrompt = \emptyset \\
+  sessionPhase = spEnded \implies pendingPrompt = \emptyset \\
+  \# pendingResponse \leq 1 \\
+  sessionPhase \neq spResponding \implies pendingResponse = \emptyset \\
+  %
+  % === Tool category tracks current tool ===
+  %
+  toolPhase = tpNone \implies toolCategory = tcOther \\
+  %
+  % === Biff invariants ===
+  %
+  % Plan source exists iff plan is set
+  %
+  \# planSource \leq 1 \\
+  planSet = zfalse \implies planSource = \emptyset \\
+  planSet = ztrue \implies \# planSource = 1 \\
+  %
+  % Bead claim: at most one active bead
+  %
+  \# beadClaimed \leq 1 \\
+  %
+  % Unread bounded for animation
+  %
+  unreadCount \leq maxUnread \\
+  %
+  % Wall text exists iff wall is active
+  %
+  \# wallText \leq 1 \\
+  wallActive = zfalse \implies wallText = \emptyset \\
+  wallActive = ztrue \implies \# wallText = 1 \\
+  %
+  % No biff state when session is inactive
+  %
+  sessionPhase = spInactive \implies planSet = zfalse \\
+  sessionPhase = spInactive \implies beadClaimed = \emptyset \\
+  sessionPhase = spInactive \implies unreadCount = 0 \\
+  sessionPhase = spInactive \implies talkActive = zfalse \\
+  sessionPhase = spInactive \implies wallActive = zfalse
+\end{schema}
+
+% ============================================================
+\section{Initialization}
+% ============================================================
+
+\begin{schema}{Init}
+  State'
+  \where
+  sessionId' = \emptyset \\
+  sessionPhase' = spInactive \\
+  permMode' = pmDefault \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolCategory' = tcOther \\
+  toolsThisTurn' = 0 \\
+  activeSubagents' = \emptyset \\
+  context' = \langle \rangle \\
+  pendingPrompt' = \emptyset \\
+  pendingResponse' = \emptyset \\
+  %
+  planSet' = zfalse \\
+  planSource' = \emptyset \\
+  beadClaimed' = \emptyset \\
+  unreadCount' = 0 \\
+  talkActive' = zfalse \\
+  wallActive' = zfalse \\
+  wallText' = \emptyset
+\end{schema}
+
+% ============================================================
+\section{Biff Frame Condition}
+% ============================================================
+
+Most base operations do not change biff state. This abbreviation
+schema captures ``biff state unchanged'' to reduce repetition.
+
+\begin{schema}{BiffFrame}
+  \Delta State
+  \where
+  planSet' = planSet \\
+  planSource' = planSource \\
+  beadClaimed' = beadClaimed \\
+  unreadCount' = unreadCount \\
+  talkActive' = talkActive \\
+  wallActive' = wallActive \\
+  wallText' = wallText
+\end{schema}
+
+% ============================================================
+\section{Session Lifecycle Operations}
+% ============================================================
+
+\subsection{StartSession}
+
+\texttt{SessionStart} hook fires. Biff's \texttt{session-start.sh}
+initializes the session. If a wall is active, it is injected into
+context.
+
+\begin{schema}{StartSession}
+  \Delta State \\
+  sid? : SESSIONID \\
+  source? : SessionStartSource \\
+  mode? : PermissionMode \\
+  hasWall? : ZBOOL \\
+  wallContent? : \finset WALLTEXT
+  \where
+  sessionPhase = spInactive \\
+  \# wallContent? \leq 1 \\
+  hasWall? = zfalse \implies wallContent? = \emptyset \\
+  hasWall? = ztrue \implies \# wallContent? = 1 \\
+  %
+  sessionPhase' = spIdle \\
+  sessionId' = \{ sid? \} \\
+  permMode' = mode? \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolCategory' = tcOther \\
+  toolsThisTurn' = 0 \\
+  activeSubagents' = \emptyset \\
+  context' = \langle \rangle \\
+  pendingPrompt' = \emptyset \\
+  pendingResponse' = \emptyset \\
+  %
+  planSet' = zfalse \\
+  planSource' = \emptyset \\
+  beadClaimed' = \emptyset \\
+  unreadCount' = 0 \\
+  talkActive' = zfalse \\
+  wallActive' = hasWall? \\
+  wallText' = wallContent?
+\end{schema}
+
+\subsection{SubmitPrompt}
+
+\begin{schema}{SubmitPrompt}
+  BiffFrame \\
+  prompt? : PROMPT \\
+  hookResult? : HookDecision \\
+  contextChunk? : CONTEXTCHUNK
+  \where
+  sessionPhase = spIdle \\
+  hookResult? = hdAllow \\
+  sessionPhase' = spProcessing \\
+  pendingPrompt' = \{ prompt? \} \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle contextChunk? \rangle) \\
+  toolsThisTurn' = 0 \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolCategory' = tcOther \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  activeSubagents' = activeSubagents \\
+  pendingResponse' = \emptyset
+\end{schema}
+
+\begin{schema}{RejectPrompt}
+  \Xi State \\
+  prompt? : PROMPT \\
+  hookResult? : HookDecision
+  \where
+  sessionPhase = spIdle \\
+  hookResult? = hdBlock
+\end{schema}
+
+% ============================================================
+\section{Tool Call Operations}
+% ============================================================
+
+\subsection{BeginToolCall}
+
+Claude decides to invoke a tool. The tool category is classified.
+
+\begin{schema}{BeginToolCall}
+  BiffFrame \\
+  tool? : TOOLNAME \\
+  category? : ToolCategory
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  toolsThisTurn < maxTools \\
+  %
+  toolPhase' = tpPreHook \\
+  currentTool' = \{ tool? \} \\
+  toolCategory' = category? \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{PreToolHookAllow --- with workflow gate}
+
+The \texttt{PreToolUse} hook checks workflow prerequisites for
+edit and bash tools. The hook allows only if the plan is set and
+a bead is claimed (for edit/bash tools), or unconditionally for
+other tools.
+
+\begin{schema}{PreToolHookAllow}
+  BiffFrame \\
+  hookDecision? : PermissionDecision \\
+  needsPermission? : ZBOOL
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPreHook \\
+  hookDecision? = pdAllow \\
+  %
+  % WORKFLOW GATE: edit/bash tools require plan + bead
+  %
+  toolCategory \in \{ tcEdit, tcBash \} \implies planSet = ztrue \\
+  toolCategory \in \{ tcEdit, tcBash \} \implies beadClaimed \neq \emptyset \\
+  %
+  toolPhase' = \IF needsPermission? = ztrue \THEN tpPermission \ELSE tpExecuting \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  currentTool' = currentTool \\
+  toolCategory' = toolCategory \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{PreToolHookDeny}
+
+The hook denies the tool call (workflow prerequisites not met,
+or explicit deny for other reasons).
+
+\begin{schema}{PreToolHookDeny}
+  BiffFrame \\
+  hookDecision? : PermissionDecision \\
+  denialContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPreHook \\
+  hookDecision? = pdDeny \\
+  %
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolCategory' = tcOther \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle denialContext? \rangle) \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{PreToolHookEscalate}
+
+\begin{schema}{PreToolHookEscalate}
+  BiffFrame \\
+  hookDecision? : PermissionDecision
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPreHook \\
+  hookDecision? = pdAsk \\
+  %
+  toolPhase' = tpPermission \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  currentTool' = currentTool \\
+  toolCategory' = toolCategory \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{GrantPermission}
+
+\begin{schema}{GrantPermission}
+  BiffFrame
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPermission \\
+  toolPhase' = tpExecuting \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  currentTool' = currentTool \\
+  toolCategory' = toolCategory \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{DenyPermission}
+
+\begin{schema}{DenyPermission}
+  BiffFrame \\
+  denialContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPermission \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolCategory' = tcOther \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle denialContext? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{CompleteToolSuccess}
+
+\begin{schema}{CompleteToolSuccess}
+  BiffFrame \\
+  output? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpExecuting \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolCategory' = tcOther \\
+  toolsThisTurn' = toolsThisTurn + 1 \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle output? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{CompleteToolFailure}
+
+\begin{schema}{CompleteToolFailure}
+  BiffFrame \\
+  errorContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpExecuting \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolCategory' = tcOther \\
+  toolsThisTurn' = toolsThisTurn + 1 \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle errorContext? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ============================================================
+\section{Biff Workflow Operations}
+% ============================================================
+
+These operations model biff tool calls that change workflow state.
+They occur during \texttt{spProcessing} as tool completions.
+
+\subsection{SetPlanManual}
+
+The user or Claude explicitly calls \texttt{/plan}. This sets the
+plan and blocks auto-overwrite.
+
+\begin{schema}{SetPlanManual}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  %
+  planSet' = ztrue \\
+  planSource' = \{ psManual \} \\
+  %
+  % Frame: everything else unchanged
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolCategory' = toolCategory \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  beadClaimed' = beadClaimed \\
+  unreadCount' = unreadCount \\
+  talkActive' = talkActive \\
+  wallActive' = wallActive \\
+  wallText' = wallText
+\end{schema}
+
+\subsection{SetPlanAuto}
+
+The \texttt{PostToolUse} Bash hook detects a git branch and
+auto-sets the plan. Only succeeds if no manual plan is set.
+
+\begin{schema}{SetPlanAuto}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  planSource \neq \{ psManual \} \\
+  %
+  planSet' = ztrue \\
+  planSource' = \{ psAuto \} \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolCategory' = toolCategory \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  beadClaimed' = beadClaimed \\
+  unreadCount' = unreadCount \\
+  talkActive' = talkActive \\
+  wallActive' = wallActive \\
+  wallText' = wallText
+\end{schema}
+
+\subsection{ClaimBead}
+
+Claude runs \texttt{bd update <id> --status=in\_progress}.
+
+\begin{schema}{ClaimBead}
+  \Delta State \\
+  bead? : BEADID
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  %
+  beadClaimed' = \{ bead? \} \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolCategory' = toolCategory \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  planSet' = planSet \\
+  planSource' = planSource \\
+  unreadCount' = unreadCount \\
+  talkActive' = talkActive \\
+  wallActive' = wallActive \\
+  wallText' = wallText
+\end{schema}
+
+\subsection{CloseBead}
+
+Claude runs \texttt{bd close <id>}.
+
+\begin{schema}{CloseBead}
+  \Delta State \\
+  bead? : BEADID
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  bead? \in beadClaimed \\
+  %
+  beadClaimed' = beadClaimed \setminus \{ bead? \} \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolCategory' = toolCategory \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  planSet' = planSet \\
+  planSource' = planSource \\
+  unreadCount' = unreadCount \\
+  talkActive' = talkActive \\
+  wallActive' = wallActive \\
+  wallText' = wallText
+\end{schema}
+
+\subsection{ReceiveMessage}
+
+An external message arrives (NATS notification). Non-blocking,
+increments unread count.
+
+\begin{schema}{ReceiveMessage}
+  \Delta State
+  \where
+  sessionPhase \neq spInactive \\
+  sessionPhase \neq spEnded \\
+  unreadCount < maxUnread \\
+  %
+  unreadCount' = unreadCount + 1 \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolCategory' = toolCategory \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  planSet' = planSet \\
+  planSource' = planSource \\
+  beadClaimed' = beadClaimed \\
+  talkActive' = talkActive \\
+  wallActive' = wallActive \\
+  wallText' = wallText
+\end{schema}
+
+\subsection{ReadMessages}
+
+Claude calls \texttt{/read}. Clears unread count.
+
+\begin{schema}{ReadMessages}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  %
+  unreadCount' = 0 \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolCategory' = toolCategory \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  planSet' = planSet \\
+  planSource' = planSource \\
+  beadClaimed' = beadClaimed \\
+  talkActive' = talkActive \\
+  wallActive' = wallActive \\
+  wallText' = wallText
+\end{schema}
+
+\subsection{StartTalk}
+
+Claude calls \texttt{/talk @user}.
+
+\begin{schema}{StartTalk}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  talkActive = zfalse \\
+  %
+  talkActive' = ztrue \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolCategory' = toolCategory \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  planSet' = planSet \\
+  planSource' = planSource \\
+  beadClaimed' = beadClaimed \\
+  unreadCount' = unreadCount \\
+  wallActive' = wallActive \\
+  wallText' = wallText
+\end{schema}
+
+\subsection{EndTalk}
+
+Claude calls \texttt{/talk\_end}.
+
+\begin{schema}{EndTalk}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  talkActive = ztrue \\
+  %
+  talkActive' = zfalse \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolCategory' = toolCategory \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  planSet' = planSet \\
+  planSource' = planSource \\
+  beadClaimed' = beadClaimed \\
+  unreadCount' = unreadCount \\
+  wallActive' = wallActive \\
+  wallText' = wallText
+\end{schema}
+
+\subsection{PostWall}
+
+Claude calls \texttt{/wall <message>}.
+
+\begin{schema}{PostWall}
+  \Delta State \\
+  text? : WALLTEXT
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  %
+  wallActive' = ztrue \\
+  wallText' = \{ text? \} \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolCategory' = toolCategory \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  planSet' = planSet \\
+  planSource' = planSource \\
+  beadClaimed' = beadClaimed \\
+  unreadCount' = unreadCount \\
+  talkActive' = talkActive
+\end{schema}
+
+\subsection{ClearWall}
+
+Claude calls \texttt{/wall --clear}.
+
+\begin{schema}{ClearWall}
+  \Delta State
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  wallActive = ztrue \\
+  %
+  wallActive' = zfalse \\
+  wallText' = \emptyset \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolCategory' = toolCategory \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  planSet' = planSet \\
+  planSource' = planSource \\
+  beadClaimed' = beadClaimed \\
+  unreadCount' = unreadCount \\
+  talkActive' = talkActive
+\end{schema}
+
+% ============================================================
+\section{Subagent Operations}
+% ============================================================
+
+\subsection{SpawnSubagent}
+
+\begin{schema}{SpawnSubagent}
+  BiffFrame \\
+  agentId? : AGENTID
+  \where
+  sessionPhase = spProcessing \\
+  agentId? \notin activeSubagents \\
+  \# activeSubagents < maxSubagents \\
+  activeSubagents' = activeSubagents \cup \{ agentId? \} \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolCategory' = toolCategory \\
+  toolsThisTurn' = toolsThisTurn \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{StopSubagent}
+
+\begin{schema}{StopSubagent}
+  BiffFrame \\
+  agentId? : AGENTID \\
+  hookResult? : HookDecision \\
+  resultContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  agentId? \in activeSubagents \\
+  hookResult? = hdAllow \\
+  activeSubagents' = activeSubagents \setminus \{ agentId? \} \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle resultContext? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolCategory' = toolCategory \\
+  toolsThisTurn' = toolsThisTurn \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ============================================================
+\section{Response and Stop Operations}
+% ============================================================
+
+\subsection{BeginResponse}
+
+\begin{schema}{BeginResponse}
+  BiffFrame \\
+  response? : RESPONSE
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  activeSubagents = \emptyset \\
+  sessionPhase' = spResponding \\
+  pendingResponse' = \{ response? \} \\
+  pendingPrompt' = \emptyset \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolCategory' = tcOther \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context
+\end{schema}
+
+\subsection{FinishResponse --- with message awareness}
+
+The \texttt{Stop} hook checks for unread messages. If unread
+messages exist, the hook injects a reminder into context but
+does \emph{not} block --- this is a soft gate (the agent should
+read messages but is not forced to).
+
+\begin{schema}{FinishResponse}
+  BiffFrame \\
+  hookResult? : HookDecision \\
+  responseContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spResponding \\
+  hookResult? = hdAllow \\
+  sessionPhase' = spIdle \\
+  pendingResponse' = \emptyset \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle responseContext? \rangle) \\
+  toolsThisTurn' = 0 \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolCategory' = tcOther \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = \emptyset
+\end{schema}
+
+\subsection{ForceContinue}
+
+\begin{schema}{ForceContinue}
+  BiffFrame \\
+  hookResult? : HookDecision
+  \where
+  sessionPhase = spResponding \\
+  hookResult? = hdBlock \\
+  sessionPhase' = spProcessing \\
+  pendingResponse' = \emptyset \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolCategory' = tcOther \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt
+\end{schema}
+
+% ============================================================
+\section{Context Management}
+% ============================================================
+
+\subsection{CompactContext}
+
+\begin{schema}{CompactContext}
+  BiffFrame \\
+  newLen? : \nat
+  \where
+  sessionPhase = spIdle \\
+  \# context > 0 \\
+  newLen? < \# context \\
+  newLen? \leq maxContext \\
+  context' = (1 \upto newLen?) \dres context \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolCategory' = toolCategory \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ============================================================
+\section{Session End}
+% ============================================================
+
+\subsection{EndSession}
+
+\begin{schema}{EndSession}
+  \Delta State \\
+  reason? : SessionEndReason
+  \where
+  sessionPhase = spIdle \\
+  activeSubagents = \emptyset \\
+  %
+  sessionPhase' = spEnded \\
+  sessionId' = \emptyset \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolCategory' = tcOther \\
+  toolsThisTurn' = 0 \\
+  activeSubagents' = \emptyset \\
+  context' = \langle \rangle \\
+  pendingPrompt' = \emptyset \\
+  pendingResponse' = \emptyset \\
+  permMode' = permMode \\
+  %
+  % Biff state cleared
+  %
+  planSet' = zfalse \\
+  planSource' = \emptyset \\
+  beadClaimed' = \emptyset \\
+  unreadCount' = 0 \\
+  talkActive' = zfalse \\
+  wallActive' = zfalse \\
+  wallText' = \emptyset
+\end{schema}
+
+% ============================================================
+\section{System Invariants}
+% ============================================================
+
+The specification enforces these properties across all reachable states:
+
+\begin{enumerate}
+  \item \textbf{Plan before editing} (workflow gate): the
+    \texttt{PreToolHookAllow} operation requires \texttt{planSet = ztrue}
+    and \texttt{beadClaimed $\neq \emptyset$} for edit and bash tools.
+    No path through the state machine can reach tool execution for
+    file-modifying tools without these prerequisites.
+
+  \item \textbf{Manual plan blocks auto}: \texttt{SetPlanAuto} has
+    precondition \texttt{planSource $\neq$ \{psManual\}}, preventing
+    auto-detection from overwriting an explicit plan.
+
+  \item \textbf{Wall consistency}: wall text exists if and only if
+    the wall is active. No orphan text, no active wall without content.
+
+  \item \textbf{Plan consistency}: plan source exists if and only if
+    plan is set.
+
+  \item \textbf{Clean session boundaries}: all biff state is cleared
+    on \texttt{Init} and \texttt{EndSession}. No state leaks between
+    sessions.
+
+  \item \textbf{Talk exclusivity}: \texttt{StartTalk} requires
+    \texttt{talkActive = zfalse}; \texttt{EndTalk} requires
+    \texttt{talkActive = ztrue}. No double-start or double-end.
+
+  \item \textbf{All base invariants preserved}: tool phase, session
+    phase, subagent, and context invariants from the base model hold.
+\end{enumerate}
+
+% ============================================================
+\section{Hook Event Map}
+% ============================================================
+
+\begin{tabular}{lllll}
+\hline
+\textbf{Hook} & \textbf{Matcher} & \textbf{Operation} & \textbf{Biff Effect} & \textbf{Blocks?} \\
+\hline
+SessionStart & * & StartSession & Load wall & No \\
+PostToolUse & Bash & SetPlanAuto & Auto plan from branch & No \\
+PreToolUse & Edit|Write & PreToolHookAllow/Deny & Require plan+bead & Yes \\
+PreToolUse & Bash & PreToolHookAllow/Deny & Require plan+bead & Yes \\
+PostToolUse & biff\_\_plan & SetPlanManual & Set manual plan & No \\
+PostToolUse & biff\_\_write & (side effect) & Message sent & No \\
+PostToolUse & biff\_\_read & ReadMessages & Clear unread & No \\
+PostToolUse & biff\_\_talk & StartTalk & Enter talk mode & No \\
+PostToolUse & biff\_\_talk\_end & EndTalk & Exit talk mode & No \\
+PostToolUse & biff\_\_wall & PostWall/ClearWall & Update wall & No \\
+Stop & * & FinishResponse & Check unread & Yes \\
+SessionEnd & * & EndSession & Clear all & No \\
+\hline
+\end{tabular}
+
+\end{document}
