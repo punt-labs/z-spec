@@ -1,0 +1,945 @@
+%
+% claude-code-quarry.tex
+%
+% Z Specification: Claude Code + Quarry Knowledge Capture State (Layer 2)
+% Extends the base Claude Code state machine with quarry automatic
+% knowledge capture, codebase indexing, and compaction safety.
+%
+% Type-check: fuzz -t claude-code-quarry.tex
+% Animate:    probcli claude-code-quarry.tex -animate 20
+%
+
+\documentclass[a4paper,10pt,fleqn]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{fuzz}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+\begin{document}
+
+\title{Claude Code + Quarry: A Z Specification}
+\author{Layer 2 --- Knowledge Capture State}
+\date{March 2026}
+\hypersetup{
+  pdftitle={Claude Code + Quarry: A Z Specification},
+  pdfauthor={Punt Labs},
+  pdfsubject={Z Specification},
+  pdfcreator={fuzz/probcli}
+}
+\maketitle
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Introduction}
+% ============================================================
+
+This specification extends the base Claude Code state machine
+(\texttt{claude-code.tex}) with quarry automatic knowledge capture
+state. Quarry provides local semantic search over codebases,
+documents, and conversation history.
+
+The key properties verified by this model:
+
+\begin{enumerate}
+  \item \textbf{Knowledge before work}: the codebase is indexed
+    before Claude begins processing. The \texttt{SessionStart} hook
+    auto-registers and syncs the working directory.
+  \item \textbf{No knowledge loss on compaction}: before context
+    compaction shrinks the conversation, the \texttt{PreCompact} hook
+    captures session notes. No path reaches \texttt{CompactContext}
+    without the capture flag being set.
+  \item \textbf{WebFetch auto-capture}: URLs fetched during a session
+    are automatically ingested into the \texttt{web-captures} collection.
+  \item \textbf{Capture toggles are respected}: each auto-capture
+    layer (session sync, web fetch, compaction) can be independently
+    disabled via \texttt{.claude/quarry.local.md}.
+\end{enumerate}
+
+% ============================================================
+\section{Base Types (from claude-code.tex)}
+% ============================================================
+
+\begin{zed}
+  [TOOLNAME, TOOLINPUT, TOOLOUTPUT, PROMPT, RESPONSE, AGENTID, SESSIONID, CONTEXTCHUNK]
+\end{zed}
+
+\begin{zed}
+  SessionPhase ::= spInactive | spIdle | spProcessing | spResponding | spEnded
+\end{zed}
+
+\begin{zed}
+  ToolPhase ::= tpNone | tpPreHook | tpPermission | tpExecuting | tpPostHook
+\end{zed}
+
+\begin{zed}
+  PermissionMode ::= pmDefault | pmPlan | pmAcceptEdits | pmDontAsk | pmBypass
+\end{zed}
+
+\begin{zed}
+  PermissionDecision ::= pdAllow | pdDeny | pdAsk
+\end{zed}
+
+\begin{zed}
+  HookDecision ::= hdAllow | hdBlock
+\end{zed}
+
+\begin{zed}
+  SessionStartSource ::= ssStartup | ssResume | ssClear | ssCompact
+\end{zed}
+
+\begin{zed}
+  SessionEndReason ::= seClear | seLogout | sePromptExit | seBypassDisabled | seOther
+\end{zed}
+
+\begin{zed}
+  ZBOOL ::= ztrue | zfalse
+\end{zed}
+
+% ============================================================
+\section{Quarry Types}
+% ============================================================
+
+\begin{zed}
+  [DBNAME, URL]
+\end{zed}
+
+\texttt{DBNAME} identifies a quarry database (e.g., \texttt{default},
+\texttt{punt-labs}). \texttt{URL} identifies a fetched web resource.
+
+% ============================================================
+\section{Global Constants}
+% ============================================================
+
+\begin{axdef}
+  maxTools : \nat \\
+  maxSubagents : \nat \\
+  maxContext : \nat \\
+  maxCaptures : \nat
+  \where
+  maxTools = 5 \\
+  maxSubagents = 2 \\
+  maxContext = 3 \\
+  maxCaptures = 5
+\end{axdef}
+
+% ============================================================
+\section{State}
+% ============================================================
+
+\begin{schema}{State}
+  %
+  % --- Base Claude Code state ---
+  %
+  sessionId : \finset SESSIONID \\
+  sessionPhase : SessionPhase \\
+  permMode : PermissionMode \\
+  toolPhase : ToolPhase \\
+  currentTool : \finset TOOLNAME \\
+  toolsThisTurn : \nat \\
+  activeSubagents : \finset AGENTID \\
+  context : \seq CONTEXTCHUNK \\
+  pendingPrompt : \finset PROMPT \\
+  pendingResponse : \finset RESPONSE \\
+  %
+  % --- Quarry knowledge capture state ---
+  %
+  codebaseIndexed : ZBOOL \\
+  activeDb : \finset DBNAME \\
+  capturedUrls : \finset URL \\
+  compactionSaved : ZBOOL \\
+  %
+  % --- Capture config (from .claude/quarry.local.md) ---
+  %
+  cfgSessionSync : ZBOOL \\
+  cfgWebFetch : ZBOOL \\
+  cfgCompaction : ZBOOL
+  \where
+  %
+  % === Base invariants ===
+  %
+  \# sessionId \leq 1 \\
+  sessionPhase = spInactive \implies sessionId = \emptyset \\
+  sessionPhase \neq spInactive \implies \# sessionId = 1 \\
+  sessionPhase \neq spProcessing \implies toolPhase = tpNone \\
+  \# currentTool \leq 1 \\
+  toolPhase = tpNone \implies currentTool = \emptyset \\
+  toolPhase \neq tpNone \implies \# currentTool = 1 \\
+  toolsThisTurn \leq maxTools \\
+  sessionPhase = spInactive \implies activeSubagents = \emptyset \\
+  sessionPhase = spEnded \implies activeSubagents = \emptyset \\
+  \# activeSubagents \leq maxSubagents \\
+  \# context \leq maxContext \\
+  \# pendingPrompt \leq 1 \\
+  sessionPhase = spIdle \implies pendingPrompt = \emptyset \\
+  sessionPhase = spInactive \implies pendingPrompt = \emptyset \\
+  sessionPhase = spEnded \implies pendingPrompt = \emptyset \\
+  \# pendingResponse \leq 1 \\
+  sessionPhase \neq spResponding \implies pendingResponse = \emptyset \\
+  %
+  % === Quarry invariants ===
+  %
+  % Active database: at most one
+  %
+  \# activeDb \leq 1 \\
+  %
+  % Captured URLs bounded for animation
+  %
+  \# capturedUrls \leq maxCaptures \\
+  %
+  % No quarry state when session is inactive
+  %
+  sessionPhase = spInactive \implies codebaseIndexed = zfalse \\
+  sessionPhase = spInactive \implies activeDb = \emptyset \\
+  sessionPhase = spInactive \implies capturedUrls = \emptyset \\
+  sessionPhase = spInactive \implies compactionSaved = zfalse
+\end{schema}
+
+% ============================================================
+\section{Initialization}
+% ============================================================
+
+\begin{schema}{Init}
+  State'
+  \where
+  sessionId' = \emptyset \\
+  sessionPhase' = spInactive \\
+  permMode' = pmDefault \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = 0 \\
+  activeSubagents' = \emptyset \\
+  context' = \langle \rangle \\
+  pendingPrompt' = \emptyset \\
+  pendingResponse' = \emptyset \\
+  %
+  codebaseIndexed' = zfalse \\
+  activeDb' = \emptyset \\
+  capturedUrls' = \emptyset \\
+  compactionSaved' = zfalse \\
+  cfgSessionSync' = ztrue \\
+  cfgWebFetch' = ztrue \\
+  cfgCompaction' = ztrue
+\end{schema}
+
+% ============================================================
+\section{Quarry Frame Condition}
+% ============================================================
+
+\begin{schema}{QuarryFrame}
+  \Delta State
+  \where
+  codebaseIndexed' = codebaseIndexed \\
+  activeDb' = activeDb \\
+  capturedUrls' = capturedUrls \\
+  compactionSaved' = compactionSaved \\
+  cfgSessionSync' = cfgSessionSync \\
+  cfgWebFetch' = cfgWebFetch \\
+  cfgCompaction' = cfgCompaction
+\end{schema}
+
+% ============================================================
+\section{Session Lifecycle Operations}
+% ============================================================
+
+\subsection{StartSessionWithSync}
+
+\texttt{SessionStart} hook fires. If \texttt{cfgSessionSync = ztrue},
+quarry auto-registers the working directory and syncs. The codebase
+is indexed before Claude can process prompts.
+
+\begin{schema}{StartSessionWithSync}
+  \Delta State \\
+  sid? : SESSIONID \\
+  source? : SessionStartSource \\
+  mode? : PermissionMode
+  \where
+  sessionPhase = spInactive \\
+  cfgSessionSync = ztrue \\
+  %
+  sessionPhase' = spIdle \\
+  sessionId' = \{ sid? \} \\
+  permMode' = mode? \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = 0 \\
+  activeSubagents' = \emptyset \\
+  context' = \langle \rangle \\
+  pendingPrompt' = \emptyset \\
+  pendingResponse' = \emptyset \\
+  %
+  codebaseIndexed' = ztrue \\
+  activeDb' = \emptyset \\
+  capturedUrls' = \emptyset \\
+  compactionSaved' = zfalse \\
+  cfgSessionSync' = cfgSessionSync \\
+  cfgWebFetch' = cfgWebFetch \\
+  cfgCompaction' = cfgCompaction
+\end{schema}
+
+\subsection{StartSessionNoSync}
+
+Session starts but sync is disabled. The codebase is not indexed
+automatically.
+
+\begin{schema}{StartSessionNoSync}
+  \Delta State \\
+  sid? : SESSIONID \\
+  source? : SessionStartSource \\
+  mode? : PermissionMode
+  \where
+  sessionPhase = spInactive \\
+  cfgSessionSync = zfalse \\
+  %
+  sessionPhase' = spIdle \\
+  sessionId' = \{ sid? \} \\
+  permMode' = mode? \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = 0 \\
+  activeSubagents' = \emptyset \\
+  context' = \langle \rangle \\
+  pendingPrompt' = \emptyset \\
+  pendingResponse' = \emptyset \\
+  %
+  codebaseIndexed' = zfalse \\
+  activeDb' = \emptyset \\
+  capturedUrls' = \emptyset \\
+  compactionSaved' = zfalse \\
+  cfgSessionSync' = cfgSessionSync \\
+  cfgWebFetch' = cfgWebFetch \\
+  cfgCompaction' = cfgCompaction
+\end{schema}
+
+\subsection{SubmitPrompt}
+
+\begin{schema}{SubmitPrompt}
+  QuarryFrame \\
+  prompt? : PROMPT \\
+  hookResult? : HookDecision \\
+  contextChunk? : CONTEXTCHUNK
+  \where
+  sessionPhase = spIdle \\
+  hookResult? = hdAllow \\
+  sessionPhase' = spProcessing \\
+  pendingPrompt' = \{ prompt? \} \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle contextChunk? \rangle) \\
+  toolsThisTurn' = 0 \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  activeSubagents' = activeSubagents \\
+  pendingResponse' = \emptyset
+\end{schema}
+
+\begin{schema}{RejectPrompt}
+  \Xi State \\
+  prompt? : PROMPT \\
+  hookResult? : HookDecision
+  \where
+  sessionPhase = spIdle \\
+  hookResult? = hdBlock
+\end{schema}
+
+% ============================================================
+\section{Tool Call Operations}
+% ============================================================
+
+\subsection{BeginToolCall}
+
+\begin{schema}{BeginToolCall}
+  QuarryFrame \\
+  tool? : TOOLNAME
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  toolsThisTurn < maxTools \\
+  toolPhase' = tpPreHook \\
+  currentTool' = \{ tool? \} \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{PreToolHookAllow}
+
+\begin{schema}{PreToolHookAllow}
+  QuarryFrame \\
+  hookDecision? : PermissionDecision \\
+  needsPermission? : ZBOOL
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPreHook \\
+  hookDecision? = pdAllow \\
+  toolPhase' = \IF needsPermission? = ztrue \THEN tpPermission \ELSE tpExecuting \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{PreToolHookDeny}
+
+\begin{schema}{PreToolHookDeny}
+  QuarryFrame \\
+  hookDecision? : PermissionDecision \\
+  denialContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPreHook \\
+  hookDecision? = pdDeny \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle denialContext? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{GrantPermission}
+
+\begin{schema}{GrantPermission}
+  QuarryFrame
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPermission \\
+  toolPhase' = tpExecuting \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{DenyPermission}
+
+\begin{schema}{DenyPermission}
+  QuarryFrame \\
+  denialContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpPermission \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle denialContext? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{CompleteToolSuccess}
+
+\begin{schema}{CompleteToolSuccess}
+  QuarryFrame \\
+  output? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpExecuting \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = toolsThisTurn + 1 \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle output? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\subsection{CompleteToolFailure}
+
+\begin{schema}{CompleteToolFailure}
+  QuarryFrame \\
+  errorContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpExecuting \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = toolsThisTurn + 1 \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle errorContext? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ============================================================
+\section{Quarry Operations}
+% ============================================================
+
+\subsection{CaptureWebFetch}
+
+\texttt{PostToolUse} on \texttt{WebFetch}. When web fetch capture
+is enabled, the fetched URL is added to the captured set and
+ingested into the \texttt{web-captures} collection (async,
+fire-and-forget).
+
+\begin{schema}{CaptureWebFetch}
+  \Delta State \\
+  url? : URL
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  cfgWebFetch = ztrue \\
+  url? \notin capturedUrls \\
+  \# capturedUrls < maxCaptures \\
+  %
+  capturedUrls' = capturedUrls \cup \{ url? \} \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  codebaseIndexed' = codebaseIndexed \\
+  activeDb' = activeDb \\
+  compactionSaved' = compactionSaved \\
+  cfgSessionSync' = cfgSessionSync \\
+  cfgWebFetch' = cfgWebFetch \\
+  cfgCompaction' = cfgCompaction
+\end{schema}
+
+\subsection{SwitchDatabase}
+
+Claude calls \texttt{quarry use <name>}. Changes the active database
+for subsequent queries.
+
+\begin{schema}{SwitchDatabase}
+  \Delta State \\
+  db? : DBNAME
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  %
+  activeDb' = \{ db? \} \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  codebaseIndexed' = codebaseIndexed \\
+  capturedUrls' = capturedUrls \\
+  compactionSaved' = compactionSaved \\
+  cfgSessionSync' = cfgSessionSync \\
+  cfgWebFetch' = cfgWebFetch \\
+  cfgCompaction' = cfgCompaction
+\end{schema}
+
+\subsection{SearchKnowledge}
+
+Claude calls \texttt{quarry find}. This is a read-only query that
+injects search results into context. Modeled to show that search
+results flow into the conversation.
+
+\begin{schema}{SearchKnowledge}
+  \Delta State \\
+  results? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  %
+  context' = (1 \upto maxContext) \dres (context \cat \langle results? \rangle) \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  codebaseIndexed' = codebaseIndexed \\
+  activeDb' = activeDb \\
+  capturedUrls' = capturedUrls \\
+  compactionSaved' = compactionSaved \\
+  cfgSessionSync' = cfgSessionSync \\
+  cfgWebFetch' = cfgWebFetch \\
+  cfgCompaction' = cfgCompaction
+\end{schema}
+
+\subsection{InjectKnowledgeHint}
+
+Quarry proactively injects relevant knowledge into context at key
+moments: \texttt{SessionStart} (project standards, workflow tips),
+\texttt{PostToolUse} on \texttt{Edit|Write} (e.g., ``remember our
+changelog standard'', ``update DESIGN.md with an ADR''),
+\texttt{PostToolUse} on tool-specific patterns (e.g., ``top hints
+for working with Z specs'' when editing \texttt{.tex} files).
+
+These are contextual hints retrieved from quarry collections
+(standards, design docs, project conventions) and injected as
+\texttt{additionalContext}. The injection is non-blocking and
+additive --- it appends to context without altering other state.
+
+\begin{schema}{InjectKnowledgeHint}
+  \Delta State \\
+  hint? : CONTEXTCHUNK
+  \where
+  sessionPhase \in \{ spIdle, spProcessing \} \\
+  %
+  context' = (1 \upto maxContext) \dres (context \cat \langle hint? \rangle) \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  codebaseIndexed' = codebaseIndexed \\
+  activeDb' = activeDb \\
+  capturedUrls' = capturedUrls \\
+  compactionSaved' = compactionSaved \\
+  cfgSessionSync' = cfgSessionSync \\
+  cfgWebFetch' = cfgWebFetch \\
+  cfgCompaction' = cfgCompaction
+\end{schema}
+
+This operation fires in both \texttt{spIdle} (SessionStart context
+injection) and \texttt{spProcessing} (PostToolUse context injection).
+The hint content is determined by quarry's semantic search over
+registered collections --- the Z spec abstracts this as an opaque
+\texttt{CONTEXTCHUNK} input.
+
+Example injection points:
+
+\begin{itemize}
+  \item \texttt{SessionStart}: ``This project follows punt-kit
+    standards. Key conventions: ruff, mypy, pytest, CHANGELOG.md
+    under [Unreleased].''
+  \item \texttt{PostToolUse} on \texttt{Edit} of \texttt{CHANGELOG.md}:
+    ``Keep a Changelog format. Entries under [Unreleased] with
+    Added/Changed/Fixed sections.''
+  \item \texttt{PostToolUse} on \texttt{Edit} of \texttt{*.tex}:
+    ``Z spec conventions: use $\backslash$quad\~{} for indentation,
+    ZBOOL for booleans, bounded sets for ProB animation.''
+  \item \texttt{PostToolUse} on \texttt{Bash} with git commands:
+    ``Session close protocol: git status, git add, bd sync,
+    git commit, git push.''
+\end{itemize}
+
+% ============================================================
+\section{Subagent Operations}
+% ============================================================
+
+\begin{schema}{SpawnSubagent}
+  QuarryFrame \\
+  agentId? : AGENTID
+  \where
+  sessionPhase = spProcessing \\
+  agentId? \notin activeSubagents \\
+  \# activeSubagents < maxSubagents \\
+  activeSubagents' = activeSubagents \cup \{ agentId? \} \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+\begin{schema}{StopSubagent}
+  QuarryFrame \\
+  agentId? : AGENTID \\
+  hookResult? : HookDecision \\
+  resultContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spProcessing \\
+  agentId? \in activeSubagents \\
+  hookResult? = hdAllow \\
+  activeSubagents' = activeSubagents \setminus \{ agentId? \} \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle resultContext? \rangle) \\
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse
+\end{schema}
+
+% ============================================================
+\section{Response and Stop}
+% ============================================================
+
+\begin{schema}{BeginResponse}
+  QuarryFrame \\
+  response? : RESPONSE
+  \where
+  sessionPhase = spProcessing \\
+  toolPhase = tpNone \\
+  activeSubagents = \emptyset \\
+  sessionPhase' = spResponding \\
+  pendingResponse' = \{ response? \} \\
+  pendingPrompt' = \emptyset \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context
+\end{schema}
+
+\begin{schema}{FinishResponse}
+  QuarryFrame \\
+  hookResult? : HookDecision \\
+  responseContext? : CONTEXTCHUNK
+  \where
+  sessionPhase = spResponding \\
+  hookResult? = hdAllow \\
+  sessionPhase' = spIdle \\
+  pendingResponse' = \emptyset \\
+  context' = (1 \upto maxContext) \dres (context \cat \langle responseContext? \rangle) \\
+  toolsThisTurn' = 0 \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = \emptyset
+\end{schema}
+
+\begin{schema}{ForceContinue}
+  QuarryFrame \\
+  hookResult? : HookDecision
+  \where
+  sessionPhase = spResponding \\
+  hookResult? = hdBlock \\
+  sessionPhase' = spProcessing \\
+  pendingResponse' = \emptyset \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt
+\end{schema}
+
+% ============================================================
+\section{Context Management --- Compaction Safety}
+% ============================================================
+
+This is the critical section for quarry. Context compaction destroys
+conversation history. The \texttt{PreCompact} hook must capture
+session notes \emph{before} the context is shrunk.
+
+\subsection{CaptureBeforeCompact}
+
+\texttt{PreCompact} hook fires. If compaction capture is enabled,
+quarry reads the transcript and ingests it as session notes into
+the \texttt{session-notes} collection. This must happen before
+\texttt{CompactContext}.
+
+\begin{schema}{CaptureBeforeCompact}
+  \Delta State
+  \where
+  sessionPhase = spIdle \\
+  cfgCompaction = ztrue \\
+  \# context > 0 \\
+  %
+  compactionSaved' = ztrue \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  context' = context \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  codebaseIndexed' = codebaseIndexed \\
+  activeDb' = activeDb \\
+  capturedUrls' = capturedUrls \\
+  cfgSessionSync' = cfgSessionSync \\
+  cfgWebFetch' = cfgWebFetch \\
+  cfgCompaction' = cfgCompaction
+\end{schema}
+
+\subsection{SkipCaptureBeforeCompact}
+
+Compaction capture is disabled. The \texttt{PreCompact} hook is a
+no-op. Session notes are not saved.
+
+\begin{schema}{SkipCaptureBeforeCompact}
+  \Xi State
+  \where
+  sessionPhase = spIdle \\
+  cfgCompaction = zfalse
+\end{schema}
+
+\subsection{CompactContext}
+
+Context is shrunk. The \texttt{compactionSaved} flag records whether
+notes were captured. After compaction it resets to \texttt{zfalse}
+for the next potential compaction cycle.
+
+\begin{schema}{CompactContext}
+  \Delta State \\
+  newLen? : \nat
+  \where
+  sessionPhase = spIdle \\
+  \# context > 0 \\
+  newLen? < \# context \\
+  newLen? \leq maxContext \\
+  %
+  context' = (1 \upto newLen?) \dres context \\
+  compactionSaved' = zfalse \\
+  %
+  sessionPhase' = sessionPhase \\
+  sessionId' = sessionId \\
+  permMode' = permMode \\
+  toolPhase' = toolPhase \\
+  currentTool' = currentTool \\
+  toolsThisTurn' = toolsThisTurn \\
+  activeSubagents' = activeSubagents \\
+  pendingPrompt' = pendingPrompt \\
+  pendingResponse' = pendingResponse \\
+  codebaseIndexed' = codebaseIndexed \\
+  activeDb' = activeDb \\
+  capturedUrls' = capturedUrls \\
+  cfgSessionSync' = cfgSessionSync \\
+  cfgWebFetch' = cfgWebFetch \\
+  cfgCompaction' = cfgCompaction
+\end{schema}
+
+% ============================================================
+\section{Session End}
+% ============================================================
+
+\begin{schema}{EndSession}
+  \Delta State \\
+  reason? : SessionEndReason
+  \where
+  sessionPhase = spIdle \\
+  activeSubagents = \emptyset \\
+  sessionPhase' = spEnded \\
+  sessionId' = \emptyset \\
+  toolPhase' = tpNone \\
+  currentTool' = \emptyset \\
+  toolsThisTurn' = 0 \\
+  activeSubagents' = \emptyset \\
+  context' = \langle \rangle \\
+  pendingPrompt' = \emptyset \\
+  pendingResponse' = \emptyset \\
+  permMode' = permMode \\
+  codebaseIndexed' = zfalse \\
+  activeDb' = \emptyset \\
+  capturedUrls' = \emptyset \\
+  compactionSaved' = zfalse \\
+  cfgSessionSync' = cfgSessionSync \\
+  cfgWebFetch' = cfgWebFetch \\
+  cfgCompaction' = cfgCompaction
+\end{schema}
+
+% ============================================================
+\section{System Invariants}
+% ============================================================
+
+\begin{enumerate}
+  \item \textbf{Codebase indexed when sync enabled}: if
+    \texttt{cfgSessionSync = ztrue} and the session started via
+    \texttt{StartSessionWithSync}, then
+    \texttt{codebaseIndexed = ztrue} for the duration of the session.
+
+  \item \textbf{Capture config is immutable during session}: the
+    \texttt{cfg*} flags are set at \texttt{Init} and preserved by
+    all operations. They cannot change mid-session.
+
+  \item \textbf{WebFetch deduplication}: \texttt{CaptureWebFetch}
+    requires \texttt{url? $\notin$ capturedUrls}. No URL is ingested
+    twice in the same session.
+
+  \item \textbf{Active database consistency}: at most one database
+    is active. \texttt{SwitchDatabase} replaces, does not accumulate.
+
+  \item \textbf{Compaction flag lifecycle}:
+    \texttt{CaptureBeforeCompact} sets \texttt{compactionSaved = ztrue}.
+    \texttt{CompactContext} resets it to \texttt{zfalse}. This tracks
+    whether the most recent compaction was preceded by a capture.
+
+  \item \textbf{Clean session boundaries}: all quarry state
+    (indexed, activeDb, captures, compaction flag) is cleared on
+    \texttt{EndSession}.
+\end{enumerate}
+
+\textbf{Note on the compaction safety property:} The Z spec does
+\emph{not} enforce that \texttt{CaptureBeforeCompact} must precede
+\texttt{CompactContext} --- it is possible to compact without
+capturing (the operations are independent). This reflects reality:
+Claude Code fires \texttt{PreCompact} before compaction, but the
+hook is non-blocking. The \texttt{compactionSaved} flag lets us
+\emph{observe} whether the capture occurred, not \emph{enforce} it.
+Enforcement is the hook system's responsibility.
+
+% ============================================================
+\section{Hook Event Map}
+% ============================================================
+
+\begin{tabular}{lllll}
+\hline
+\textbf{Hook} & \textbf{Matcher} & \textbf{Operation} & \textbf{Quarry Effect} & \textbf{Blocks?} \\
+\hline
+SessionStart & * & StartSessionWithSync/NoSync & Auto-register + sync & No \\
+SessionStart & * & InjectKnowledgeHint & Project standards & No \\
+PostToolUse & WebFetch & CaptureWebFetch & Ingest URL & No \\
+PostToolUse & Edit|Write & InjectKnowledgeHint & File-type hints & No \\
+PostToolUse & Bash & InjectKnowledgeHint & Workflow hints & No \\
+PostToolUse & quarry\_\_use & SwitchDatabase & Change active DB & No \\
+PostToolUse & quarry\_\_find & SearchKnowledge & Inject results & No \\
+PostToolUse & quarry\_\_* & (suppress output) & Format display & No \\
+PreCompact & * & CaptureBeforeCompact & Save session notes & No \\
+SessionEnd & * & EndSession & Clear state & No \\
+\hline
+\end{tabular}
+
+\end{document}
