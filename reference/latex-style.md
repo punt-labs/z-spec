@@ -85,8 +85,8 @@ completedLevels = \{ l : 1 \upto 26 | l < currentLevel \land stats(l).accuracy \
 
 % GOOD - break for readability
 completedLevels = \{ l : 1 \upto 26 | \\
-\t1 l < currentLevel \\
-\t1 \land stats(l).accuracy \geq 90 \}
+\quad~ l < currentLevel \\
+\quad~ \land stats(l).accuracy \geq 90 \}
 ```
 
 #### Function Definitions
@@ -99,14 +99,14 @@ kochOrder = \{ 1 \mapsto K, 2 \mapsto M, 3 \mapsto R, 4 \mapsto S, 5 \mapsto U, 
 
 % GOOD - grouped by 5
 kochOrder = \{ \\
-\t1 1 \mapsto K, 2 \mapsto M, 3 \mapsto R, 4 \mapsto S, 5 \mapsto U, \\
-\t1 6 \mapsto A, 7 \mapsto P, 8 \mapsto T, 9 \mapsto L, 10 \mapsto O, \\
-\t1 ... \}
+\quad~ 1 \mapsto K, 2 \mapsto M, 3 \mapsto R, 4 \mapsto S, 5 \mapsto U, \\
+\quad~ 6 \mapsto A, 7 \mapsto P, 8 \mapsto T, 9 \mapsto L, 10 \mapsto O, \\
+\quad~ ... \}
 ```
 
 ### Indentation in Z Schemas
 
-Use `\t1` through `\t9` for indentation within predicates:
+Use `\quad~` for indentation within predicates (`\t1` through `\t9` do **not** work with fuzz):
 
 ```latex
 \begin{schema}{ComplexOperation}
@@ -115,8 +115,8 @@ input? : \nat
 \where
 input? > 0 \\
 \land (condition1 \\
-\t1 \implies effect1 \\
-\t1 \land effect2) \\
+\quad~ \implies effect1 \\
+\quad~ \land effect2) \\
 \land condition2 \implies effect3
 \end{schema}
 ```
@@ -171,7 +171,7 @@ The line numbers refer to the `.tex` source. Any overflow means content is cut o
 
 ### Fixing Overflows
 
-Add explicit line breaks with `\\` followed by `\t1` for indentation:
+Add explicit line breaks with `\\` followed by `\quad~` for indentation:
 
 ```latex
 % BAD - typeset overflow even though source is multi-line
@@ -180,18 +180,18 @@ Add explicit line breaks with `\\` followed by `\t1` for indentation:
 
 % GOOD - explicit typeset breaks with indentation
 (condition1 \\
-\t1 \land result1) \\
+\quad~ \land result1) \\
 \lor (condition2 \\
-\t1 \land result2)
+\quad~ \land result2)
 ```
 
 ### Common Overflow Patterns
 
 | Pattern | Solution |
 |---------|----------|
-| Long `\LET` bindings | Break after `==`, indent body with `\t1` |
-| `\IF-\THEN-\ELSE` | Each clause on its own line with `\t1` |
-| Chained `\land` predicates | Break before each `\land`, indent with `\t1` |
+| Long `\LET` bindings | Break after `==`, indent body with `\quad~` |
+| `\IF-\THEN-\ELSE` | Each clause on its own line with `\quad~` |
+| Chained `\land` predicates | Break before each `\land`, indent with `\quad~` |
 | Chained `\lor` alternatives | Break before `\lor`, keep `(` on same line |
 | Long comparisons | Break after operator, indent continuation |
 
@@ -205,21 +205,21 @@ Add explicit line breaks with `\\` followed by `\t1` for indentation:
 
 % After - no overflow
 \LET minAttempts == \\
-\t1 \IF base > perChar * count \\
-\t1 \THEN base \\
-\t1 \ELSE perChar * count @
+\quad~ \IF base > perChar * count \\
+\quad~ \THEN base \\
+\quad~ \ELSE perChar * count @
 (attempts \geq minAttempts \\
-\t1 \land accuracy \geq threshold \\
-\t1 \land met! = ztrue) \\
+\quad~ \land accuracy \geq threshold \\
+\quad~ \land met! = ztrue) \\
 \lor (attempts < minAttempts \\
-\t1 \land met! = zfalse)
+\quad~ \land met! = zfalse)
 ```
 
 ### Iterative Fix Process
 
 1. Run `pdflatex` and check for overflows
 2. Find the schema at the reported line numbers
-3. Add `\\` and `\t1` breaks at logical operators
+3. Add `\\` and `\quad~` breaks at logical operators
 4. Re-run `pdflatex` and verify no overflows remain
 5. Repeat until `grep -i "overfull" spec.log` returns nothing
 
