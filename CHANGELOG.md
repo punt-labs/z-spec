@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Spec tab for Lux displays** --- `/z-spec:test` and `/z-spec:partition` now include a "Spec" tab that renders the Z specification as Unicode math with box-drawing schema boxes, collapsible by section; LaTeX Z commands are translated to BMP-safe Unicode symbols (ℕ, ℤ, ℙ, ∈, ⊆, ⇒, ∅, Δ, etc.)
+
 ## [0.8.0] - 2026-03-09
 
 ### Added
