@@ -1,7 +1,7 @@
 {
   "name": "z-spec-dev",
   "description": "Create, validate, and test formal Z specifications for stateful systems using fuzz and probcli",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "author": {
     "name": "Punt Labs",
     "email": "hello@punt-labs.com"
