@@ -42,7 +42,20 @@ docs/*.aux
 docs/*.log
 docs/*.fuzz
 docs/*.toc
+examples/fuzz.sty
+examples/*.mf
+examples/*.out
+examples/*.toc
+*.out
 .envrc
+
+# Plugin runtime directories
+.lux/
+.vox/
+
+# Temp/config files
+CLAUDE.md.tmp
+Lux_Display.ini
 
 # Scratch/temp directory (TMPDIR set via .envrc)
 .tmp/
