@@ -504,33 +504,59 @@ If it fails or the tool does not exist, skip this step (text-only output is suff
 
 > **Note**: Once lux-t1p ships, replace this ping check with reading `.lux/config.md` instead.
 
-#### 11b. Compose Partition Table
+#### 11b. Build Spec Tab Content
 
-Call `mcp__plugin_lux_lux__show` with a JSON scene:
+Before composing the partition table, parse the `.tex` source to build a Spec tab
+showing the Z specification rendered as Unicode math. Follow the same procedure as
+`/z-spec:test` step 6b — extract Z blocks, convert LaTeX to Unicode, render as
+open-right schema boxes grouped under `collapsing_header` elements by section.
+
+See the translation table and rendering rules in the test command (step 6b). The
+key constraints: **BMP symbols only** (no `𝔽`), **open-right boxes** (no right
+border), **long top lines** (~5 extra `─` beyond `├`/`└` to compensate for
+proportional schema name text).
+
+#### 11c. Compose Partition Display
+
+Use a `tab_bar` to wrap the partition table and spec content. Call
+`mcp__plugin_lux_lux__show` with a JSON scene:
 
 ```json
 {
   "scene_id": "z-spec-partition-matrix",
   "title": "<spec filename> — Test Partitions",
   "elements": [
-    {"kind": "group", "id": "summary", "layout": "columns", "children": [
-      {"kind": "text", "id": "s_ops", "content": "Operations: <N>"},
-      {"kind": "text", "id": "s_accepted", "content": "Accepted: <A>"},
-      {"kind": "text", "id": "s_rejected", "content": "Rejected: <R>"},
-      {"kind": "text", "id": "s_pruned", "content": "Pruned: <P>"},
-      {"kind": "text", "id": "s_total", "content": "Total: <T>"}
-    ]},
-    {"kind": "separator"},
-    {"kind": "input_text", "id": "filter_search", "label": "Search", "hint": "Filter by operation name..."},
-    {"kind": "combo", "id": "filter_status", "label": "Status", "items": ["All", "Accepted", "Rejected", "Pruned"], "selected": 0},
-    {"kind": "separator"},
-    {"kind": "table", "id": "partitions", "columns": ["#", "Operation", "Class", "Branch", "Inputs", "Pre-state", "Post-state", "Status", "Notes"],
-     "rows": [
-       ["1", "<OpName>", "Happy path", "1", "<inputs>", "<pre>", "<post>", "Accepted", "<notes>"],
-       ["2", "<OpName>", "Boundary: min", "1", "<inputs>", "<pre>", "<post>", "Accepted", "<notes>"],
-       ["3", "<OpName>", "REJECTED", "-", "<inputs>", "<pre>", "(no change)", "Rejected", "<notes>"],
-       ["4", "<OpName>", "PRUNED", "-", "-", "-", "-", "Pruned", "<notes>"]
-     ], "flags": ["borders", "row_bg", "resizable"]}
+    {"kind": "tab_bar", "id": "partition_tabs", "tabs": [
+      {"label": "Partitions", "children": [
+        {"kind": "group", "id": "summary", "layout": "columns", "children": [
+          {"kind": "text", "id": "s_ops", "content": "Operations: <N>"},
+          {"kind": "text", "id": "s_accepted", "content": "Accepted: <A>"},
+          {"kind": "text", "id": "s_rejected", "content": "Rejected: <R>"},
+          {"kind": "text", "id": "s_pruned", "content": "Pruned: <P>"},
+          {"kind": "text", "id": "s_total", "content": "Total: <T>"}
+        ]},
+        {"kind": "separator"},
+        {"kind": "input_text", "id": "filter_search", "label": "Search",
+         "hint": "Filter by operation name..."},
+        {"kind": "combo", "id": "filter_status", "label": "Status",
+         "items": ["All", "Accepted", "Rejected", "Pruned"], "selected": 0},
+        {"kind": "separator"},
+        {"kind": "table", "id": "partitions",
+         "columns": ["#", "Operation", "Class", "Branch", "Inputs",
+                      "Pre-state", "Post-state", "Status", "Notes"],
+         "rows": [
+           ["1", "<OpName>", "Happy path", "1", "<inputs>", "<pre>",
+            "<post>", "Accepted", "<notes>"],
+           ["2", "<OpName>", "Boundary: min", "1", "<inputs>", "<pre>",
+            "<post>", "Accepted", "<notes>"],
+           ["3", "<OpName>", "REJECTED", "-", "<inputs>", "<pre>",
+            "(no change)", "Rejected", "<notes>"],
+           ["4", "<OpName>", "PRUNED", "-", "-", "-", "-", "Pruned",
+            "<notes>"]
+         ], "flags": ["borders", "row_bg", "resizable"]}
+      ]},
+      {"label": "Spec", "children": ["<spec tab elements from 11b>"]}
+    ]}
   ]
 }
 ```
@@ -538,8 +564,9 @@ Call `mcp__plugin_lux_lux__show` with a JSON scene:
 Populate rows from the partition table generated in Steps 7–8:
 - One row per partition across all operations
 - Status column values: "Accepted", "Rejected", or "Pruned"
+- **Spec tab**: the collapsing_header elements built in step 11b
 
-#### 11c. Graceful Degradation
+#### 11d. Graceful Degradation
 
 If the lux `show` call fails for any reason, continue with text-only output.
 Lux supplements the conversation, it never replaces it.
