@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-03-09
+
 ### Added
 
 - **Lux visual dashboard for `/z-spec:test`** --- renders model check results (states, transitions, coverage, pass/fail) as an interactive lux dashboard when lux is available; degrades gracefully to text-only
