@@ -47,7 +47,7 @@ Both are installed automatically by `/z-spec:setup all`. fuzz is compiled from s
 ## Quick Start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/72157f1/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/d7108ef/install.sh | sh
 ```
 
 <details>
@@ -63,7 +63,7 @@ claude plugin install z-spec@punt-labs
 <summary>Verify before running</summary>
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/72157f1/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/d7108ef/install.sh -o install.sh
 shasum -a 256 install.sh
 cat install.sh
 sh install.sh
