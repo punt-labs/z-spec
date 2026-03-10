@@ -506,15 +506,85 @@ If it fails or the tool does not exist, skip this step (text-only output is suff
 
 #### 11b. Build Spec Tab Content
 
-Before composing the partition table, parse the `.tex` source to build a Spec tab
-showing the Z specification rendered as Unicode math. Follow the same procedure as
-`/z-spec:test` step 6b — extract Z blocks, convert LaTeX to Unicode, render as
-open-right schema boxes grouped under `collapsing_header` elements by section.
+Before composing the partition table, parse the `.tex` source to
+build a Spec tab showing the Z specification rendered as Unicode
+math. This tab appears alongside the partition table.
 
-See the translation table and rendering rules in the test command (step 6b). The
-key constraints: **BMP symbols only** (no `𝔽`), **open-right boxes** (no right
-border), **long top lines** (~5 extra `─` beyond `├`/`└` to compensate for
-proportional schema name text).
+**Extract Z blocks** from the `.tex` file:
+
+- `\begin{schema}{Name}` ... `\end{schema}` — named schemas
+- `\begin{zed}` ... `\end{zed}` — standalone definitions, free types
+- `\begin{axdef}` ... `\end{axdef}` — axiomatic definitions
+- `\begin{gendef}` ... `\end{gendef}` — generic definitions
+
+**Split declarations from predicates** in each block:
+
+- For `schema`, `axdef`, and `gendef` blocks, split at the first
+  `\where`. Text before `\where` is the declaration part; text
+  after is the predicate part.
+- In the rendered box, place declarations above the `├──` rule
+  and predicates below it.
+- `zed` blocks have no `\where` — render as a single section.
+
+**Normalize layout tokens** so raw LaTeX does not appear:
+
+- Replace `\\` (and `\\[<len>]`) with newline characters
+- Replace `\quad~` and `\quad` with 2 spaces of indentation
+- Strip `%` comment lines entirely
+
+**Convert LaTeX Z commands to Unicode** using this translation
+table:
+
+<!-- markdownlint-disable MD013 -->
+| LaTeX | Unicode | LaTeX | Unicode | LaTeX | Unicode |
+|-------|---------|-------|---------|-------|---------|
+| `\nat` | ℕ | `\num` | ℤ | `\real` | ℝ |
+| `\power` | ℙ | `\finset` | F | `\seq` | seq |
+| `\cross` | × | `\fun` | → | `\pfun` | ⇸ |
+| `\bij` | ⤖ | `\pinj` | ⤔ | `\surj` | ↠ |
+| `\rel` | ↔ | `\in` | ∈ | `\notin` | ∉ |
+| `\subseteq` | ⊆ | `\subset` | ⊂ | `\cup` | ∪ |
+| `\cap` | ∩ | `\setminus` | ∖ | `\emptyset` | ∅ |
+| `\langle` | ⟨ | `\rangle` | ⟩ | `\forall` | ∀ |
+| `\exists` | ∃ | `\land` | ∧ | `\lor` | ∨ |
+| `\lnot` | ¬ | `\implies` | ⇒ | `\iff` | ⇔ |
+| `\Delta` | Δ | `\Xi` | Ξ | `\dom` | dom |
+| `\ran` | ran | `\dres` | ◁ | `\rres` | ▷ |
+| `\ndres` | ⩤ | `\nrres` | ⩥ | `\oplus` | ⊕ |
+| `\mapsto` | ↦ | `\neq` | ≠ | `\leq` | ≤ |
+| `\geq` | ≥ | `\#` | # | `\theta` | θ |
+| `\upto` | ‥ | `\cat` | ⁀ | `'` suffix | ′ |
+| `\semi` | ⨟ | `\pipe` | ≫ | `\project` | ↾ |
+
+> **BMP only**: All symbols above are in the Basic Multilingual
+> Plane (U+0000–FFFF). Do NOT use `𝔽` (U+1D53D) for `\finset`
+> — it renders as a replacement glyph in lux.
+
+**Render schemas as open-right boxes** using box-drawing
+characters. No right border (lux uses proportional font —
+right-side `│` characters will not align):
+
+```text
+┌─ SchemaName ──────────────────────────────────────────
+│ declaration1
+│ declaration2
+├───────────────────────────────────────────────────
+│ predicate1
+│ predicate2
+└───────────────────────────────────────────────────
+```
+
+The `┌` top line with the schema name must have ~5 MORE `─`
+characters than the `├`/`└` lines to compensate for the
+proportional-width name text. All rules should be generously
+long (60+ `─` characters).
+
+**Group under `collapsing_header`** elements by `\section{}`
+from the `.tex` source. Types/constants/state sections:
+`default_open: true`. Operations: `default_open: false`.
+
+Build an array of these elements — this becomes the Spec tab
+children.
 
 #### 11c. Compose Partition Display
 

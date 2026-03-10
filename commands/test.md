@@ -188,6 +188,21 @@ the Z specification rendered as Unicode math. This tab appears in all lux displa
 - `\begin{axdef}` ... `\end{axdef}` — axiomatic definitions
 - `\begin{gendef}` ... `\end{gendef}` — generic definitions
 
+**Split declarations from predicates** in each block:
+
+- For `schema`, `axdef`, and `gendef` blocks, split at the first
+  `\where`. Text before `\where` is the declaration part; text
+  after is the predicate part.
+- In the rendered box, place declarations above the `├──` rule
+  and predicates below it.
+- `zed` blocks have no `\where` — render as a single section.
+
+**Normalize layout tokens** so raw LaTeX does not appear:
+
+- Replace `\\` (and `\\[<len>]`) with newline characters
+- Replace `\quad~` and `\quad` with 2 spaces of indentation
+- Strip `%` comment lines entirely
+
 **Convert LaTeX Z commands to Unicode** using this translation table:
 
 <!-- markdownlint-disable MD013 -->
