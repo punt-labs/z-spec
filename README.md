@@ -140,6 +140,14 @@ For the `AdvanceLevel` schema above:
 
 Add `--code swift` (or python, typescript, kotlin) to generate executable test cases.
 
+### Visual exploration with Lux
+
+When [Lux](https://github.com/punt-labs/lux) is available, `/z-spec:test` renders model-check results as an interactive dashboard --- states explored, transitions covered, invariants checked, and pass/fail status at a glance. If a counter-example is found, the trace appears as a step-by-step table in a second tab with state values and the violated invariant.
+
+![Z Spec model-check results displayed in Lux](docs/Z-Spec-Lux-Screenshot.png)
+
+*A Z specification rendered in Lux --- collapsible sections for state schemas, invariants, and global constants. The display updates live as the spec evolves.*
+
 ## Features
 
 - **Generate Z specs** from codebase analysis or system descriptions (`/z-spec:code2model`)
