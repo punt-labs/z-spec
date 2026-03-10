@@ -1130,4 +1130,404 @@ SessionEnd & * & EndSession & Clear all & No \\
 \hline
 \end{tabular}
 
+% ============================================================
+\section{Use Case Integration Validation}
+% ============================================================
+
+This section cross-references each use case from
+\texttt{biff\_coordination\_use\_cases\_v0.2.md} against the Z
+specification operations and state variables. For each use case,
+we identify: (1) which Z operations model the behavior, (2) what
+the model checker proves about the integration path, and (3) any
+gaps where the spec does not yet cover the use case.
+
+% ------------------------------------------------------------
+\subsection{Group A: Presence}
+% ------------------------------------------------------------
+
+\subsubsection{UC1 --- Check Who's Working on What}
+
+\textbf{Z coverage:} Not modeled as an operation. \texttt{/who} is a
+read-only query that does not change state. However, the state it reads
+(\texttt{planSet}, \texttt{planSource}, \texttt{talkActive}) is maintained
+by the model.
+
+\textbf{What the model proves:} The \texttt{planSet} and
+\texttt{planSource} variables are always consistent (invariant 4:
+plan source exists iff plan is set). Any \texttt{/who} query will
+see coherent plan state --- never a dangling source without a plan,
+or a plan without a source.
+
+\textbf{Gap:} None for V1. The idle time display relies on
+\texttt{last\_active} timestamps in the relay, which is outside the
+model's scope (relay internals are opaque).
+
+\subsubsection{UC2 --- Inspect a Teammate's Availability}
+
+\textbf{Z coverage:} Not modeled as an operation. Same rationale as UC1
+--- read-only query. The \texttt{talkActive} state is accurate because
+\texttt{StartTalk} and \texttt{EndTalk} enforce exclusivity (invariant 6).
+
+\textbf{What the model proves:} A \texttt{/finger} query will never show
+a session simultaneously in talk and not-in-talk. The talk state is
+consistent across all reachable states.
+
+\textbf{Gap:} None. The \texttt{mesgMode} (DND) variable was proposed
+but not included in this model. If DND status needs formal verification,
+add \texttt{mesgMode : ZBOOL} to the state schema.
+
+\subsubsection{UC3 --- Declare What You're Working On}
+
+\textbf{Z coverage:} Fully modeled.
+
+\begin{itemize}
+  \item Manual path: \texttt{SetPlanManual} --- sets \texttt{planSet = ztrue},
+    \texttt{planSource = \{psManual\}}.
+  \item Auto path: \texttt{SetPlanAuto} --- sets \texttt{planSet = ztrue},
+    \texttt{planSource = \{psAuto\}}, guarded by
+    \texttt{planSource $\neq$ \{psManual\}}.
+  \item \texttt{/tty} naming is outside the model (relay metadata, no
+    workflow impact).
+\end{itemize}
+
+\textbf{What the model proves:}
+
+\begin{enumerate}
+  \item \textbf{Manual blocks auto}: \texttt{SetPlanAuto} has precondition
+    \texttt{planSource $\neq$ \{psManual\}}. The model checker verified
+    across 161K states that no auto-plan overwrites a manual plan.
+  \item \textbf{Plan is prerequisite for work}: Once the plan-before-work
+    gate is active, the model proves that no file edit or bash command
+    executes without \texttt{planSet = ztrue}. This validates the use
+    case's claim that plan declaration is meaningful --- it is enforced,
+    not advisory.
+\end{enumerate}
+
+\textbf{Gap:} Bead ID expansion (step 3 in the use case) is a relay-side
+detail, not modeled.
+
+% ------------------------------------------------------------
+\subsection{Group B: Asynchronous Messaging}
+% ------------------------------------------------------------
+
+\subsubsection{UC4 --- Send a Focused Message}
+
+\textbf{Z coverage:} Partially modeled. The send action is a tool
+completion side effect (noted in the Hook Event Map as
+\texttt{PostToolUse} on \texttt{biff\_\_write}). The model does not
+track outbound messages because they do not affect the sender's
+workflow state.
+
+\textbf{What the model proves:} Sending a message does not disrupt
+any workflow invariant. The \texttt{BiffFrame} ensures all biff state
+is preserved through tool completions. No state corruption from
+interleaving \texttt{/write} with other operations.
+
+\textbf{Gap:} Recipient-side effects (unread count increment, push
+notification) are modeled by \texttt{ReceiveMessage}, but the causal
+link between send and receive is not captured --- they are independent
+events in the model, which matches reality (async, fire-and-forget).
+
+\subsubsection{UC5 --- Check and Process Incoming Messages}
+
+\textbf{Z coverage:} Fully modeled.
+
+\begin{itemize}
+  \item \texttt{ReceiveMessage} --- increments \texttt{unreadCount} when
+    a message arrives (external event, can fire in any active session phase).
+  \item \texttt{ReadMessages} --- resets \texttt{unreadCount} to 0 when
+    the agent calls \texttt{/read}.
+\end{itemize}
+
+\textbf{What the model proves:}
+
+\begin{enumerate}
+  \item \texttt{unreadCount} is bounded (\texttt{$\leq$ maxUnread}), so
+    the model is finite and fully explorable.
+  \item \texttt{ReceiveMessage} can fire during any session phase
+    (idle, processing, responding) except \texttt{spInactive} and
+    \texttt{spEnded}. This correctly models NATS push notifications
+    arriving asynchronously.
+  \item \texttt{ReadMessages} requires \texttt{spProcessing} and
+    \texttt{toolPhase = tpNone}, which correctly reflects that \texttt{/read}
+    is a tool call during the agentic loop.
+\end{enumerate}
+
+\textbf{Gap:} POP semantics (messages consumed once, then deleted) are
+not modeled --- the count goes to 0, but we do not track individual
+message identity. Sufficient for workflow invariants.
+
+\subsubsection{UC7 --- Escalate a Decision to a Human}
+
+\textbf{Z coverage:} Not modeled as a distinct operation. The use case
+document proposes a \texttt{Stop} hook that injects escalation guidance.
+In the Z spec, the \texttt{FinishResponse} operation's \texttt{Stop}
+hook is the attachment point.
+
+\textbf{What the model proves:} The \texttt{Stop} hook fires on every
+\texttt{FinishResponse} (operation 15) and \texttt{ForceContinue}
+(operation 16). There is no path to \texttt{spIdle} from
+\texttt{spResponding} that bypasses the Stop hook. If a Stop hook
+injects escalation guidance, the agent will see it.
+
+\textbf{Gap:} The model does not track \emph{whether} the agent actually
+escalated. This would require a new state variable
+(\texttt{escalationPending : ZBOOL}) set when the agent identifies an
+unresolved decision and cleared when it sends \texttt{/write}. Worth
+adding if escalation compliance becomes a hard requirement.
+
+\textbf{Proposed extension:}
+
+\begin{verbatim}
+  escalationPending : ZBOOL
+  ...
+  % In FinishResponse:
+  escalationPending = ztrue ==> hookResult? = hdBlock
+\end{verbatim}
+
+This would make escalation a hard gate: the agent cannot stop until it
+has sent the escalation message.
+
+\subsubsection{UC8 --- Report Task Completion}
+
+\textbf{Z coverage:} Partially modeled. The \texttt{PostToolUse} hook
+on PR creation (existing \texttt{pr-announce.sh}) fires after
+\texttt{CompleteToolSuccess}. The \texttt{Stop} hook at session end
+maps to \texttt{FinishResponse}.
+
+\textbf{What the model proves:} \texttt{CompleteToolSuccess} always
+fires after successful tool execution, and the PostToolUse hook fires
+as a side effect. There is no path where a PR is created but the
+PostToolUse hook is skipped.
+
+\textbf{Gap:} The model does not track whether a PR was created during
+the session (\texttt{prCreated : ZBOOL}). Without this, the Stop hook
+cannot conditionally remind about announcement. Worth adding for the
+session close protocol validation.
+
+\subsubsection{UC9 --- Redirect an Agent's Priorities}
+
+\textbf{Z coverage:} Modeled via \texttt{ReceiveMessage}.
+
+\textbf{What the model proves:} A message can arrive at any time during
+an active session (\texttt{ReceiveMessage} fires in \texttt{spIdle},
+\texttt{spProcessing}, or \texttt{spResponding}). The agent will
+eventually see the redirect --- either via push notification (tool
+description mutation, outside the model) or on its next \texttt{/read}.
+
+\textbf{Gap:} The model does not capture the agent's response to
+redirection (changing plan, switching tasks). This is behavioral, not
+state-machine-level.
+
+\subsubsection{UC10 --- Answer an Agent's Pending Question}
+
+\textbf{Z coverage:} Same as UC9 --- modeled via \texttt{ReceiveMessage}
+followed by \texttt{ReadMessages}.
+
+\textbf{What the model proves:} The receive-then-read sequence is
+always possible: \texttt{ReceiveMessage} increments the count, and
+\texttt{ReadMessages} clears it. No deadlock between these operations.
+
+\textbf{Gap:} None for V1.
+
+\subsubsection{UC12 --- Coordinate File Ownership in a Shared Repo}
+
+\textbf{Z coverage:} Partially modeled. The \texttt{SessionStart}
+operation can inject coordination guidance (the \texttt{hasWall?} input
+models context injection). \texttt{SetPlanManual} models the plan update
+after negotiation.
+
+\textbf{What the model proves:} The plan-before-work gate ensures that
+both agents must declare their plans before editing files. If both agents
+set plans, the plans are visible via \texttt{/who} (UC1), enabling
+overlap detection. The model proves that \emph{no editing can begin
+without a declared plan}, which is the foundation of file ownership
+coordination.
+
+\textbf{Gap:} The model does not enforce non-overlapping plans. Two
+agents can both set plans and both edit files --- the model proves each
+individually followed the protocol, not that the protocol prevented
+conflicts. This matches the use case document's statement: ``biff is
+coordination infrastructure, not a distributed lock.''
+
+% ------------------------------------------------------------
+\subsection{Group C: Broadcast}
+% ------------------------------------------------------------
+
+\subsubsection{UC6 --- Broadcast a Time-Sensitive Announcement}
+
+\textbf{Z coverage:} Fully modeled.
+
+\begin{itemize}
+  \item \texttt{PostWall} --- sets \texttt{wallActive = ztrue},
+    \texttt{wallText = \{text?\}}.
+  \item \texttt{ClearWall} --- sets \texttt{wallActive = zfalse},
+    \texttt{wallText = $\emptyset$}.
+  \item \texttt{StartSession} --- loads wall state at session start
+    via \texttt{hasWall?} and \texttt{wallContent?} inputs.
+\end{itemize}
+
+\textbf{What the model proves:}
+
+\begin{enumerate}
+  \item \textbf{Wall consistency}: \texttt{wallText} exists iff
+    \texttt{wallActive = ztrue}. No ghost text, no active wall without
+    content (invariant 3).
+  \item \textbf{Wall visibility at startup}: \texttt{StartSession}
+    propagates the wall into session state. A new session joining after
+    a wall post will have \texttt{wallActive = ztrue} if a wall exists.
+  \item \textbf{ClearWall requires active wall}: precondition
+    \texttt{wallActive = ztrue} prevents clearing a non-existent wall.
+\end{enumerate}
+
+\textbf{Gap:} Wall TTL (expiry) is not modeled. The wall persists until
+explicitly cleared. Adding TTL would require a time dimension
+(monotonic clock), which significantly increases model complexity.
+
+\subsubsection{UC15 --- Notify Team of CI/CD Status}
+
+\textbf{Z coverage:} Modeled via \texttt{PostWall} (for \texttt{/wall})
+and \texttt{ReceiveMessage} (for \texttt{/write} from GitHub to
+committer).
+
+\textbf{What the model proves:} The GitHub actor uses the same
+operations as any other actor. The model does not distinguish actor
+types (matching the use case document: ``The system does not distinguish
+actor types at the protocol level''). All invariants hold regardless of
+who triggers the operation.
+
+\textbf{Gap:} GitHub's service token authentication is outside the
+model (T2 configuration). The model assumes the actor is already
+authenticated and has a valid session.
+
+% ------------------------------------------------------------
+\subsection{Group D: Real-Time Conversation}
+% ------------------------------------------------------------
+
+\subsubsection{UC14 --- Have a Synchronous Exchange}
+
+\textbf{Z coverage:} Fully modeled.
+
+\begin{itemize}
+  \item \texttt{StartTalk} --- sets \texttt{talkActive = ztrue},
+    guarded by \texttt{talkActive = zfalse} (no double-start).
+  \item \texttt{EndTalk} --- sets \texttt{talkActive = zfalse},
+    guarded by \texttt{talkActive = ztrue} (no double-end).
+\end{itemize}
+
+\textbf{What the model proves:}
+
+\begin{enumerate}
+  \item \textbf{Talk exclusivity}: exactly one talk session at a time.
+    No path through the model allows \texttt{StartTalk} to fire twice
+    without an intervening \texttt{EndTalk}.
+  \item \textbf{Talk survives tool calls}: \texttt{talkActive} is
+    preserved through the \texttt{BiffFrame} abbreviation. Tool calls,
+    subagent spawns, and response cycles do not accidentally clear the
+    talk state.
+  \item \textbf{Clean shutdown}: \texttt{EndSession} clears
+    \texttt{talkActive}, so no orphan talk sessions persist after logout.
+\end{enumerate}
+
+\textbf{Gap:} The model does not capture individual talk messages or
+\texttt{/talk\_listen} blocking behavior. Talk messages are modeled the
+same as \texttt{ReceiveMessage}. The blocking semantics of
+\texttt{talk\_listen} (agent waits for message) would require a new tool
+phase state, which adds complexity without clear workflow invariant value.
+
+% ------------------------------------------------------------
+\subsection{Group E: Focus Management}
+% ------------------------------------------------------------
+
+\subsubsection{UC13 --- Enter Do-Not-Disturb Mode}
+
+\textbf{Z coverage:} Not modeled. The \texttt{mesgMode} variable was
+proposed in the Layer 2 design but not included in the current spec to
+keep the state space manageable.
+
+\textbf{What the model proves:} Nothing specific to DND. However, the
+\texttt{ReceiveMessage} operation fires regardless of DND state (matching
+the use case: ``Messages sent to this actor still queue''). DND only
+affects push notification suppression, which is a display concern outside
+the state machine.
+
+\textbf{Proposed extension (if needed):}
+
+\begin{verbatim}
+  mesgMode : ZBOOL  % ztrue = accepting, zfalse = DND
+  ...
+  % Invariant: walls bypass DND (already modeled ---
+  % wallActive is independent of mesgMode)
+\end{verbatim}
+
+\textbf{Recommendation:} Do not add unless a workflow invariant depends
+on DND state. Currently no use case requires ``the agent must be in
+DND before doing X.''
+
+% ------------------------------------------------------------
+\subsection{Group F: Agent-to-Agent Coordination}
+% ------------------------------------------------------------
+
+\subsubsection{UC11 --- Avoid Duplicate Work Across Agents}
+
+\textbf{Z coverage:} Partially modeled. The plan-before-work gate
+ensures every agent declares work before editing. The
+\texttt{StartSession} operation's wall injection models the SessionStart
+hook's coordination guidance.
+
+\textbf{What the model proves:} Every active editing session has
+\texttt{planSet = ztrue}. This means \texttt{/who} output will always
+show a plan for every working agent. The plan-before-work invariant is
+the formal foundation for duplicate avoidance: if every agent must
+declare intent before acting, the declarations are observable, and
+conflicts are detectable.
+
+\textbf{Gap:} The model does not verify that the agent actually checks
+\texttt{/who} before claiming work. This is a behavioral directive
+(injected via SessionStart hook), not a state machine constraint. To
+formalize it, you would need a \texttt{whoChecked : ZBOOL} variable
+set by a \texttt{/who} query and required as a precondition on
+\texttt{ClaimBead}. This is feasible but may be over-constraining ---
+the agent might legitimately claim a bead without checking \texttt{/who}
+if it knows no other agents are active.
+
+% ------------------------------------------------------------
+\subsection{Coverage Summary}
+% ------------------------------------------------------------
+
+\begin{tabular}{llll}
+\hline
+\textbf{UC} & \textbf{Title} & \textbf{Coverage} & \textbf{Proven} \\
+\hline
+UC1 & Check Who's Working & Read-only & Plan state coherent \\
+UC2 & Inspect Availability & Read-only & Talk state coherent \\
+UC3 & Declare Plan & Full & Manual blocks auto; plan gates work \\
+UC4 & Send Message & Side effect & No state corruption \\
+UC5 & Check Messages & Full & Async receive + sync read correct \\
+UC6 & Broadcast & Full & Wall consistency + startup visibility \\
+UC7 & Escalate Decision & Hook point & Stop hook covers all paths \\
+UC8 & Report Completion & Hook point & PostToolUse always fires \\
+UC9 & Redirect Agent & Via receive & Messages arrive in any phase \\
+UC10 & Answer Question & Via receive & Receive-read sequence sound \\
+UC11 & Avoid Duplicate Work & Plan gate & All editors have plans \\
+UC12 & Coordinate Ownership & Plan gate & Plan-before-work enforced \\
+UC13 & DND Mode & Not modeled & No workflow invariant depends on it \\
+UC14 & Synchronous Exchange & Full & Talk exclusivity + clean shutdown \\
+UC15 & CI/CD Status & Via wall+msg & Actor-agnostic operations \\
+\hline
+\end{tabular}
+
+\textbf{Legend:}
+\begin{itemize}
+  \item \textbf{Full} --- all state transitions modeled and verified.
+  \item \textbf{Hook point} --- the Z spec proves the hook fires on all
+    paths, but the hook's behavioral effect is not formally tracked.
+  \item \textbf{Side effect} --- the action occurs but does not change
+    tracked state.
+  \item \textbf{Read-only} --- no state mutation; the model proves the
+    queried state is consistent.
+  \item \textbf{Not modeled} --- deliberately excluded; no workflow
+    invariant requires it.
+\end{itemize}
+
 \end{document}
