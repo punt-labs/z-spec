@@ -29,12 +29,15 @@ def save_report(tex_path: Path, report: ProbReport) -> Path:
 
 
 def load_report(tex_path: Path) -> ProbReport | None:
-    """Load a ProbReport from disk. Returns None if no report exists."""
+    """Load a ProbReport from disk. Returns None if missing or corrupt."""
     rpt = report_path(tex_path)
     if not rpt.exists():
         return None
-    data: dict[str, Any] = json.loads(rpt.read_text(encoding="utf-8"))
-    return _from_dict(data)
+    try:
+        data: dict[str, Any] = json.loads(rpt.read_text(encoding="utf-8"))
+        return _from_dict(data)
+    except (json.JSONDecodeError, KeyError, ValueError):
+        return None
 
 
 def is_stale(tex_path: Path) -> bool:

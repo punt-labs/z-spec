@@ -34,9 +34,14 @@ def main(
     """Z specification toolkit."""
 
 
+_TEX_ARG = typer.Argument(
+    help="Path to .tex Z spec", exists=True, file_okay=True, dir_okay=False
+)
+
+
 @app.command()
 def check(
-    file: Annotated[Path, typer.Argument(help="Path to .tex Z spec")],
+    file: Annotated[Path, _TEX_ARG],
 ) -> None:
     """Type-check a Z specification with fuzz."""
     from punt_zspec.fuzz import resolve_fuzz, run_fuzz
@@ -57,7 +62,7 @@ def check(
 
 @app.command()
 def test(
-    file: Annotated[Path, typer.Argument(help="Path to .tex Z spec")],
+    file: Annotated[Path, _TEX_ARG],
     setsize: Annotated[
         int, typer.Option("--setsize", "-s", help="Default set size")
     ] = 2,
@@ -88,7 +93,7 @@ def test(
 
 @app.command()
 def animate(
-    file: Annotated[Path, typer.Argument(help="Path to .tex Z spec")],
+    file: Annotated[Path, _TEX_ARG],
     steps: Annotated[int, typer.Option("--steps", "-n", help="Animation steps")] = 20,
     setsize: Annotated[
         int, typer.Option("--setsize", "-s", help="Default set size")
@@ -114,7 +119,7 @@ def animate(
 
 @app.command(name="model-check")
 def model_check(
-    file: Annotated[Path, typer.Argument(help="Path to .tex Z spec")],
+    file: Annotated[Path, _TEX_ARG],
     setsize: Annotated[
         int, typer.Option("--setsize", "-s", help="Default set size")
     ] = 2,
@@ -145,7 +150,7 @@ def model_check(
 
 @app.command()
 def report(
-    file: Annotated[Path, typer.Argument(help="Path to .tex Z spec")],
+    file: Annotated[Path, _TEX_ARG],
 ) -> None:
     """Load and display an existing report."""
     from punt_zspec.report import load_report

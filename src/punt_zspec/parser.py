@@ -103,7 +103,6 @@ def normalize_z_body(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 _BOX_WIDTH = 60
-_NAME_EXTRA = 5  # extra dashes for name line (proportional font compensation)
 
 
 def render_schema_box(block: ZBlock) -> str:
@@ -112,9 +111,9 @@ def render_schema_box(block: ZBlock) -> str:
     pred = normalize_z_body(block.predicates)
 
     if block.name:
-        top = f"┌─ {block.name} " + "─" * (_BOX_WIDTH + _NAME_EXTRA)
+        top = f"┌─ {block.name} " + "─" * _BOX_WIDTH
     else:
-        top = "┌" + "─" * (_BOX_WIDTH + _NAME_EXTRA + 3)
+        top = "┌" + "─" * (_BOX_WIDTH + 3)
 
     lines = [top]
     for line in decl.split("\n"):
@@ -179,9 +178,7 @@ def _split_where(body: str) -> tuple[str, str]:
     return body.strip(), ""
 
 
-def _current_section(
-    text: str, pos: int, section_positions: list[tuple[int, str]]
-) -> str:
+def _current_section(pos: int, section_positions: list[tuple[int, str]]) -> str:
     """Find which section a position falls in."""
     current = ""
     for sec_pos, sec_name in section_positions:
@@ -214,7 +211,7 @@ def parse_spec(path: Path) -> SpecModel:
     for kind, pattern in _BLOCK_PATTERNS:
         for m in pattern.finditer(text):
             line_num = _line_number_at(text, m.start())
-            section = _current_section(text, m.start(), section_positions)
+            section = _current_section(m.start(), section_positions)
 
             if kind == BlockKind.schema:
                 name = m.group(1)

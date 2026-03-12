@@ -63,7 +63,7 @@ report: $(addprefix report-,$(SPEC_NAMES)) ## Generate reports for all specs
 report-%: examples/%.tex
 	@echo "report $<"
 	@uv run z-spec test $< --setsize $(SETSIZE) --max-ops $(MAX_OPS) --timeout $(TIMEOUT) > /dev/null 2>&1 \
-		&& echo "  ✓ $* (report saved)" || echo "  ✗ $*"
+		&& echo "  ✓ $* (report saved)" || (echo "  ✗ $*"; false)
 
 clean: ## Remove generated files
 	@rm -f examples/*.fuzz examples/*.aux examples/*.log examples/*.out examples/*.toc examples/*.pdf

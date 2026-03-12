@@ -20,6 +20,14 @@ if hasattr(mcp, "_mcp_server") and hasattr(mcp._mcp_server, "version"):  # pyrig
     mcp._mcp_server.version = __version__  # pyright: ignore[reportPrivateUsage]
 
 
+def _validate_spec_path(file: str) -> Path | None:
+    """Validate a spec file path. Returns Path if valid, None if not."""
+    path = Path(file)
+    if not path.exists() or not path.is_file():
+        return None
+    return path
+
+
 @mcp.tool()
 def check(file: str) -> str:
     """Type-check a Z specification with fuzz.
@@ -32,7 +40,9 @@ def check(file: str) -> str:
     """
     from punt_zspec.fuzz import resolve_fuzz, run_fuzz
 
-    path = Path(file)
+    path = _validate_spec_path(file)
+    if path is None:
+        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
     binary = resolve_fuzz()
     if binary is None:
         return json.dumps({"ok": False, "error": "fuzz not found"})
@@ -61,7 +71,9 @@ def test(
     from punt_zspec.prob import resolve_probcli, run_full_suite
     from punt_zspec.report import save_report
 
-    path = Path(file)
+    path = _validate_spec_path(file)
+    if path is None:
+        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
     binary = resolve_probcli()
     if binary is None:
         return json.dumps({"ok": False, "error": "probcli not found"})
@@ -87,7 +99,9 @@ def animate(file: str, steps: int = 20, setsize: int = 2) -> str:
     from punt_zspec.prob import resolve_probcli, run_animate
     from punt_zspec.report import save_report
 
-    path = Path(file)
+    path = _validate_spec_path(file)
+    if path is None:
+        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
     binary = resolve_probcli()
     if binary is None:
         return json.dumps({"ok": False, "error": "probcli not found"})
@@ -117,7 +131,9 @@ def model_check(
     from punt_zspec.prob import resolve_probcli, run_model_check
     from punt_zspec.report import save_report
 
-    path = Path(file)
+    path = _validate_spec_path(file)
+    if path is None:
+        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
     binary = resolve_probcli()
     if binary is None:
         return json.dumps({"ok": False, "error": "probcli not found"})
@@ -142,16 +158,22 @@ def show_z_spec(file: str) -> str:
     from punt_zspec.parser import parse_spec
     from punt_zspec.report import load_report
 
-    path = Path(file)
-    if not path.exists() or not path.is_file():
-        return json.dumps({"ok": False, "error": f"Spec file not found: {path}"})
+    path = _validate_spec_path(file)
+    if path is None:
+        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
 
     try:
         spec = parse_spec(path)
         rpt = load_report(path)
         result = show_applet(path, spec, rpt)
-    except (FileNotFoundError, OSError, UnicodeDecodeError) as exc:
+    except (
+        FileNotFoundError,
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+    ) as exc:
         return json.dumps({"ok": False, "error": f"Failed to read spec: {exc}"})
+    result["ok"] = True
     return json.dumps(result)
 
 
