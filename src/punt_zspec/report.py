@@ -66,7 +66,7 @@ def _from_dict(data: dict[str, Any]) -> ProbReport:
     ]
 
     counter_example = None
-    if "counter_example" in data:
+    if data.get("counter_example") is not None:
         ce = data["counter_example"]
         steps = [
             TraceStep(

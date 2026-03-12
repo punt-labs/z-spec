@@ -15,14 +15,10 @@ Use `.tmp/` at the project root for scratch and temporary files — never `/tmp`
 ## Quality Gates
 
 ```bash
-# Markdown
-npx markdownlint-cli2 "**/*.md" "#node_modules"
-
-# Python
-uv run ruff check . && uv run ruff format --check . && uv run mypy src/ tests/ && uv run pyright && uv run pytest tests/ -v
+make check
 ```
 
-All markdown must pass markdownlint and all Python must pass ruff, mypy, pyright, and pytest before commit. CI enforces this via `docs.yml`.
+This runs `lint` (markdownlint + ruff), `type` (mypy + pyright + fuzz), and `test` (pytest + probcli). All gates must pass before commit. CI enforces this via `docs.yml`.
 
 ## Z Reference Materials (Quarry)
 

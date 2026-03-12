@@ -87,9 +87,19 @@ def _parse_counter_example(output: str) -> CounterExample | None:
 
     steps: list[TraceStep] = []
     lines = output.split("\n")
+    violation = ""
+    in_counter = False
 
     for line in lines:
-        step_match = _STEP_RE.match(line.strip())
+        if _COUNTER_RE.search(line):
+            in_counter = True
+            continue
+        if not in_counter:
+            continue
+        stripped = line.strip()
+        if not stripped:
+            continue
+        step_match = _STEP_RE.match(stripped)
         if step_match:
             state: dict[str, str] = {}
             steps.append(
@@ -99,22 +109,8 @@ def _parse_counter_example(output: str) -> CounterExample | None:
                     state=state,
                 )
             )
-
-    # Extract violation text — skip step lines and blank lines after COUNTER EXAMPLE
-    violation = ""
-    in_counter = False
-    for line in lines:
-        if _COUNTER_RE.search(line):
-            in_counter = True
-            continue
-        if in_counter:
-            stripped = line.strip()
-            if not stripped:
-                continue
-            if _STEP_RE.match(stripped):
-                continue
+        elif not violation:
             violation = stripped
-            break
 
     return CounterExample(steps=steps, violation=violation) if steps else None
 

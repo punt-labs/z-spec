@@ -1,4 +1,4 @@
-.PHONY: help lint lint-py type test check assert report clean
+.PHONY: help lint type test check format assert report clean
 
 FUZZ      ?= fuzz
 PROBCLI   ?= $(HOME)/Applications/ProB/probcli
@@ -14,21 +14,27 @@ SPEC_NAMES := $(notdir $(basename $(SPECS)))
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_%-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
-lint: ## Lint markdown files
+lint: ## Lint markdown and Python
 	npx markdownlint-cli2 "**/*.md" "#node_modules"
+	uv run ruff check .
+	uv run ruff format --check .
 
-lint-py: ## Lint and type-check Python
-	uv run ruff check . && uv run ruff format --check . && uv run mypy src/ tests/ && uv run pyright
+type: type-py $(addprefix type-z-,$(SPEC_NAMES)) ## Type-check Python and Z specs
 
-type: $(addprefix type-,$(SPEC_NAMES)) ## Type-check all Z specs with fuzz
+type-py:
+	uv run mypy src/ tests/
+	uv run pyright
 
-type-%: examples/%.tex
+type-z-%: examples/%.tex
 	@echo "fuzz $<"
 	@$(FUZZ) -t $< > /dev/null 2>&1 && echo "  ✓ $*" || (echo "  ✗ $*"; $(FUZZ) -t $<; false)
 
-test: $(addprefix test-,$(SPEC_NAMES)) ## Model-check all Z specs with probcli
+test: test-py $(addprefix test-z-,$(SPEC_NAMES)) ## Run Python tests and model-check Z specs
 
-test-%: examples/%.tex
+test-py:
+	uv run pytest tests/ -v
+
+test-z-%: examples/%.tex
 	@echo "probcli $< (setsize=$(SETSIZE))"
 	@$(PROBCLI) $< -model_check \
 		-p DEFAULT_SETSIZE $(SETSIZE) \
@@ -37,10 +43,11 @@ test-%: examples/%.tex
 		2>&1 | grep -E "States analysed|Transitions fired|No counter|COUNTER|all open|not all" | head -5
 	@echo ""
 
-test-py: ## Run Python tests
-	uv run pytest tests/ -v
+check: lint type test ## Run all quality gates
 
-check: lint lint-py type test test-py ## Run all quality gates
+format: ## Auto-format code
+	uv run ruff format .
+	uv run ruff check --fix .
 
 # ── Optional targets ────────────────────────────────────────
 
