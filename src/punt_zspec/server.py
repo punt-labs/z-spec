@@ -1,4 +1,4 @@
-"""FastMCP server for punt-zspec — grimoire API."""
+"""FastMCP server for punt-zspec."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from mcp.server.fastmcp import FastMCP
 from punt_zspec import __version__
 
 mcp = FastMCP(
-    "grimoire",
+    "zspec",
     instructions=(
         "Z specification toolkit. Use these tools to type-check Z specs "
         "with fuzz, model-check with probcli, and display specs in lux."

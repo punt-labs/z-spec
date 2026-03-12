@@ -7,10 +7,10 @@
     "email": "hello@punt-labs.com"
   },
   "mcpServers": {
-    "grimoire": {
+    "zspec": {
       "type": "stdio",
-      "command": "z-spec",
-      "args": ["mcp"]
+      "command": "uv",
+      "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}", "z-spec", "mcp"]
     }
   }
 }

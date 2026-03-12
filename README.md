@@ -116,7 +116,7 @@ z-spec mcp                                  # Start MCP server (stdio)
 
 ### MCP Tools
 
-The MCP server (`grimoire`) provides 6 tools:
+The MCP server (`zspec`) provides 6 tools:
 
 | Tool | Description |
 |------|-------------|
