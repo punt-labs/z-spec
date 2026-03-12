@@ -16,7 +16,8 @@ mcp = FastMCP(
         "with fuzz, model-check with probcli, and display specs in lux."
     ),
 )
-mcp._mcp_server.version = __version__  # pyright: ignore[reportPrivateUsage]
+if hasattr(mcp, "_mcp_server") and hasattr(mcp._mcp_server, "version"):  # pyright: ignore[reportPrivateUsage]
+    mcp._mcp_server.version = __version__  # pyright: ignore[reportPrivateUsage]
 
 
 @mcp.tool()
@@ -142,9 +143,15 @@ def show_z_spec(file: str) -> str:
     from punt_zspec.report import load_report
 
     path = Path(file)
-    spec = parse_spec(path)
-    rpt = load_report(path)
-    result = show_applet(path, spec, rpt)
+    if not path.exists() or not path.is_file():
+        return json.dumps({"ok": False, "error": f"Spec file not found: {path}"})
+
+    try:
+        spec = parse_spec(path)
+        rpt = load_report(path)
+        result = show_applet(path, spec, rpt)
+    except (FileNotFoundError, OSError, UnicodeDecodeError) as exc:
+        return json.dumps({"ok": False, "error": f"Failed to read spec: {exc}"})
     return json.dumps(result)
 
 

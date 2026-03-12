@@ -21,10 +21,8 @@ from punt_zspec.types import (
 _STATES_RE = re.compile(r"States\s+analysed:\s*(\d+)")
 _TRANS_RE = re.compile(r"Transitions\s+fired:\s*(\d+)")
 _OP_RE = re.compile(r"Z operation:\s*(\w+)")
-_COVERAGE_RE = re.compile(r"(\w+)\s*:\s*(\d+)")
 _VERSION_RE = re.compile(r"ProB CLI.*?(\d+\.\d+\.\d+)")
 _COUNTER_RE = re.compile(r"(?<!No )COUNTER\s*EXAMPLE\s*FOUND", re.IGNORECASE)
-_STATE_DUMP_RE = re.compile(r"(\w+)\s*=\s*([^&\n]+)")
 _STEP_RE = re.compile(r"(\d+):\s*(\w+)")
 
 
@@ -89,31 +87,33 @@ def _parse_counter_example(output: str) -> CounterExample | None:
 
     steps: list[TraceStep] = []
     lines = output.split("\n")
-    step_num = 0
 
     for line in lines:
         step_match = _STEP_RE.match(line.strip())
         if step_match:
             state: dict[str, str] = {}
-            # Look for state dump on subsequent lines
             steps.append(
                 TraceStep(
-                    step_number=step_num,
+                    step_number=int(step_match.group(1)),
                     operation=step_match.group(2),
                     state=state,
                 )
             )
-            step_num += 1
 
-    # Extract violation text — look for lines after COUNTER EXAMPLE
+    # Extract violation text — skip step lines and blank lines after COUNTER EXAMPLE
     violation = ""
     in_counter = False
     for line in lines:
         if _COUNTER_RE.search(line):
             in_counter = True
             continue
-        if in_counter and line.strip():
-            violation = line.strip()
+        if in_counter:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if _STEP_RE.match(stripped):
+                continue
+            violation = stripped
             break
 
     return CounterExample(steps=steps, violation=violation) if steps else None

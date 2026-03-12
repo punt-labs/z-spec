@@ -152,6 +152,9 @@ def test_run_model_check_fail(tmp_path: Path) -> None:
     assert not report.ok
     assert report.counter_example is not None
     assert len(report.counter_example.steps) == 2
+    assert report.counter_example.steps[0].step_number == 0
+    assert report.counter_example.steps[1].step_number == 1
+    assert report.counter_example.violation == "Invariant violation"
 
 
 def test_run_full_suite(tmp_path: Path) -> None:

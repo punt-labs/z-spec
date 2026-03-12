@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import time
+import os
 from pathlib import Path
 
 from punt_zspec.report import is_stale, load_report, report_path, save_report
@@ -80,17 +80,21 @@ def test_is_stale_when_tex_newer(tmp_path: Path) -> None:
     tex = tmp_path / "spec.tex"
     tex.write_text("dummy")
     save_report(tex, _make_report())
-    # Touch the tex file to make it newer
-    time.sleep(0.05)
-    tex.write_text("updated")
+    # Set tex mtime 10 seconds ahead of report to guarantee staleness
+    rpt_path = tmp_path / "spec.report.json"
+    rpt_mtime = rpt_path.stat().st_mtime
+    os.utime(tex, (rpt_mtime + 10, rpt_mtime + 10))
     assert is_stale(tex) is True
 
 
 def test_is_stale_when_report_newer(tmp_path: Path) -> None:
     tex = tmp_path / "spec.tex"
     tex.write_text("dummy")
-    time.sleep(0.05)
     save_report(tex, _make_report())
+    # Set tex mtime 10 seconds before report to guarantee freshness
+    rpt_path = tmp_path / "spec.report.json"
+    rpt_mtime = rpt_path.stat().st_mtime
+    os.utime(tex, (rpt_mtime - 10, rpt_mtime - 10))
     assert is_stale(tex) is False
 
 

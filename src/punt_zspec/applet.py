@@ -9,14 +9,8 @@ from punt_zspec.parser import render_schema_box
 from punt_zspec.report import is_stale
 from punt_zspec.types import ProbReport, SpecModel
 
-# Sections that should be open by default (types, constants, state).
-_DEFAULT_OPEN_SECTIONS = {
-    "Basic Types",
-    "Free Types",
-    "Constants",
-    "Global Constants",
-    "State",
-}
+# Substrings that trigger default-open for collapsing headers.
+_DEFAULT_OPEN_KEYWORDS = ("Type", "Constant", "State")
 
 
 def _build_spec_tab(spec: SpecModel) -> list[dict[str, Any]]:
@@ -41,9 +35,7 @@ def _build_spec_tab(spec: SpecModel) -> list[dict[str, Any]]:
                 }
             )
 
-        default_open = any(
-            keyword in section for keyword in ("Type", "Constant", "State")
-        )
+        default_open = any(keyword in section for keyword in _DEFAULT_OPEN_KEYWORDS)
         elements.append(
             {
                 "kind": "collapsing_header",
@@ -270,5 +262,5 @@ def show_applet(
                 elements=scene["elements"],
             )
         return {"status": "displayed", "scene_id": "z-spec"}
-    except Exception:
-        return {"status": "scene_only", "scene": scene}
+    except Exception as exc:
+        return {"status": "scene_only", "error": str(exc), "scene": scene}
