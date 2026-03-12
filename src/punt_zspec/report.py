@@ -18,7 +18,7 @@ from punt_zspec.types import (
 
 def report_path(tex_path: Path) -> Path:
     """Return the report path for a given .tex file."""
-    return tex_path.with_suffix(".report.json")
+    return tex_path.parent / (tex_path.stem + ".report.json")
 
 
 def save_report(tex_path: Path, report: ProbReport) -> Path:
@@ -36,7 +36,7 @@ def load_report(tex_path: Path) -> ProbReport | None:
     try:
         data: dict[str, Any] = json.loads(rpt.read_text(encoding="utf-8"))
         return _from_dict(data)
-    except (json.JSONDecodeError, KeyError, ValueError):
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
         return None
 
 
