@@ -1,4 +1,4 @@
-.PHONY: help lint lint-py type test check assert report clean
+.PHONY: help lint type test check assert clean
 
 FUZZ      ?= fuzz
 PROBCLI   ?= $(HOME)/Applications/ProB/probcli
@@ -17,9 +17,6 @@ help: ## Show available targets
 lint: ## Lint markdown files
 	npx markdownlint-cli2 "**/*.md" "#node_modules"
 
-lint-py: ## Lint and type-check Python
-	uv run ruff check . && uv run ruff format --check . && uv run mypy src/ tests/ && uv run pyright
-
 type: $(addprefix type-,$(SPEC_NAMES)) ## Type-check all Z specs with fuzz
 
 type-%: examples/%.tex
@@ -37,10 +34,7 @@ test-%: examples/%.tex
 		2>&1 | grep -E "States analysed|Transitions fired|No counter|COUNTER|all open|not all" | head -5
 	@echo ""
 
-test-py: ## Run Python tests
-	uv run pytest tests/ -v
-
-check: lint lint-py type test test-py ## Run all quality gates
+check: lint type test ## Run all quality gates
 
 # ── Optional targets ────────────────────────────────────────
 
@@ -51,14 +45,5 @@ assert-%: examples/%.tex
 	@$(PROBCLI) $< -cbc_assertions 2>&1 | grep -E "counter|ASSERTION" | head -3
 	@echo ""
 
-report: $(addprefix report-,$(SPEC_NAMES)) ## Generate reports for all specs
-
-report-%: examples/%.tex
-	@echo "report $<"
-	@uv run z-spec test $< --setsize $(SETSIZE) --max-ops $(MAX_OPS) --timeout $(TIMEOUT) > /dev/null 2>&1 \
-		&& echo "  ✓ $* (report saved)" || echo "  ✗ $*"
-
 clean: ## Remove generated files
 	@rm -f examples/*.fuzz examples/*.aux examples/*.log examples/*.out examples/*.toc examples/*.pdf
-	@rm -f examples/*.report.json
-	@rm -f ./*.aux ./*.log ./*.out ./*.toc
