@@ -87,3 +87,74 @@ def test_get_report_found(tmp_path: Path) -> None:
     result = json.loads(get_report(str(tex)))
     assert result["ok"] is True
     assert result["states_analysed"] == 10
+
+
+def test_show_z_spec_file_not_found() -> None:
+    from punt_zspec.server import show_z_spec
+
+    result = json.loads(show_z_spec("nonexistent.tex"))
+    assert result["ok"] is False
+    assert "Spec file not found" in result["error"]
+
+
+def test_show_z_spec_spec_only(tmp_path: Path) -> None:
+    """show_z_spec with no report returns Spec tab only."""
+    from punt_zspec.server import show_z_spec
+
+    tex = tmp_path / "spec.tex"
+    tex.write_text(
+        r"""\documentclass{article}
+\begin{document}
+\section{State}
+\begin{schema}{Foo}
+x : \nat
+\where
+x \leq 10
+\end{schema}
+\end{document}
+"""
+    )
+    result = json.loads(show_z_spec(str(tex)))
+    assert result["ok"] is True
+    assert result["scene_id"] == "z-spec"
+    assert result["title"] == f"Z-Spec: {tex.name}"
+    tab_bar = result["elements"][0]
+    assert tab_bar["kind"] == "tab_bar"
+    tab_labels = [t["label"] for t in tab_bar["tabs"]]
+    assert tab_labels == ["Spec"]
+
+
+def test_show_z_spec_with_report(tmp_path: Path) -> None:
+    """show_z_spec with a saved report returns Spec + ProB tabs."""
+    from punt_zspec.report import save_report
+    from punt_zspec.server import show_z_spec
+    from punt_zspec.types import CheckResult, CheckStatus, ProbReport
+
+    tex = tmp_path / "spec.tex"
+    tex.write_text(
+        r"""\documentclass{article}
+\begin{document}
+\section{State}
+\begin{schema}{Foo}
+x : \nat
+\end{schema}
+\end{document}
+"""
+    )
+    report = ProbReport(
+        timestamp="2026-03-12T00:00:00Z",
+        probcli_version="1.13.1",
+        setsize=2,
+        checks=[CheckResult(name="init", status=CheckStatus.passed)],
+        operations=[],
+        counter_example=None,
+        states_analysed=10,
+        transitions_fired=20,
+    )
+    save_report(tex, report)
+
+    result = json.loads(show_z_spec(str(tex)))
+    assert result["ok"] is True
+    tab_bar = result["elements"][0]
+    tab_labels = [t["label"] for t in tab_bar["tabs"]]
+    assert tab_labels == ["Spec", "ProB"]
