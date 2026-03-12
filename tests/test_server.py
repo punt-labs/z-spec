@@ -20,13 +20,23 @@ def test_server_has_all_tools() -> None:
     assert expected == tool_names
 
 
-def test_check_tool_fuzz_not_found() -> None:
+def test_check_tool_file_not_found() -> None:
+    from punt_zspec.server import check
+
+    result = json.loads(check("nonexistent.tex"))
+    assert result["ok"] is False
+    assert "Spec file not found" in result["error"]
+
+
+def test_check_tool_fuzz_not_found(tmp_path: Path) -> None:
+    tex = tmp_path / "spec.tex"
+    tex.write_text("dummy")
     with patch("punt_zspec.fuzz.resolve_fuzz", return_value=None):
         from punt_zspec.server import check
 
-        result = json.loads(check("nonexistent.tex"))
+        result = json.loads(check(str(tex)))
     assert result["ok"] is False
-    assert "not found" in result["error"]
+    assert "fuzz not found" in result["error"]
 
 
 def test_check_tool_success(tmp_path: Path) -> None:
