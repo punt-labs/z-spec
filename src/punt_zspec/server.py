@@ -152,7 +152,7 @@ def show_z_spec(file: str) -> str:
         file: Path to the .tex Z specification file.
 
     Returns:
-        JSON with ok, scene (lux element tree), and metadata.
+        JSON with ok (bool), scene_id, title, and elements (lux element tree).
     """
     from punt_zspec.applet import build_z_spec_scene
     from punt_zspec.parser import parse_spec
@@ -173,8 +173,9 @@ def show_z_spec(file: str) -> str:
         json.JSONDecodeError,
     ) as exc:
         return json.dumps({"ok": False, "error": f"Failed to read spec: {exc}"})
-    scene["ok"] = True
-    return json.dumps(scene)
+    result = scene.copy()
+    result["ok"] = True
+    return json.dumps(result)
 
 
 @mcp.tool()

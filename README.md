@@ -188,7 +188,7 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 
 ### Visual exploration with Lux
 
-When [Lux](https://github.com/punt-labs/lux) is available, `show_z_spec` builds a scene with Spec, ProB, and Counter-Example tabs. The Spec tab renders the Z model with collapsible section headers. The ProB tab shows states explored, transitions covered, checks passed, and operation coverage. If a counter-example is found, a third tab shows the trace as a step-by-step table with state values and the violated invariant.
+When [Lux](https://github.com/punt-labs/lux) is available, `show_z_spec` builds a scene with a Spec tab and, when a valid ProB report is available, also adds ProB and (if a counter-example was found) Counter-Example tabs. The Spec tab renders the Z model with collapsible section headers. The ProB tab shows states explored, transitions covered, checks passed, and operation coverage. If a counter-example is found, a third tab shows the trace as a step-by-step table with state values and the violated invariant.
 
 ![Z Spec model-check results displayed in Lux](docs/Z-Spec-Lux-Screenshot.png)
 
