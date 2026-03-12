@@ -1,6 +1,6 @@
 # Agent Instructions
 
-This is a Claude Code plugin and Python package (`punt-zspec`) for formal Z specifications. The plugin uses skill prompts (L4) to guide spec creation, type-checking, and animation. Deterministic work — parsing, binary wrappers, report I/O, applet rendering — lives in the Python package (L1). Skills call L1 MCP tools instead of raw bash.
+This is a Claude Code plugin for formal Z specifications. The plugin uses skill prompts to guide spec creation, type-checking (fuzz), and animation (probcli). No application code — the tools are external binaries.
 
 This project follows [Punt Labs standards](https://github.com/punt-labs/punt-kit).
 
@@ -15,14 +15,10 @@ Use `.tmp/` at the project root for scratch and temporary files — never `/tmp`
 ## Quality Gates
 
 ```bash
-# Markdown
 npx markdownlint-cli2 "**/*.md" "#node_modules"
-
-# Python
-uv run ruff check . && uv run ruff format --check . && uv run mypy src/ tests/ && uv run pyright && uv run pytest tests/ -v
 ```
 
-All markdown must pass markdownlint and all Python must pass ruff, mypy, pyright, and pytest before commit. CI enforces this via `docs.yml`.
+All markdown must pass markdownlint before commit. CI enforces this via `docs.yml`.
 
 ## Z Reference Materials (Quarry)
 

@@ -164,7 +164,7 @@ for operation enablement.
 **Data source:** Parse LaTeX `\where` clause from spec
 
 Static table of invariants extracted from the State schema. Columns:
-\#, Invariant Name (derived from comment), Predicate (LaTeX), Status
+#, Invariant Name (derived from comment), Predicate (LaTeX), Status
 (PASS for model-checked specs, UNKNOWN otherwise).
 
 Per-state evaluation deferred to Phase 3.

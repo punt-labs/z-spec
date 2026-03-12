@@ -91,52 +91,6 @@ Setup auto-detects your platform (macOS Intel/Apple Silicon, Linux) and guides y
 
 </details>
 
-## Python Package (CLI + MCP)
-
-The `punt-zspec` package provides a CLI and MCP server for programmatic access to Z specification tools.
-
-### Install
-
-```bash
-uv tool install punt-zspec        # CLI only
-uv add punt-zspec                 # As a library dependency
-```
-
-### CLI
-
-```bash
-z-spec check examples/auth.tex              # Type-check with fuzz
-z-spec test examples/auth.tex               # Full probcli suite, saves .report.json
-z-spec animate examples/auth.tex            # Animate only
-z-spec model-check examples/auth.tex        # Model-check only
-z-spec report examples/auth.tex             # Load existing report
-z-spec doctor                               # Check tool availability
-z-spec mcp                                  # Start MCP server (stdio)
-```
-
-### MCP Tools
-
-The MCP server (`grimoire`) provides 6 tools:
-
-| Tool | Description |
-|------|-------------|
-| `check(file)` | Type-check with fuzz |
-| `test(file, setsize, max_ops, timeout)` | Full probcli suite, saves report |
-| `animate(file, steps, setsize)` | Animate only, saves report |
-| `model_check(file, setsize, max_ops, timeout)` | Model-check only, saves report |
-| `show_z_spec(file)` | Parse spec + load report, render in lux applet |
-| `get_report(file)` | Load existing report |
-
-### Reports
-
-ProB reports are saved as `<stem>.report.json` alongside `.tex` files:
-
-```text
-examples/claude-code.tex         → examples/claude-code.report.json
-```
-
-Reports include ISO 8601 timestamps, probcli version, all check results, per-operation coverage, and counter-example traces. They are gitignored (generated artifacts).
-
 ## What It Looks Like
 
 ### A generated spec

@@ -4,17 +4,6 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added
-
-- **Python package (`punt-zspec`)** --- CLI + MCP server hybrid following the vox pattern; deterministic L1 tools replace raw bash in skill prompts
-- **CLI (`z-spec`)** --- typer CLI with `check`, `test`, `animate`, `model-check`, `report`, `doctor`, and `mcp` commands
-- **MCP server (`grimoire`)** --- FastMCP server with 6 tools: `check`, `test`, `animate`, `model_check`, `show_z_spec`, `get_report`; registered in plugin.json as `mcpServers.grimoire`
-- **LaTeX Z parser** --- extracts schemas, types, constants, and invariants from .tex files; LaTeX-to-Unicode conversion (35+ symbols); schema box rendering with open-right Unicode box-drawing
-- **ProB report convention** --- `<stem>.report.json` files alongside .tex specs with ISO 8601 timestamps, all five check results, per-operation coverage, and counter-example traces; staleness detection
-- **Binary wrappers** --- structured wrappers for `fuzz -t` and `probcli` with binary resolution via `$FUZZ`/`$PROBCLI` env vars, PATH, and conventional install locations
-- **Lux applet** --- persistent `z-spec` frame with three tabs: Model (spec structure with collapsing headers), Dashboard (metrics/checks/coverage), Counter-Example (trace table with violation)
-- **Python quality gates** --- ruff, mypy, pyright, pytest with 46 tests; added `lint-py`, `test-py`, and `report` Makefile targets
-
 ## [0.9.0] - 2026-03-09
 
 ### Added
