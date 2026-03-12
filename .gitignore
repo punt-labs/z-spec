@@ -57,5 +57,16 @@ examples/*.toc
 CLAUDE.md.tmp
 Lux_Display.ini
 
+# ProB reports (generated artifacts)
+*.report.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+dist/
+uv.lock
+
 # Scratch/temp directory (TMPDIR set via .envrc)
 .tmp/
