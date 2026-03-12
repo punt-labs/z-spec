@@ -103,11 +103,11 @@ def test_build_scene_with_report() -> None:
     report = _make_report()
     scene = build_z_spec_scene(Path("test.tex"), spec, report)
 
-    assert "Model Check Results" in scene["title"]
+    assert scene["title"] == "Z-Spec: test.tex"
 
     tab_bar = scene["elements"][0]
     tab_labels = [t["label"] for t in tab_bar["tabs"]]
-    assert tab_labels == ["Dashboard", "Spec"]
+    assert tab_labels == ["Spec", "ProB"]
 
 
 def test_build_scene_with_counter_example() -> None:
@@ -136,10 +136,10 @@ def test_build_scene_with_counter_example() -> None:
 
     tab_bar = scene["elements"][0]
     tab_labels = [t["label"] for t in tab_bar["tabs"]]
-    assert tab_labels == ["Dashboard", "Counter-Example", "Spec"]
+    assert tab_labels == ["Spec", "ProB", "Counter-Example"]
 
     # Counter-Example tab has trace table
-    ce_tab = tab_bar["tabs"][1]
+    ce_tab = tab_bar["tabs"][2]
     table = next(e for e in ce_tab["children"] if e.get("kind") == "table")
     assert table["rows"][0][1] == "INITIALISATION"
     assert table["rows"][1][1] == "Increment"
@@ -183,34 +183,22 @@ def test_spec_tab_renders_schema_boxes() -> None:
     assert "x ≤ 10" in text_block["content"]
 
 
-def test_dashboard_has_metrics_and_checks() -> None:
+def test_prob_tab_has_metrics_and_checks() -> None:
     spec = _make_spec()
     report = _make_report()
     scene = build_z_spec_scene(Path("test.tex"), spec, report)
 
     tab_bar = scene["elements"][0]
-    dashboard = tab_bar["tabs"][0]
-    assert dashboard["label"] == "Dashboard"
+    prob_tab = tab_bar["tabs"][1]
+    assert prob_tab["label"] == "ProB"
 
     # Find metrics group
-    metrics = next(e for e in dashboard["children"] if e.get("id") == "metrics")
+    metrics = next(e for e in prob_tab["children"] if e.get("id") == "metrics")
     assert metrics["layout"] == "columns"
     metric_texts = [c["content"] for c in metrics["children"]]
     assert any("42" in t for t in metric_texts)  # states
     assert any("150" in t for t in metric_texts)  # transitions
 
     # Find checks table
-    checks_table = next(e for e in dashboard["children"] if e.get("id") == "checks")
+    checks_table = next(e for e in prob_tab["children"] if e.get("id") == "checks")
     assert len(checks_table["rows"]) == 5
-
-
-def test_show_applet_without_lux() -> None:
-    """show_applet gracefully degrades when punt-lux not installed."""
-    from punt_zspec.applet import show_applet
-
-    spec = _make_spec()
-    result = show_applet(Path("test.tex"), spec)
-    # Should return scene_only (since punt-lux isn't in test deps)
-    assert result["status"] in ("scene_only", "displayed")
-    if result["status"] == "scene_only":
-        assert "scene" in result

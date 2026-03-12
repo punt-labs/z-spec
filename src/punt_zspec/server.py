@@ -146,15 +146,15 @@ def model_check(
 
 @mcp.tool()
 def show_z_spec(file: str) -> str:
-    """Parse a Z spec and render it in the lux applet.
+    """Parse a Z spec and build a lux scene.
 
     Args:
         file: Path to the .tex Z specification file.
 
     Returns:
-        JSON with spec model and applet status.
+        JSON with ok (bool), scene_id, title, and elements (lux element tree).
     """
-    from punt_zspec.applet import show_applet
+    from punt_zspec.applet import build_z_spec_scene
     from punt_zspec.parser import parse_spec
     from punt_zspec.report import load_report
 
@@ -165,7 +165,7 @@ def show_z_spec(file: str) -> str:
     try:
         spec = parse_spec(path)
         rpt = load_report(path)
-        result = show_applet(path, spec, rpt)
+        scene = build_z_spec_scene(path, spec, rpt)
     except (
         FileNotFoundError,
         OSError,
@@ -173,6 +173,7 @@ def show_z_spec(file: str) -> str:
         json.JSONDecodeError,
     ) as exc:
         return json.dumps({"ok": False, "error": f"Failed to read spec: {exc}"})
+    result = scene.copy()
     result["ok"] = True
     return json.dumps(result)
 
