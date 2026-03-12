@@ -11,7 +11,7 @@ from punt_zspec.server import mcp
 
 
 def test_server_has_correct_name() -> None:
-    assert mcp.name == "grimoire"
+    assert mcp.name == "zspec"
 
 
 def test_server_has_all_tools() -> None:
