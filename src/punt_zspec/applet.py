@@ -49,8 +49,8 @@ def _build_spec_tab(spec: SpecModel) -> list[dict[str, Any]]:
     return elements
 
 
-def _build_dashboard_tab(report: ProbReport, tex_path: Path) -> list[dict[str, Any]]:
-    """Build Dashboard tab with metrics, checks table, and coverage table."""
+def _build_prob_tab(report: ProbReport, tex_path: Path) -> list[dict[str, Any]]:
+    """Build ProB tab with metrics, checks table, and coverage table."""
     elements: list[dict[str, Any]] = []
 
     # Staleness warning
@@ -210,27 +210,23 @@ def build_z_spec_scene(
     """Pure builder: construct the full lux scene as a JSON-serializable dict."""
     tabs: list[dict[str, Any]] = []
 
-    # Spec tab (always present)
+    # Spec tab (always first)
     spec_elements = _build_spec_tab(spec)
     tabs.append({"label": "Spec", "children": spec_elements})
 
-    # Dashboard tab (only if report exists)
+    # ProB tab (only if report exists)
     if report is not None:
-        dashboard_elements = _build_dashboard_tab(report, tex_path)
-        tabs.insert(0, {"label": "Dashboard", "children": dashboard_elements})
+        prob_elements = _build_prob_tab(report, tex_path)
+        tabs.append({"label": "ProB", "children": prob_elements})
 
         # Counter-Example tab (only if violation found)
         if report.counter_example is not None:
             ce_elements = _build_counter_example_tab(report)
-            tabs.insert(1, {"label": "Counter-Example", "children": ce_elements})
-
-    title = f"{tex_path.name}"
-    if report is not None:
-        title += " — Model Check Results"
+            tabs.append({"label": "Counter-Example", "children": ce_elements})
 
     return {
         "scene_id": "z-spec",
-        "title": title,
+        "title": f"Z-Spec: {tex_path.name}",
         "elements": [
             {
                 "kind": "tab_bar",
@@ -239,28 +235,3 @@ def build_z_spec_scene(
             }
         ],
     }
-
-
-def show_applet(
-    tex_path: Path,
-    spec: SpecModel,
-    report: ProbReport | None = None,
-) -> dict[str, Any]:
-    """Build scene and display via lux MCP. Returns status dict."""
-    scene = build_z_spec_scene(tex_path, spec, report)
-
-    try:
-        from punt_lux.client import LuxClient  # pyright: ignore[reportMissingImports]
-    except ImportError:
-        return {"status": "scene_only", "scene": scene}
-
-    try:
-        with LuxClient(name="z-spec-applet") as client:
-            client.show(  # type: ignore[call-arg]
-                frame_id="z-spec",
-                frame_title=scene["title"],
-                elements=scene["elements"],
-            )
-        return {"status": "displayed", "scene_id": "z-spec"}
-    except Exception as exc:
-        return {"status": "scene_only", "error": str(exc), "scene": scene}
