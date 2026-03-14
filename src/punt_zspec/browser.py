@@ -14,8 +14,8 @@ from punt_lux.protocol import (
     ComboElement,
     Element,
     GroupElement,
-    MarkdownElement,
     SeparatorElement,
+    TextElement,
 )
 
 from punt_zspec.applet import build_z_spec_scene
@@ -52,11 +52,12 @@ def _build_lesson_page(
 
     elements: list[Element] = []
 
-    if lesson.annotation:
+    annotation = lesson.annotation.strip()
+    if annotation:
         elements.append(
-            MarkdownElement(
+            TextElement(
                 id=f"annotation-{lesson.order}",
-                content=lesson.annotation,
+                content=annotation,
             )
         )
         elements.append(SeparatorElement())

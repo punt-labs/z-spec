@@ -1,0 +1,77 @@
+\documentclass{article}
+\usepackage{fuzz}
+\begin{document}
+
+\section{Basic Types}
+
+\begin{zed}
+  [MSG, ADDR]
+\end{zed}
+
+\begin{zed}
+  Flag ::= flSeen | flUnseen | flFlagged
+\end{zed}
+
+\section{Constants}
+
+\begin{axdef}
+  maxMsgs : \nat
+\where
+  maxMsgs = 100
+\end{axdef}
+
+\section{State}
+
+\begin{schema}{Inbox}
+  msgs : \power MSG \\
+  flag : MSG \pfun Flag \\
+  from : MSG \pfun ADDR
+\where
+  \dom flag = msgs \\
+  \dom from = msgs \\
+  \# msgs \leq maxMsgs
+\end{schema}
+
+\section{Initialization}
+
+\begin{schema}{Init}
+  Inbox'
+\where
+  msgs' = \emptyset \\
+  flag' = \emptyset \\
+  from' = \emptyset
+\end{schema}
+
+An initialization schema uses primed variables to describe
+the starting state. Here the inbox begins empty.
+
+\section{Error Reporting}
+
+\begin{zed}
+  Report ::= rpOk | rpFull | rpNotFound
+\end{zed}
+
+\begin{schema}{Success}
+  report! : Report
+\where
+  report! = rpOk
+\end{schema}
+
+\begin{schema}{FullError}
+  \Xi Inbox \\
+  report! : Report
+\where
+  \# msgs = maxMsgs \\
+  report! = rpFull
+\end{schema}
+
+\begin{schema}{NotFoundError}
+  \Xi Inbox \\
+  m? : MSG \\
+  report! : Report
+\where
+  m? \notin msgs \\
+  report! = rpNotFound
+\end{schema}
+
+\end{document}

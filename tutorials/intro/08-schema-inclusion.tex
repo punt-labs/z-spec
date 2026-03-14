@@ -1,0 +1,76 @@
+\documentclass{article}
+\usepackage{fuzz}
+\begin{document}
+
+\section{Basic Types}
+
+\begin{zed}
+  [MSG, ADDR]
+\end{zed}
+
+\begin{zed}
+  Flag ::= flSeen | flUnseen | flFlagged
+\end{zed}
+
+\section{Constants}
+
+\begin{axdef}
+  maxMsgs : \nat
+\where
+  maxMsgs = 100
+\end{axdef}
+
+\section{State}
+
+\begin{schema}{Inbox}
+  msgs : \power MSG \\
+  flag : MSG \pfun Flag \\
+  from : MSG \pfun ADDR
+\where
+  \dom flag = msgs \\
+  \dom from = msgs \\
+  \# msgs \leq maxMsgs
+\end{schema}
+
+\section{Schema Inclusion}
+
+\begin{schema}{MarkRead}
+  \Delta Inbox \\
+  m? : MSG
+\where
+  m? \in msgs \\
+  flag~m? = flUnseen \\
+  msgs' = msgs \\
+  from' = from \\
+  flag' = flag \oplus \{m? \mapsto flSeen\}
+\end{schema}
+
+\begin{schema}{ToggleFlag}
+  \Delta Inbox \\
+  m? : MSG
+\where
+  m? \in msgs \\
+  flag~m? \neq flFlagged \\
+  msgs' = msgs \\
+  from' = from \\
+  flag' = flag \oplus \{m? \mapsto flFlagged\}
+\end{schema}
+
+\begin{schema}{Unflag}
+  \Delta Inbox \\
+  m? : MSG
+\where
+  m? \in msgs \\
+  flag~m? = flFlagged \\
+  msgs' = msgs \\
+  from' = from \\
+  flag' = flag \oplus \{m? \mapsto flSeen\}
+\end{schema}
+
+Notice that \texttt{MarkRead}, \texttt{ToggleFlag}, and
+\texttt{Unflag} all share the same frame: they include
+$\Delta Inbox$ and an input $m?$, they require $m? \in msgs$,
+and they leave \texttt{msgs} and \texttt{from} unchanged.
+Schema inclusion lets us factor out this common pattern.
+
+\end{document}
