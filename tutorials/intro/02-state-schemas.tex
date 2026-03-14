@@ -1,0 +1,36 @@
+\documentclass{article}
+\usepackage{fuzz}
+\begin{document}
+
+\section{Basic Types}
+
+\begin{zed}
+  [NAME]
+\end{zed}
+
+\section{State}
+
+A \emph{state schema} declares the variables a system holds
+and the \emph{invariants} that must always be true.
+
+\begin{schema}{Counter}
+  count : \nat
+\where
+  count \leq 100
+\end{schema}
+
+The declaration \texttt{count : \nat} says the system holds
+a natural number.  The predicate \texttt{count \leq 100} is
+an invariant: no reachable state may violate it.
+
+\begin{schema}{AddressBook}
+  known : \power NAME \\
+  address : NAME \pfun NAME
+\where
+  \dom address = known
+\end{schema}
+
+This schema shows a finite set \texttt{known} and a partial
+function \texttt{address} whose domain must equal \texttt{known}.
+
+\end{document}

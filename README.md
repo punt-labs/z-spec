@@ -116,26 +116,55 @@ z-spec mcp                                  # Start MCP server (stdio)
 
 ### MCP Tools
 
-The MCP server (`zspec`) provides 6 tools:
+The MCP server (`zspec`) provides 9 tools:
 
 | Tool | Description |
 |------|-------------|
-| `check(file)` | Type-check with fuzz |
-| `test(file, setsize, max_ops, timeout)` | Full probcli suite, saves report |
-| `animate(file, steps, setsize)` | Animate only, saves report |
-| `model_check(file, setsize, max_ops, timeout)` | Model-check only, saves report |
-| `show_z_spec(file)` | Parse spec + load report, build lux scene |
-| `get_report(file)` | Load existing report |
+| `check(file)` | Type-check with fuzz, saves `.fuzz.json` |
+| `test(file, setsize, max_ops, timeout)` | Full probcli suite, saves `.report.json` |
+| `animate(file, steps, setsize)` | Animate only, saves `.report.json` |
+| `model_check(file, setsize, max_ops, timeout)` | Model-check only, saves `.report.json` |
+| `show_z_spec(file)` | Display spec + all reports in lux |
+| `get_report(file)` | Load existing ProB report |
+| `save_partition_report(file, report_json)` | Save partition analysis report |
+| `save_audit_report(file, report_json)` | Save test coverage audit report |
+| `browse(manifest)` | Open a tutorial collection in the paged browser |
 
 ### Reports
 
-ProB reports are saved as `<stem>.report.json` alongside `.tex` files:
+Reports are saved as JSON alongside `.tex` files:
 
 ```text
-examples/claude-code.tex         → examples/claude-code.report.json
+examples/claude-code.tex               → examples/claude-code.report.json     (ProB)
+                                       → examples/claude-code.fuzz.json       (fuzz)
+                                       → examples/claude-code.partition.json  (TTF partitions)
+                                       → examples/claude-code.audit.json      (test coverage)
 ```
 
-Reports include ISO 8601 timestamps, probcli version, all check results, per-operation coverage, and counter-example traces. They are gitignored (generated artifacts).
+All reports are gitignored (generated artifacts). `show_z_spec` loads whichever reports exist and renders each as a tab in the lux display.
+
+### Tutorial Browser
+
+The `browse` and `browse_navigate` tools provide a lesson-by-lesson tutorial experience. Define a `manifest.toml` with ordered lessons:
+
+```toml
+[collection]
+title = "Introduction to Z Notation"
+
+[[lessons]]
+title = "Basic Types"
+spec = "01-basic-types.tex"
+annotation = "Z specifications start with **basic types** and **free types**..."
+highlights = ["Basic Types"]
+
+[[lessons]]
+title = "State Schemas"
+spec = "02-state.tex"
+annotation = "A **state schema** captures the data a system holds..."
+highlights = ["State"]
+```
+
+The browser displays a nav bar (Prev/Next buttons + lesson selector), the lesson's didactic annotation, and the full spec tabs (Spec/Fuzz/ProB/Partition/Audit). Section headers matching `highlights` are auto-expanded.
 
 ## What It Looks Like
 
@@ -188,7 +217,7 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 
 ### Visual exploration with Lux
 
-When [Lux](https://github.com/punt-labs/lux) is available, `show_z_spec` builds a scene with a Spec tab and, when a valid ProB report is available, also adds ProB and (if a counter-example was found) Counter-Example tabs. The Spec tab renders the Z model with collapsible section headers. The ProB tab shows states explored, transitions covered, checks passed, and operation coverage. If a counter-example is found, a third tab shows the trace as a step-by-step table with state values and the violated invariant.
+`show_z_spec` displays the spec directly in a Lux window via `LuxClient` with a Spec tab and, when a valid ProB report is available, also adds ProB and (if a counter-example was found) Counter-Example tabs. The Spec tab renders the Z model with collapsible section headers. The ProB tab shows states explored, transitions covered, checks passed, and operation coverage. If a counter-example is found, a third tab shows the trace as a step-by-step table with state values and the violated invariant. If Lux is not running, it degrades gracefully with an error status.
 
 ![Z Spec model-check results displayed in Lux](docs/Z-Spec-Lux-Screenshot.png)
 

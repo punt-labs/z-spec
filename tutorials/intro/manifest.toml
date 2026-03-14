@@ -1,0 +1,42 @@
+[collection]
+title = "Introduction to Z Notation"
+description = "A progressive tour from basic types to operations"
+
+[[lessons]]
+title = "Sets and Types"
+spec = "01-sets-and-types.tex"
+annotation = """
+Every Z specification begins by declaring its **types** — the kinds of objects the system works with.
+
+- A **basic type** (given set) like `[NAME]` declares that things of this kind exist without saying what they are — it's abstract.
+- A **free type** like `Color ::= red | green | blue` enumerates every possible value — it's concrete.
+
+Basic types and free types are the building blocks that state schemas and operations will use.
+"""
+highlights = ["Basic Types", "Free Types"]
+
+[[lessons]]
+title = "State Schemas"
+spec = "02-state-schemas.tex"
+annotation = """
+A **state schema** captures the data a system holds and the **invariants** that must always be true.
+
+- The **declaration part** (above the line) lists variables and their types
+- The **predicate part** (below the line) states constraints that must hold in every reachable state
+
+If you can find a state that satisfies the declarations but violates the predicate, the specification has a bug.
+"""
+highlights = ["State"]
+
+[[lessons]]
+title = "Operations"
+spec = "03-operations.tex"
+annotation = """
+**Operations** describe how the system state changes. Z uses two conventions:
+
+- **Delta (Δ)** includes the before-state and after-state — the operation may change variables
+- **Xi (Ξ)** includes the state but requires no change — the operation only observes
+
+Input variables end with `?`, output variables with `!`. A **precondition** limits when the operation applies — if the precondition is false, the operation is undefined (not "does nothing").
+"""
+highlights = ["Operations"]
