@@ -1,5 +1,5 @@
 [project]
-name = "punt-zspec"
+name = "punt-z-spec"
 version = "0.13.0"
 description = "Z specification toolkit: type-checker, model-checker, and Claude Code plugin"
 readme = "README.md"

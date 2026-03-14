@@ -8,8 +8,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- **PyPI publishing** --- `release.yml` GitHub Actions workflow publishes `punt-zspec` to PyPI on tag push via trusted publisher (build → TestPyPI → test-install → PyPI)
-- **Full hybrid install.sh** --- installs uv, Python 3.13+, `punt-zspec` CLI via `uv tool install`, registers marketplace, installs plugin, runs `z-spec doctor`; matches biff/quarry/vox install pattern
+- **PyPI publishing** --- `release.yml` GitHub Actions workflow publishes `punt-z-spec` to PyPI on tag push via trusted publisher (build → TestPyPI → test-install → PyPI)
+- **Full hybrid install.sh** --- installs uv, Python 3.13+, `punt-z-spec` CLI via `uv tool install`, registers marketplace, installs plugin, runs `z-spec doctor`; matches biff/quarry/vox install pattern
 
 ## [0.12.0] - 2026-03-14
 
@@ -39,7 +39,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- **Python package (`punt-zspec`)** --- CLI + MCP server hybrid following the vox pattern; deterministic L1 tools replace raw bash in skill prompts
+- **Python package (`punt-z-spec`)** --- CLI + MCP server hybrid following the vox pattern; deterministic L1 tools replace raw bash in skill prompts
 - **CLI (`z-spec`)** --- typer CLI with `check`, `test`, `animate`, `model-check`, `report`, `doctor`, and `mcp` commands
 - **MCP server (`zspec`)** --- FastMCP server with 6 tools: `check`, `test`, `animate`, `model_check`, `show_z_spec`, `get_report`; registered in plugin.json as `mcpServers.zspec`
 - **LaTeX Z parser** --- extracts schemas, types, constants, and invariants from .tex files; LaTeX-to-Unicode conversion (35+ symbols); schema box rendering with open-right Unicode box-drawing
