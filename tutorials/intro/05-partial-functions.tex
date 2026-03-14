@@ -1,0 +1,70 @@
+\documentclass{article}
+\usepackage{fuzz}
+\begin{document}
+
+\section{Basic Types}
+
+\begin{zed}
+  [MSG, ADDR]
+\end{zed}
+
+\begin{zed}
+  Flag ::= flSeen | flUnseen | flFlagged
+\end{zed}
+
+\begin{zed}
+  Folder ::= fdInbox | fdSent | fdTrash | fdArchive
+\end{zed}
+
+\section{Constants}
+
+\begin{axdef}
+  maxMsgs : \nat
+\where
+  maxMsgs = 100
+\end{axdef}
+
+\section{State}
+
+\begin{schema}{Mailbox}
+  msgs : \power MSG \\
+  flag : MSG \pfun Flag \\
+  from : MSG \pfun ADDR \\
+  folder : MSG \pfun Folder
+\where
+  \dom flag = msgs \\
+  \dom from = msgs \\
+  \dom folder = msgs \\
+  \# msgs \leq maxMsgs
+\end{schema}
+
+The state now tracks which folder each message belongs to.
+The partial function \texttt{folder} maps each message to
+exactly one folder. The invariant $\dom folder = msgs$
+ensures every message has a folder assignment.
+
+\section{Operations}
+
+\begin{schema}{MoveToTrash}
+  \Delta Mailbox \\
+  m? : MSG
+\where
+  m? \in msgs \\
+  folder~m? \neq fdTrash \\
+  msgs' = msgs \\
+  flag' = flag \\
+  from' = from \\
+  folder' = folder \oplus \{m? \mapsto fdTrash\}
+\end{schema}
+
+\begin{schema}{ArchiveRead}
+  \Delta Mailbox
+\where
+  msgs' = msgs \\
+  from' = from \\
+  folder' = folder \oplus
+    \quad~ (\{m : msgs | flag~m = flSeen\} \cross \{fdArchive\}) \\
+  flag' = flag
+\end{schema}
+
+\end{document}

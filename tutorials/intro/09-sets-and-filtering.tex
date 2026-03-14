@@ -32,28 +32,31 @@
   \# msgs \leq maxMsgs
 \end{schema}
 
-\section{Operations}
+\section{Set Operations}
 
-\begin{schema}{Receive}
-  \Delta Inbox \\
-  m? : MSG \\
-  sender? : ADDR
+\begin{schema}{CountByFlag}
+  \Xi Inbox \\
+  f? : Flag \\
+  count! : \nat
 \where
-  m? \notin msgs \\
-  \# msgs < maxMsgs \\
-  msgs' = msgs \cup \{m?\} \\
-  flag' = flag \cup \{m? \mapsto flUnseen\} \\
-  from' = from \cup \{m? \mapsto sender?\}
+  count! = \# \{ m : msgs | flag~m = f? \}
 \end{schema}
 
-\begin{schema}{Delete}
-  \Delta Inbox \\
-  m? : MSG
+\begin{schema}{FromSender}
+  \Xi Inbox \\
+  sender? : ADDR \\
+  result! : \power MSG
 \where
-  m? \in msgs \\
-  msgs' = msgs \setminus \{m?\} \\
-  flag' = \{m?\} \ndres flag \\
-  from' = \{m?\} \ndres from
+  result! = \{ m : msgs | from~m = sender? \}
+\end{schema}
+
+\begin{schema}{DeleteAllSeen}
+  \Delta Inbox
+\where
+  \LET seen == \{ m : msgs | flag~m = flSeen \} @ \\
+  \quad~ msgs' = msgs \setminus seen \land \\
+  \quad~ flag' = seen \ndres flag \land \\
+  \quad~ from' = seen \ndres from
 \end{schema}
 
 \end{document}
