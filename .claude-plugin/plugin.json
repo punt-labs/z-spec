@@ -10,7 +10,10 @@
     "zspec": {
       "type": "stdio",
       "command": "uv",
-      "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}", "z-spec", "mcp"]
+      "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}", "z-spec", "mcp"],
+      "env": {
+        "ZSPEC_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}"
+      }
     }
   }
 }

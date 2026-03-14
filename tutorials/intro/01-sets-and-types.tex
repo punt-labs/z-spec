@@ -1,0 +1,30 @@
+\documentclass{article}
+\usepackage{fuzz}
+\begin{document}
+
+\section{Basic Types}
+
+Every Z specification starts by declaring the \emph{basic types}
+(given sets) that name the kinds of objects in the system.
+A basic type says ``things of this kind exist'' without
+specifying what they are.
+
+\begin{zed}
+  [NAME, DATE]
+\end{zed}
+
+\section{Free Types}
+
+A \emph{free type} enumerates all possible values.
+Unlike a basic type, a free type is concrete --- you can
+list every member.
+
+\begin{zed}
+  Color ::= red | green | blue
+\end{zed}
+
+\begin{zed}
+  Answer ::= yes | no
+\end{zed}
+
+\end{document}
