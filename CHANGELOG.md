@@ -6,6 +6,28 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **Tutorial browser** --- `browse` MCP tool loads all lessons from a manifest.toml and displays them in a paged lux view; combo-driven page switching is instant and client-side (no MCP round-trips); each page shows didactic annotations and spec tabs with section highlights auto-expanded
+- **Collection manifest parser** --- `manifest.py` parses `manifest.toml` files into typed `Collection`/`Lesson` dataclasses with validation
+- **`Lesson` and `Collection` types** --- frozen dataclasses in `types.py` for tutorial content with spec paths, annotations, and highlight lists
+
+### Changed
+
+- **Typed lux applet** --- `build_z_spec_scene` now returns a `TabBarElement` (from `punt-lux`) instead of a raw dict; all element construction uses typed dataclasses for construction-time validation and mypy/pyright coverage
+- **`show_z_spec` MCP tool** --- now displays directly in lux via `LuxClient` (like vox's `show_vox`) instead of returning a scene dict; returns `{"status": "displayed"}` or `{"status": "error"}` with graceful degradation; loads all available reports (fuzz, ProB, partition, audit) and renders each as a tab
+- **`check` MCP tool** --- now saves fuzz results as `<stem>.fuzz.json` alongside the .tex file
+- **`punt-lux` promoted to required dependency** --- moved from optional `[lux]` extra to core dependencies
+
+### Added
+
+- **Fuzz tab** --- `show_z_spec` renders fuzz type-check results (pass/fail, error table with line/column/message) when a `.fuzz.json` report exists
+- **Partition tab** --- `show_z_spec` renders TTF partition analysis (per-operation tables with class, branch, status, inputs, pre/post state) when a `.partition.json` report exists; summary metrics show accepted/rejected/pruned counts
+- **Audit tab** --- `show_z_spec` renders test coverage audit (coverage percentage, per-category breakdown, covered constraints, uncovered constraints with suggestions) when a `.audit.json` report exists
+- **`save_partition_report` MCP tool** --- validates and saves LLM-generated partition reports as `<stem>.partition.json`; called by `/z-spec:partition` skill
+- **`save_audit_report` MCP tool** --- validates and saves LLM-generated audit reports as `<stem>.audit.json`; called by `/z-spec:audit` skill
+- **Typed partition/audit models** --- `PartitionReport`, `OperationPartitions`, `Partition`, `AuditReport`, `AuditConstraint`, `AuditSuggestion` dataclasses in `types.py` with `to_dict()`/`from_dict()` roundtrip support
+
+### Added
+
 - **Python package (`punt-zspec`)** --- CLI + MCP server hybrid following the vox pattern; deterministic L1 tools replace raw bash in skill prompts
 - **CLI (`z-spec`)** --- typer CLI with `check`, `test`, `animate`, `model-check`, `report`, `doctor`, and `mcp` commands
 - **MCP server (`zspec`)** --- FastMCP server with 6 tools: `check`, `test`, `animate`, `model_check`, `show_z_spec`, `get_report`; registered in plugin.json as `mcpServers.zspec`

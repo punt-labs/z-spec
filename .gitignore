@@ -57,8 +57,11 @@ examples/*.toc
 CLAUDE.md.tmp
 Lux_Display.ini
 
-# ProB reports (generated artifacts)
+# Z-spec reports (generated artifacts)
 *.report.json
+*.fuzz.json
+*.partition.json
+*.audit.json
 
 # Python
 __pycache__/

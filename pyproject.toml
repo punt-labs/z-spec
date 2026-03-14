@@ -23,6 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "mcp>=1.0.0",
+    "punt-lux>=0.9.0",
     "typer>=0.24.1",
 ]
 
@@ -42,7 +43,6 @@ dev = [
     "pytest>=8.3.0",
     "pytest-cov>=6.0.0",
 ]
-lux = ["punt-lux>=0.9.0"]
 
 [build-system]
 requires = ["uv_build>=0.9.14,<0.10.0"]
@@ -104,10 +104,6 @@ warn_unreachable = true
 [[tool.mypy.overrides]]
 module = ["tests", "tests.*"]
 disallow_untyped_defs = false
-
-[[tool.mypy.overrides]]
-module = "punt_lux.*"
-ignore_missing_imports = true
 
 [tool.pyright]
 pythonVersion = "3.13"

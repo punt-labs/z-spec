@@ -1,0 +1,54 @@
+\documentclass{article}
+\usepackage{fuzz}
+\begin{document}
+
+\section{Basic Types}
+
+\begin{zed}
+  [NAME]
+\end{zed}
+
+\section{State}
+
+\begin{schema}{Counter}
+  count : \nat
+\where
+  count \leq 100
+\end{schema}
+
+\section{Operations}
+
+An \emph{operation} describes how the system state changes.
+The $\Delta$ convention includes both the before-state
+and the after-state (primed variables).
+
+\begin{schema}{Increment}
+  \Delta Counter
+\where
+  count < 100 \\
+  count' = count + 1
+\end{schema}
+
+The precondition $count < 100$ ensures the invariant is
+preserved after incrementing.
+
+\begin{schema}{Reset}
+  \Delta Counter
+\where
+  count' = 0
+\end{schema}
+
+\texttt{Reset} has no precondition --- it succeeds in any state.
+
+A $\Xi$ operation observes the state without changing it.
+
+\begin{schema}{GetCount}
+  \Xi Counter \\
+  result! : \nat
+\where
+  result! = count
+\end{schema}
+
+The \texttt{!} suffix marks an output variable.
+
+\end{document}
