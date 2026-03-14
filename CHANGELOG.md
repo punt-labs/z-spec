@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-03-13
+
 ### Added
 
 - **Tutorial browser** --- `browse` MCP tool loads all lessons from a manifest.toml and displays them in a paged lux view; combo-driven page switching is instant and client-side (no MCP round-trips); each page shows didactic annotations and spec tabs with section highlights auto-expanded

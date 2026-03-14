@@ -1,7 +1,7 @@
 {
-  "name": "z-spec-dev",
+  "name": "z-spec",
   "description": "Create, validate, and test formal Z specifications for stateful systems using fuzz and probcli",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "author": {
     "name": "Punt Labs",
     "email": "hello@punt-labs.com"
@@ -10,7 +10,13 @@
     "zspec": {
       "type": "stdio",
       "command": "uv",
-      "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}", "z-spec", "mcp"],
+      "args": [
+        "run",
+        "--directory",
+        "${CLAUDE_PLUGIN_ROOT}",
+        "z-spec",
+        "mcp"
+      ],
       "env": {
         "ZSPEC_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}"
       }
