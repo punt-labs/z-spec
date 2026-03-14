@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-03-14
+
 ### Added
 
 - **PyPI publishing** --- `release.yml` GitHub Actions workflow publishes `punt-zspec` to PyPI on tag push via trusted publisher (build → TestPyPI → test-install → PyPI)
