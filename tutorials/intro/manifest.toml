@@ -6,12 +6,13 @@ description = "A progressive tour of Z using an email inbox running example"
 title = "Given Sets and Free Types"
 spec = "01-sets-and-types.tex"
 annotation = """
-Every Z specification begins by declaring its **types**.
+Every Z specification begins by declaring its types.
 
-- A **given set** like `[MSG, ADDR]` declares that things of this kind exist without saying what they are — it's abstract, like a type parameter.
-- A **free type** like `Flag ::= flSeen | flUnseen | flFlagged` enumerates every possible value — it's concrete, like an enum.
+A given set like [MSG, ADDR] declares that things of this kind exist without saying what they are -- it is abstract, like a type parameter.
 
-These are the building blocks. Everything else in the spec — state, operations, invariants — is built from these types.
+A free type like Flag ::= flSeen | flUnseen | flFlagged enumerates every possible value -- it is concrete, like an enum.
+
+These are the building blocks. Everything else in the spec -- state, operations, invariants -- is built from these types.
 """
 highlights = ["Given Sets", "Free Types"]
 
@@ -19,12 +20,13 @@ highlights = ["Given Sets", "Free Types"]
 title = "State Schemas"
 spec = "02-state-schemas.tex"
 annotation = """
-A **state schema** declares the data a system holds and the **invariants** that must always be true.
+A state schema declares the data a system holds and the invariants that must always be true.
 
-- The **declaration part** (above the line) lists variables and their types: `msgs : P MSG` means "msgs is a set of messages"
-- The **predicate part** (below the line) states constraints: `dom flag = msgs` means "flag is defined for exactly the messages that exist"
+The declaration part (above the line) lists variables and their types. For example, msgs : P MSG means "msgs is a set of messages."
 
-The `Inbox` schema says: "an inbox has messages, each with a flag and sender, and there are at most 100 messages."
+The predicate part (below the line) states constraints. For example, dom flag = msgs means "flag is defined for exactly the messages that exist."
+
+The Inbox schema says: an inbox has messages, each with a flag and sender, and there are at most 100 messages.
 """
 highlights = ["State"]
 
@@ -32,13 +34,13 @@ highlights = ["State"]
 title = "Operations"
 spec = "03-operations.tex"
 annotation = """
-**Operations** describe how the state changes. Z uses the **Delta convention**:
+Operations describe how the state changes. Z uses the Delta convention:
 
-- `Delta Inbox` includes both the before-state (`msgs`, `flag`, `from`) and the after-state (`msgs'`, `flag'`, `from'`)
-- Input variables end with `?` — these are parameters the caller provides
-- A **precondition** like `m? not-in msgs` limits when the operation applies
+Delta Inbox includes both the before-state (msgs, flag, from) and the after-state (msgs', flag', from').
 
-`Receive` adds a new message. `Delete` removes one using **domain anti-restriction** (`{m?} <-/ flag`) to strip a key from a function.
+Input variables end with ? -- these are parameters the caller provides. A precondition like m? not-in msgs limits when the operation applies.
+
+Receive adds a new message. Delete removes one using domain anti-restriction ({m?} <-/ flag) to strip a key from a function.
 """
 highlights = ["Operations"]
 
@@ -46,13 +48,15 @@ highlights = ["Operations"]
 title = "Observation and Output"
 spec = "04-observation.tex"
 annotation = """
-A **Xi (Ξ) operation** includes the state but guarantees no change — it only observes.
+A Xi operation includes the state but guarantees no change -- it only observes.
 
-- Output variables end with `!` — these are values the operation returns
-- `CountUnseen` counts messages with `flag = flUnseen` using a **set comprehension**: `{m : msgs | flag m = flUnseen}`
-- `LookupSender` applies the partial function `from` to a message: `from m?` returns that message's sender
+Output variables end with ! -- these are values the operation returns.
 
-Xi operations are Z's equivalent of pure queries — they read state without modifying it.
+CountUnseen counts messages with flag = flUnseen using a set comprehension: {m : msgs | flag m = flUnseen}.
+
+LookupSender applies the partial function "from" to a message: from(m?) returns that message's sender.
+
+Xi operations are Z's equivalent of pure queries -- they read state without modifying it.
 """
 highlights = ["Observations"]
 
@@ -60,13 +64,15 @@ highlights = ["Observations"]
 title = "Partial Functions"
 spec = "05-partial-functions.tex"
 annotation = """
-A **partial function** (`pfun`) maps each element of its domain to exactly one value — but the domain need not be the whole type.
+A partial function (pfun) maps each element of its domain to exactly one value -- but the domain need not be the whole type.
 
-- `flag : MSG pfun Flag` — each message has at most one flag, but not every possible MSG is in the inbox
-- `folder : MSG pfun Folder` — adds a folder assignment per message
-- **Function override** (`oplus`) replaces a mapping: `flag oplus {m? |-> flSeen}` changes one message's flag without touching others
+flag : MSG pfun Flag -- each message has at most one flag, but not every possible MSG is in the inbox.
 
-The `ArchiveRead` operation uses a **Cartesian product** to override multiple mappings at once.
+folder : MSG pfun Folder -- adds a folder assignment per message.
+
+Function override (oplus) replaces a mapping: flag oplus {m? |-> flSeen} changes one message's flag without touching others.
+
+The ArchiveRead operation uses a Cartesian product to override multiple mappings at once.
 """
 highlights = ["State", "Operations"]
 
@@ -74,14 +80,14 @@ highlights = ["State", "Operations"]
 title = "Initialization and Errors"
 spec = "06-initialization.tex"
 annotation = """
-An **Init schema** uses primed variables to describe the starting state. `Init` here says: "the inbox starts empty."
+An Init schema uses primed variables to describe the starting state. Here the inbox starts empty.
 
-**Error schemas** handle cases where an operation's precondition fails:
+Error schemas handle cases where an operation's precondition fails:
 
-- `FullError` — the inbox is at capacity
-- `NotFoundError` — the message doesn't exist
+FullError -- the inbox is at capacity.
+NotFoundError -- the message does not exist.
 
-Each error schema uses `Xi Inbox` (no state change) and outputs a `Report` value. This pattern separates the "what went wrong" from the "what happens on success."
+Each error schema uses Xi Inbox (no state change) and outputs a Report value. This pattern separates "what went wrong" from "what happens on success."
 """
 highlights = ["Initialization", "Error Reporting"]
 
@@ -89,13 +95,13 @@ highlights = ["Initialization", "Error Reporting"]
 title = "Total Operations"
 spec = "07-total-operations.tex"
 annotation = """
-A **partial operation** is undefined when its precondition fails. A **total operation** handles every case by combining success and error schemas with disjunction.
+A partial operation is undefined when its precondition fails. A total operation handles every case by combining success and error schemas with disjunction.
 
-`Receive == (ReceiveOk /\\ [report! : Report | report! = rpOk]) \\/ FullError \\/ DuplicateError`
+Receive == (ReceiveOk /\\ [report! : Report | report! = rpOk]) \\/ FullError \\/ DuplicateError
 
-This reads: "Receive either succeeds (and reports Ok), or the inbox is full, or the message already exists." The operation is now **total** — it has defined behavior for every possible input state.
+This reads: Receive either succeeds (and reports Ok), or the inbox is full, or the message already exists. The operation is now total -- it has defined behavior for every possible input state.
 
-The `defs` keyword introduces a schema definition by combining existing schemas.
+The "defs" keyword introduces a schema definition by combining existing schemas.
 """
 highlights = ["Total Operations"]
 
@@ -103,14 +109,11 @@ highlights = ["Total Operations"]
 title = "Schema Inclusion"
 spec = "08-schema-inclusion.tex"
 annotation = """
-When multiple operations share the same structure — same state, same frame, same preconditions — **schema inclusion** factors out the repetition.
+When multiple operations share the same structure -- same state, same frame, same preconditions -- schema inclusion factors out the repetition.
 
-`MarkRead`, `ToggleFlag`, and `Unflag` all:
-- Include `Delta Inbox` and take `m? : MSG`
-- Require `m? in msgs`
-- Leave `msgs` and `from` unchanged
+MarkRead, ToggleFlag, and Unflag all include Delta Inbox, take m? : MSG, require m? in msgs, and leave msgs and from unchanged. Only the flag manipulation differs.
 
-Only the flag manipulation differs. In a larger spec, you would extract the shared part into a schema and include it. This is Z's equivalent of a base class or shared interface.
+In a larger spec, you would extract the shared part into a schema and include it. This is Z's equivalent of a base class or shared interface.
 """
 highlights = ["Operations"]
 
@@ -118,15 +121,15 @@ highlights = ["Operations"]
 title = "Sets and Filtering"
 spec = "09-sets-and-filtering.tex"
 annotation = """
-Z's **set comprehension** syntax is powerful for filtering and querying:
+Z's set comprehension syntax is powerful for filtering and querying:
 
-- `{m : msgs | flag m = f?}` — all messages with a given flag
-- `{m : msgs | from m = sender?}` — all messages from a given sender
-- The `#` operator counts elements: `# {m : msgs | ...}` gives the size
+{m : msgs | flag m = f?} -- all messages with a given flag.
+{m : msgs | from m = sender?} -- all messages from a given sender.
+The # operator counts elements: # {m : msgs | ...} gives the size.
 
-`DeleteAllSeen` uses **let** (`LET seen == ...`) to name a subset, then removes it from all three functions using domain anti-restriction.
+DeleteAllSeen uses LET (let seen == ...) to name a subset, then removes it from all three functions using domain anti-restriction.
 
-Set comprehensions are the Z equivalent of SQL WHERE clauses or list comprehensions — they select elements matching a predicate.
+Set comprehensions are the Z equivalent of SQL WHERE clauses or list comprehensions -- they select elements matching a predicate.
 """
 highlights = ["Set Operations"]
 
@@ -136,13 +139,8 @@ spec = "10-complete-spec.tex"
 annotation = """
 This lesson combines everything: given sets, free types, constants, state schema, initialization, operations, observations, error schemas, and total operations.
 
-The **Inbox** spec is now a complete formal model:
-- **Init** establishes the starting state
-- **Receive** and **Delete** are total operations that report success or failure
-- **MarkRead** and **ToggleFlag** modify message flags
-- **CountUnseen** observes the state
-- Every operation preserves the state invariants
+The Inbox spec is now a complete formal model. Init establishes the starting state. Receive and Delete are total operations that report success or failure. MarkRead and ToggleFlag modify message flags. CountUnseen observes the state. Every operation preserves the state invariants.
 
-You can type-check this spec with `fuzz -t`, animate it with `probcli`, and model-check that no sequence of operations violates the invariants.
+You can type-check this spec with fuzz -t, animate it with probcli, and model-check that no sequence of operations violates the invariants.
 """
 highlights = ["State", "Operations", "Total Operations"]
