@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **PyPI publishing** --- `release.yml` GitHub Actions workflow publishes `punt-zspec` to PyPI on tag push via trusted publisher (build → TestPyPI → test-install → PyPI)
+- **Full hybrid install.sh** --- installs uv, Python 3.13+, `punt-zspec` CLI via `uv tool install`, registers marketplace, installs plugin, runs `z-spec doctor`; matches biff/quarry/vox install pattern
+
 ## [0.12.0] - 2026-03-14
 
 ## [0.11.0] - 2026-03-13

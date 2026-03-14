@@ -51,10 +51,13 @@ curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/e61d5b0/install.sh
 ```
 
 <details>
-<summary>Manual install (if you already have the marketplace)</summary>
+<summary>Manual install (if you already have uv)</summary>
 
 ```bash
+uv tool install punt-zspec
+claude plugin marketplace add punt-labs/claude-plugins
 claude plugin install z-spec@punt-labs
+z-spec doctor
 ```
 
 </details>
