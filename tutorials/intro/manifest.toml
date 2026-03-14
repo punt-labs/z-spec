@@ -38,9 +38,9 @@ Operations describe how the state changes. Z uses the Delta convention:
 
 Delta Inbox includes both the before-state (msgs, flag, from) and the after-state (msgs', flag', from').
 
-Input variables end with ? -- these are parameters the caller provides. A precondition like m? not-in msgs limits when the operation applies.
+Input variables end with ? -- these are parameters the caller provides. A precondition like m? notin msgs limits when the operation applies.
 
-Receive adds a new message. Delete removes one using domain anti-restriction ({m?} <-/ flag) to strip a key from a function.
+Receive adds a new message. Delete removes one using domain anti-restriction ({m?} ndres flag) to strip a key from a function.
 """
 highlights = ["Operations"]
 
@@ -115,7 +115,7 @@ MarkRead, ToggleFlag, and Unflag all include Delta Inbox, take m? : MSG, require
 
 In a larger spec, you would extract the shared part into a schema and include it. This is Z's equivalent of a base class or shared interface.
 """
-highlights = ["Operations"]
+highlights = ["Schema Inclusion"]
 
 [[lessons]]
 title = "Sets and Filtering"

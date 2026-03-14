@@ -52,11 +52,12 @@ def _build_lesson_page(
 
     elements: list[Element] = []
 
-    if lesson.annotation:
+    annotation = lesson.annotation.strip()
+    if annotation:
         elements.append(
             TextElement(
                 id=f"annotation-{lesson.order}",
-                content=lesson.annotation.strip(),
+                content=annotation,
             )
         )
         elements.append(SeparatorElement())

@@ -26,7 +26,7 @@
 
 \section{State}
 
-\begin{schema}{Mailbox}
+\begin{schema}{Inbox}
   msgs : \power MSG \\
   flag : MSG \pfun Flag \\
   from : MSG \pfun ADDR \\
@@ -46,7 +46,7 @@ ensures every message has a folder assignment.
 \section{Operations}
 
 \begin{schema}{MoveToTrash}
-  \Delta Mailbox \\
+  \Delta Inbox \\
   m? : MSG
 \where
   m? \in msgs \\
@@ -58,7 +58,7 @@ ensures every message has a folder assignment.
 \end{schema}
 
 \begin{schema}{ArchiveRead}
-  \Delta Mailbox
+  \Delta Inbox
 \where
   msgs' = msgs \\
   from' = from \\
