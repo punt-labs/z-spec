@@ -19,7 +19,7 @@ VERSION="0.13.0"
 MARKETPLACE_REPO="punt-labs/claude-plugins"
 MARKETPLACE_NAME="punt-labs"
 PLUGIN_NAME="z-spec"
-PACKAGE="punt-zspec"
+PACKAGE="punt-z-spec"
 BINARY="z-spec"
 
 # --- Step 1: Prerequisites ---

@@ -54,7 +54,7 @@ curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/e61d5b0/install.sh
 <summary>Manual install (if you already have uv)</summary>
 
 ```bash
-uv tool install punt-zspec
+uv tool install punt-z-spec
 claude plugin marketplace add punt-labs/claude-plugins
 claude plugin install z-spec@punt-labs
 z-spec doctor
@@ -96,13 +96,13 @@ Setup auto-detects your platform (macOS Intel/Apple Silicon, Linux) and guides y
 
 ## Python Package (CLI + MCP)
 
-The `punt-zspec` package provides a CLI and MCP server for programmatic access to Z specification tools.
+The `punt-z-spec` package provides a CLI and MCP server for programmatic access to Z specification tools.
 
 ### Install
 
 ```bash
-uv tool install punt-zspec        # CLI only
-uv add punt-zspec                 # As a library dependency
+uv tool install punt-z-spec        # CLI only
+uv add punt-z-spec                 # As a library dependency
 ```
 
 ### CLI
