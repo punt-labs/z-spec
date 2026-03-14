@@ -52,6 +52,7 @@ def _build_spec_tab(spec: SpecModel) -> list[Element]:
                 TextElement(
                     id=f"block-{block.line_number}",
                     content=box_text,
+                    style="code",
                 )
             )
 

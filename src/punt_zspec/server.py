@@ -61,12 +61,13 @@ def _tutorial_manifest() -> Path | None:
 
 def _show_error(frame_id: str, title: str, message: str) -> None:
     """Show an error message in a lux frame. Best-effort, never raises."""
-    if _client is None:
+    client = _client
+    if client is None:
         return
     try:
         from punt_lux.protocol import TextElement
 
-        _client.show_async(
+        client.show_async(
             frame_id,
             [TextElement(id="error", content=message)],
             frame_id=frame_id,
@@ -86,6 +87,11 @@ def _on_tutorial_click(_msg: Any) -> None:
     manifest = _tutorial_manifest()
     if manifest is None:
         logger.warning("Tutorial manifest not found")
+        _show_error(
+            "z-spec-browser",
+            "Tutorial Error",
+            "Tutorial manifest not found. Reinstall the z-spec plugin.",
+        )
         return
     from punt_zspec.browser import build_browser_scene
     from punt_zspec.manifest import parse_manifest
@@ -163,8 +169,13 @@ def _on_spec_browser_click(_msg: Any) -> None:
             frame_id="z-spec-picker",
             frame_title="Z Spec Browser",
         )
-    except Exception:
+    except Exception as exc:
         logger.exception("Failed to open spec browser")
+        _show_error(
+            "z-spec-picker",
+            "Z Spec Browser Error",
+            f"Failed to open spec browser: {exc}",
+        )
 
 
 def _setup_apps(client: Any) -> None:

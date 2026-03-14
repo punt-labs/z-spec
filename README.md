@@ -145,7 +145,7 @@ All reports are gitignored (generated artifacts). `show_z_spec` loads whichever 
 
 ### Tutorial Browser
 
-The `browse` and `browse_navigate` tools provide a lesson-by-lesson tutorial experience. Define a `manifest.toml` with ordered lessons:
+The `browse` tool provides a lesson-by-lesson tutorial experience. All lessons are loaded upfront and navigation is instant (client-side). Define a `manifest.toml` with ordered lessons:
 
 ```toml
 [collection]
