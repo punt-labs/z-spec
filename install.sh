@@ -38,6 +38,12 @@ else
   fail "'git' not found. Install git first: https://git-scm.com/downloads"
 fi
 
+if command -v curl >/dev/null 2>&1; then
+  ok "curl found"
+else
+  fail "'curl' not found. Install curl first."
+fi
+
 # --- Step 2: uv ---
 
 info "Checking uv..."
