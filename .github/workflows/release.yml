@@ -67,19 +67,19 @@ jobs:
         run: |
           VERSION="${REF_NAME#v}"
           for attempt in 1 2 3 4 5; do
-            echo "Attempt $attempt: installing punt-zspec==$VERSION from TestPyPI..."
+            echo "Attempt $attempt: installing punt-z-spec==$VERSION from TestPyPI..."
             if uv pip install --system \
               --index-url https://test.pypi.org/simple/ \
               --extra-index-url https://pypi.org/simple/ \
               --index-strategy unsafe-best-match \
-              "punt-zspec==$VERSION"; then
-              echo "Successfully installed punt-zspec==$VERSION"
+              "punt-z-spec==$VERSION"; then
+              echo "Successfully installed punt-z-spec==$VERSION"
               exit 0
             fi
             echo "Attempt $attempt failed, waiting 30s..."
             sleep 30
           done
-          echo "Failed to install punt-zspec==$VERSION after 5 attempts"
+          echo "Failed to install punt-z-spec==$VERSION after 5 attempts"
           exit 1
       - name: Verify CLI
         run: z-spec --help

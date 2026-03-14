@@ -1,6 +1,6 @@
 # Agent Instructions
 
-This is a Claude Code plugin and Python package (`punt-zspec`) for formal Z specifications. The plugin uses skill prompts (L4) to guide spec creation, type-checking, and animation. Deterministic work — parsing, binary wrappers, report I/O, applet rendering — lives in the Python package (L1). Skills call L1 MCP tools instead of raw bash.
+This is a Claude Code plugin and Python package (`punt-z-spec`) for formal Z specifications. The plugin uses skill prompts (L4) to guide spec creation, type-checking, and animation. Deterministic work — parsing, binary wrappers, report I/O, applet rendering — lives in the Python package (L1). Skills call L1 MCP tools instead of raw bash.
 
 This project follows [Punt Labs standards](https://github.com/punt-labs/punt-kit).
 
