@@ -79,7 +79,8 @@ def _show_error(frame_id: str, title: str, message: str) -> None:
 
 def _on_tutorial_click(_msg: Any) -> None:
     """Menu callback: open the tutorial browser."""
-    if _client is None:
+    client = _client  # capture local reference to avoid race with reconnect
+    if client is None:
         logger.error("Tutorial callback fired but _client is None")
         return
     manifest = _tutorial_manifest()
@@ -104,7 +105,7 @@ def _on_tutorial_click(_msg: Any) -> None:
                 return
             tut_specs.append((parse_spec(tex_path), tex_path))
         scene = build_browser_scene(collection, tut_specs)
-        _client.show_async(
+        client.show_async(
             "z-spec-browser",
             [scene],
             frame_id="z-spec-browser",
@@ -113,13 +114,16 @@ def _on_tutorial_click(_msg: Any) -> None:
     except Exception as exc:
         logger.exception("Failed to open tutorial")
         _show_error(
-            "z-spec-browser", "Tutorial Error", f"Failed to open tutorial: {exc}"
+            "z-spec-browser",
+            "Tutorial Error",
+            f"Failed to open tutorial: {exc}",
         )
 
 
 def _on_spec_browser_click(_msg: Any) -> None:
     """Menu callback: open the spec browser with discovered .tex files."""
-    if _client is None:
+    client = _client  # capture local reference to avoid race with reconnect
+    if client is None:
         logger.error("Spec browser callback fired but _client is None")
         return
 
@@ -153,7 +157,7 @@ def _on_spec_browser_click(_msg: Any) -> None:
             return
 
         scene = build_spec_picker(specs)
-        _client.show_async(
+        client.show_async(
             "z-spec-picker",
             [scene],
             frame_id="z-spec-picker",
@@ -380,7 +384,7 @@ def show_z_spec(file: str) -> str:
 
     path = _validate_spec_path(file)
     if path is None:
-        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
+        return json.dumps({"status": "error", "error": f"Spec file not found: {file}"})
 
     try:
         spec = parse_spec(path)
@@ -398,7 +402,7 @@ def show_z_spec(file: str) -> str:
         UnicodeDecodeError,
         json.JSONDecodeError,
     ) as exc:
-        return json.dumps({"ok": False, "error": f"Failed to read spec: {exc}"})
+        return json.dumps({"status": "error", "error": f"Failed to read spec: {exc}"})
 
     def _show(client: Any) -> dict[str, Any]:
         client.show(

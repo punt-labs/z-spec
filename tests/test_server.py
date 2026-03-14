@@ -105,7 +105,7 @@ def test_show_z_spec_file_not_found() -> None:
     from punt_zspec.server import show_z_spec
 
     result = json.loads(show_z_spec("nonexistent.tex"))
-    assert result["ok"] is False
+    assert result["status"] == "error"
     assert "Spec file not found" in result["error"]
 
 

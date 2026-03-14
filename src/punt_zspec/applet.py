@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import Any
 
-from punt_lux.client import LuxClient
 from punt_lux.protocol import (
     CollapsingHeaderElement,
     Element,
@@ -27,8 +25,6 @@ from punt_zspec.types import (
     ProbReport,
     SpecModel,
 )
-
-logger = logging.getLogger(__name__)
 
 # Substrings that trigger default-open for collapsing headers.
 _DEFAULT_OPEN_KEYWORDS = ("Type", "Constant", "State")
@@ -499,34 +495,3 @@ def build_z_spec_scene(
         tabs.append({"label": "Audit", "children": audit_elements})
 
     return TabBarElement(id="z-spec-tabs", tabs=tabs)
-
-
-def show_applet(
-    tex_path: Path,
-    spec: SpecModel,
-    report: ProbReport | None = None,
-    fuzz: FuzzResult | None = None,
-    partition: PartitionReport | None = None,
-    audit: AuditReport | None = None,
-) -> dict[str, Any]:
-    """Build scene and display via LuxClient. Returns status dict."""
-    scene = build_z_spec_scene(
-        tex_path,
-        spec,
-        report,
-        fuzz=fuzz,
-        partition=partition,
-        audit=audit,
-    )
-    try:
-        with LuxClient(name="z-spec-applet") as client:
-            client.show(
-                "z-spec",
-                [scene],
-                frame_id="z-spec",
-                frame_title=f"Z-Spec: {tex_path.name}",
-            )
-        return {"status": "displayed", "scene_id": "z-spec"}
-    except (ConnectionError, OSError) as exc:
-        logger.debug("Lux connection failed: %s", exc)
-        return {"status": "error", "message": str(exc)}
