@@ -2,29 +2,28 @@
 \usepackage{fuzz}
 \begin{document}
 
-\section{Basic Types}
-
-Every Z specification starts by declaring the \emph{basic types}
-(given sets) that name the kinds of objects in the system.
-A basic type says ``things of this kind exist'' without
-specifying what they are.
+\section{Given Sets}
 
 \begin{zed}
-  [NAME, DATE]
+  [MSG, ADDR]
 \end{zed}
+
+\texttt{MSG} represents email messages and \texttt{ADDR}
+represents email addresses. We declare that these kinds of
+things exist without defining their internal structure.
 
 \section{Free Types}
 
-A \emph{free type} enumerates all possible values.
-Unlike a basic type, a free type is concrete --- you can
-list every member.
-
 \begin{zed}
-  Color ::= red | green | blue
+  Flag ::= flSeen | flUnseen | flFlagged
 \end{zed}
 
 \begin{zed}
-  Answer ::= yes | no
+  Folder ::= fdInbox | fdSent | fdTrash | fdArchive
 \end{zed}
+
+Free types enumerate every possible value. The prefixes
+(\texttt{fl}, \texttt{fd}) prevent name collisions when
+loaded into a model checker.
 
 \end{document}

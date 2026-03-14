@@ -5,32 +5,35 @@
 \section{Basic Types}
 
 \begin{zed}
-  [NAME]
+  [MSG, ADDR]
 \end{zed}
+
+\begin{zed}
+  Flag ::= flSeen | flUnseen | flFlagged
+\end{zed}
+
+\section{Constants}
+
+\begin{axdef}
+  maxMsgs : \nat
+\where
+  maxMsgs = 100
+\end{axdef}
 
 \section{State}
 
-A \emph{state schema} declares the variables a system holds
-and the \emph{invariants} that must always be true.
-
-\begin{schema}{Counter}
-  count : \nat
+\begin{schema}{Inbox}
+  msgs : \power MSG \\
+  flag : MSG \pfun Flag \\
+  from : MSG \pfun ADDR
 \where
-  count \leq 100
+  \dom flag = msgs \\
+  \dom from = msgs \\
+  \# msgs \leq maxMsgs
 \end{schema}
 
-The declaration \texttt{count : \nat} says the system holds
-a natural number.  The predicate \texttt{count \leq 100} is
-an invariant: no reachable state may violate it.
-
-\begin{schema}{AddressBook}
-  known : \power NAME \\
-  address : NAME \pfun NAME
-\where
-  \dom address = known
-\end{schema}
-
-This schema shows a finite set \texttt{known} and a partial
-function \texttt{address} whose domain must equal \texttt{known}.
+Every message in the inbox has a flag and a sender.
+The invariants ensure that \texttt{flag} and \texttt{from}
+are defined for exactly the messages that exist.
 
 \end{document}

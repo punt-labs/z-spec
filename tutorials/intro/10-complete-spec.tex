@@ -1,0 +1,144 @@
+\documentclass{article}
+\usepackage{fuzz}
+\begin{document}
+
+\section{Basic Types}
+
+\begin{zed}
+  [MSG, ADDR]
+\end{zed}
+
+\begin{zed}
+  Flag ::= flSeen | flUnseen | flFlagged
+\end{zed}
+
+\begin{zed}
+  Report ::= rpOk | rpFull | rpNotFound | rpDuplicate
+\end{zed}
+
+\section{Constants}
+
+\begin{axdef}
+  maxMsgs : \nat
+\where
+  maxMsgs = 100
+\end{axdef}
+
+\section{State}
+
+\begin{schema}{Inbox}
+  msgs : \power MSG \\
+  flag : MSG \pfun Flag \\
+  from : MSG \pfun ADDR
+\where
+  \dom flag = msgs \\
+  \dom from = msgs \\
+  \# msgs \leq maxMsgs
+\end{schema}
+
+\section{Initialization}
+
+\begin{schema}{Init}
+  Inbox'
+\where
+  msgs' = \emptyset \\
+  flag' = \emptyset \\
+  from' = \emptyset
+\end{schema}
+
+\section{Operations}
+
+\begin{schema}{ReceiveOk}
+  \Delta Inbox \\
+  m? : MSG \\
+  sender? : ADDR
+\where
+  m? \notin msgs \\
+  \# msgs < maxMsgs \\
+  msgs' = msgs \cup \{m?\} \\
+  flag' = flag \cup \{m? \mapsto flUnseen\} \\
+  from' = from \cup \{m? \mapsto sender?\}
+\end{schema}
+
+\begin{schema}{MarkRead}
+  \Delta Inbox \\
+  m? : MSG
+\where
+  m? \in msgs \\
+  flag~m? = flUnseen \\
+  msgs' = msgs \\
+  from' = from \\
+  flag' = flag \oplus \{m? \mapsto flSeen\}
+\end{schema}
+
+\begin{schema}{DeleteOk}
+  \Delta Inbox \\
+  m? : MSG
+\where
+  m? \in msgs \\
+  msgs' = msgs \setminus \{m?\} \\
+  flag' = \{m?\} \ndres flag \\
+  from' = \{m?\} \ndres from
+\end{schema}
+
+\begin{schema}{ToggleFlag}
+  \Delta Inbox \\
+  m? : MSG
+\where
+  m? \in msgs \\
+  flag~m? \neq flFlagged \\
+  msgs' = msgs \\
+  from' = from \\
+  flag' = flag \oplus \{m? \mapsto flFlagged\}
+\end{schema}
+
+\section{Observations}
+
+\begin{schema}{CountUnseen}
+  \Xi Inbox \\
+  count! : \nat
+\where
+  count! = \# \{ m : msgs | flag~m = flUnseen \}
+\end{schema}
+
+\section{Error Schemas}
+
+\begin{schema}{FullError}
+  \Xi Inbox \\
+  report! : Report
+\where
+  \# msgs = maxMsgs \\
+  report! = rpFull
+\end{schema}
+
+\begin{schema}{DuplicateError}
+  \Xi Inbox \\
+  m? : MSG \\
+  report! : Report
+\where
+  m? \in msgs \\
+  report! = rpDuplicate
+\end{schema}
+
+\begin{schema}{NotFoundError}
+  \Xi Inbox \\
+  m? : MSG \\
+  report! : Report
+\where
+  m? \notin msgs \\
+  report! = rpNotFound
+\end{schema}
+
+\section{Total Operations}
+
+\begin{zed}
+  Receive \defs (ReceiveOk \land [report! : Report | report! = rpOk]) \\
+    \quad~ \lor FullError \lor DuplicateError
+\end{zed}
+
+\begin{zed}
+  Delete \defs (DeleteOk \land [report! : Report | report! = rpOk]) \\
+    \quad~ \lor NotFoundError
+\end{zed}
+
+\end{document}

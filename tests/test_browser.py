@@ -9,9 +9,9 @@ from punt_lux.protocol import (
     ComboElement,
     Element,
     GroupElement,
-    MarkdownElement,
     SeparatorElement,
     TabBarElement,
+    TextElement,
 )
 
 from punt_zspec.browser import (
@@ -135,7 +135,7 @@ def test_page_has_annotation() -> None:
 
     page0 = scene.pages[0]
     annotation = page0[0]
-    assert isinstance(annotation, MarkdownElement)
+    assert isinstance(annotation, TextElement)
     assert "basic types" in annotation.content
 
 
@@ -167,8 +167,9 @@ def test_page_without_annotation() -> None:
     scene = build_browser_scene(coll, _make_specs(1))
 
     page0 = scene.pages[0]
-    types = [type(e).__name__ for e in page0]
-    assert "MarkdownElement" not in types
+    # No annotation — page should contain only the spec tabs (no TextElement annotation)
+    annotation_ids = [e.id for e in page0 if isinstance(e, TextElement)]
+    assert not any(aid.startswith("annotation-") for aid in annotation_ids)
 
 
 def test_each_page_has_unique_annotation_id() -> None:
@@ -178,7 +179,7 @@ def test_each_page_has_unique_annotation_id() -> None:
     ids: list[str] = []
     for page in scene.pages:
         for el in page:
-            if isinstance(el, MarkdownElement):
+            if isinstance(el, TextElement) and el.id.startswith("annotation-"):
                 ids.append(el.id)
     assert len(ids) == 3
     assert len(set(ids)) == 3  # all unique
