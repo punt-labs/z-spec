@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 import logging
 import os
 import threading
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
@@ -15,12 +18,40 @@ from punt_zspec import __version__
 
 logger = logging.getLogger(__name__)
 
+
+@contextlib.asynccontextmanager
+async def _lifespan(_server: FastMCP) -> AsyncIterator[None]:
+    """Eagerly connect to Lux and register menu items at server startup."""
+    try:
+        await asyncio.to_thread(_eager_lux_connect)
+    except (ConnectionError, OSError):
+        logger.debug(
+            "Lux not reachable at startup; will connect on first tool call",
+            exc_info=True,
+        )
+    except ImportError:
+        logger.warning("punt_lux not installed; Lux features disabled")
+    except Exception:
+        logger.warning(
+            "Unexpected error during eager Lux connect",
+            exc_info=True,
+        )
+    yield
+
+
+def _eager_lux_connect() -> None:
+    """Synchronous helper: connect to Lux and register menu items."""
+    with _client_lock:
+        _get_client()
+
+
 mcp = FastMCP(
     "zspec",
     instructions=(
         "Z specification toolkit. Use these tools to type-check Z specs "
         "with fuzz, model-check with probcli, and display specs in lux."
     ),
+    lifespan=_lifespan,
 )
 if hasattr(mcp, "_mcp_server") and hasattr(mcp._mcp_server, "version"):  # pyright: ignore[reportPrivateUsage]
     mcp._mcp_server.version = __version__  # pyright: ignore[reportPrivateUsage]

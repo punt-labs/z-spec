@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import subprocess
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-from punt_zspec.server import mcp
+from punt_zspec.server import _lifespan, mcp
 
 
 def test_server_has_correct_name() -> None:
@@ -28,6 +29,69 @@ def test_server_has_all_tools() -> None:
         "browse",
     }
     assert expected == tool_names
+
+
+# ---------------------------------------------------------------------------
+# Lifespan (eager Lux connect)
+# ---------------------------------------------------------------------------
+
+
+def _run_lifespan() -> None:
+    """Helper: enter and exit the lifespan context manager."""
+
+    async def _go() -> None:
+        async with _lifespan(MagicMock()):
+            pass
+
+    asyncio.run(_go())
+
+
+def test_lifespan_success() -> None:
+    """Lifespan calls _get_client to eagerly connect."""
+    with patch("punt_zspec.server._get_client") as mock:
+        _run_lifespan()
+    mock.assert_called_once()
+
+
+def test_lifespan_connection_error() -> None:
+    """ConnectionError is caught at debug — server still starts."""
+    with patch(
+        "punt_zspec.server._get_client",
+        side_effect=ConnectionError("refused"),
+    ):
+        _run_lifespan()  # should not raise
+
+
+def test_lifespan_os_error() -> None:
+    """OSError is caught at debug — server still starts."""
+    with patch(
+        "punt_zspec.server._get_client",
+        side_effect=OSError("socket gone"),
+    ):
+        _run_lifespan()  # should not raise
+
+
+def test_lifespan_import_error() -> None:
+    """ImportError is caught at warning — server still starts."""
+    with patch(
+        "punt_zspec.server._get_client",
+        side_effect=ImportError("No module named 'punt_lux'"),
+    ):
+        _run_lifespan()  # should not raise
+
+
+def test_lifespan_unexpected_error() -> None:
+    """Unexpected exceptions are caught at warning — server still starts."""
+    with patch(
+        "punt_zspec.server._get_client",
+        side_effect=TypeError("bad arg"),
+    ):
+        _run_lifespan()  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# check tool
+# ---------------------------------------------------------------------------
 
 
 def test_check_tool_file_not_found() -> None:
@@ -111,8 +175,6 @@ def test_show_z_spec_file_not_found() -> None:
 
 def test_show_z_spec_displayed(tmp_path: Path) -> None:
     """show_z_spec with mocked LuxClient returns displayed status."""
-    from unittest.mock import MagicMock
-
     from punt_zspec.server import show_z_spec
 
     tex = tmp_path / "spec.tex"
@@ -300,8 +362,6 @@ x : \nat
 \end{document}
 """
     )
-
-    from unittest.mock import MagicMock
 
     mock_client = MagicMock()
     with patch("punt_zspec.server._get_client", return_value=mock_client):
