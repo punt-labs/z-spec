@@ -1,4 +1,4 @@
-.PHONY: help lint type test check format assert report clean
+.PHONY: help lint type test check format build clean assert report
 
 FUZZ      ?= fuzz
 PROBCLI   ?= $(HOME)/Applications/ProB/probcli
@@ -48,6 +48,11 @@ check: lint type test ## Run all quality gates
 format: ## Auto-format code
 	uv run ruff format .
 	uv run ruff check --fix .
+
+build: ## Build wheel and sdist
+	rm -rf dist/
+	uv build
+	uvx twine check dist/*
 
 # ── Optional targets ────────────────────────────────────────
 
