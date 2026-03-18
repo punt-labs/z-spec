@@ -1,4 +1,4 @@
-.PHONY: help lint type test check format build clean assert report
+.PHONY: help lint type test check format build clean depot assert report
 
 FUZZ      ?= fuzz
 PROBCLI   ?= $(HOME)/Applications/ProB/probcli
@@ -53,6 +53,13 @@ build: ## Build wheel and sdist
 	rm -rf dist/
 	uv build
 	uvx twine check dist/*
+
+DEPOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))../.depot
+
+depot: build ## Build and copy wheel to local depot
+	@mkdir -p $(DEPOT)
+	@cp dist/*.whl $(DEPOT)/
+	@echo "depot: $$(ls dist/*.whl | xargs -n1 basename) -> $(DEPOT)/"
 
 # ── Optional targets ────────────────────────────────────────
 
