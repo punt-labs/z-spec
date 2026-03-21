@@ -1,5 +1,7 @@
 # LaTeX Style Guidelines for Z Specifications
 
+> **Critical**: Never use `\t1` through `\t9` for indentation — fuzz does not support them and will error. Use `\quad~` for nested continuation lines (inside parentheses, after `\LET`/`\IF`). Top-level `\land`/`\lor` continuations align at the left margin without `\quad~`. Keep all schema lines under 80 characters to avoid PDF margin overflow.
+
 Consistent LaTeX formatting improves readability of Z specifications. This guide covers formatting conventions for Z notation documents.
 
 ## Document Structure

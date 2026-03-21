@@ -81,7 +81,30 @@ For each entity, determine:
 - **Invariants**: Constraints that must always hold
 - **Operations**: State transitions with preconditions and effects
 
-### 4. Generate the Specification
+### 4. Formatting Rules (Mandatory)
+
+These rules are **not optional** — violations cause fuzz errors or unreadable PDFs:
+
+1. **Never use `\t1` through `\t9`** — fuzz does not support them. Use `\quad~` for indentation.
+2. **Keep schema lines under 80 characters** — longer lines overflow the PDF margin and become invisible.
+3. **Break long predicates at logical operators** (`\land`, `\lor`, `\implies`), placing the operator at the start of the continuation line. Top-level continuations align at the left margin; use `\quad~` only for nested continuations (inside parentheses, after `\LET`/`\IF`).
+4. **Break long set comprehensions** after `|` with `\quad~` continuation.
+5. **Break `\LET` and `\IF` expressions** — put each clause on its own line with `\quad~`.
+
+Example of correct line breaking:
+```latex
+% CORRECT — top-level breaks at operators, left-aligned
+accuracy? \geq threshold \\
+\land attempts \geq minAttempts \\
+\land level < maxLevel
+
+% CORRECT — nested breaks use \quad~ indent
+(condition1 \\
+\quad~ \land condition2 \\
+\quad~ \implies effect)
+```
+
+### 5. Generate the Specification
 
 Create a LaTeX file with this structure:
 
@@ -168,10 +191,24 @@ attribute2' = defaultValue
 \Delta EntityName \\
 input? : InputType
 \where
-% preconditions
+% preconditions — top-level \land is left-aligned
 attribute1 < maxValue \\
+\land input? > 0 \\
 % effects
 attribute1' = attribute1 + input? \\
+attribute2' = attribute2
+\end{schema}
+
+% Example: top-level \land left-aligned, nested uses \quad~ (NEVER use \t1)
+\begin{schema}{ComplexOp}
+\Delta EntityName \\
+value? : \nat
+\where
+value? \leq maxValue \\
+\land (attribute1 + value? \leq maxValue \\
+\quad~ \implies attribute1' = attribute1 + value?) \\
+\land (attribute1 + value? > maxValue \\
+\quad~ \implies attribute1' = maxValue) \\
 attribute2' = attribute2
 \end{schema}
 
@@ -181,11 +218,11 @@ attribute2' = attribute2
 \end{document}
 ```
 
-### 5. Write the File
+### 6. Write the File
 
 Save to `docs/<system_name>.tex` where `<system_name>` is derived from the focus hint or codebase name.
 
-### 6. Format with tex-fmt (if available)
+### 7. Format with tex-fmt (if available)
 
 If tex-fmt is installed, format the LaTeX for consistent style:
 
@@ -197,7 +234,7 @@ fi
 
 This ensures consistent indentation and line breaks. See `reference/latex-style.md` for formatting guidelines.
 
-### 7. Type-Check with Fuzz
+### 8. Type-Check with Fuzz
 
 Run:
 ```bash
@@ -208,7 +245,7 @@ If errors occur:
 - Fix type errors iteratively
 - Common issues: missing BOOL free type, tuple projection (use schema fields), cardinality on complex expressions
 
-### 8. Report Results
+### 9. Report Results
 
 Summarize:
 - Entities modeled
