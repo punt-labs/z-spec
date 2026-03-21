@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from punt_zspec.server import _lifespan, mcp
+from punt_zspec.server import _lifespan, mcp  # pyright: ignore[reportPrivateUsage]
 
 
 def test_server_has_correct_name() -> None:
@@ -47,7 +47,7 @@ def _run_lifespan() -> None:
 
 
 def test_lifespan_success() -> None:
-    """Lifespan calls _get_client to eagerly connect."""
+    """Lifespan calls _eager_lux_connect (-> _get_client) to eagerly connect."""
     with patch("punt_zspec.server._get_client") as mock:
         _run_lifespan()
     mock.assert_called_once()
