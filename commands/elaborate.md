@@ -146,7 +146,7 @@ When adding or modifying any Z LaTeX content, these rules apply:
 
 1. **Never use `\t1` through `\t9`** — fuzz does not support them. Use `\quad~` for indentation.
 2. **Keep schema lines under 80 characters** — longer lines overflow the PDF margin and become invisible.
-3. **Break long predicates at logical operators** (`\land`, `\lor`, `\implies`), placing the operator at the start of the continuation line with `\quad~` indent.
+3. **Break long predicates at logical operators** (`\land`, `\lor`, `\implies`), placing the operator at the start of the continuation line. Top-level continuations align at the left margin; use `\quad~` only for nested continuations (inside parentheses, after `\LET`/`\IF`).
 
 See `reference/latex-style.md` for the full formatting guide and overflow fix process.
 

@@ -87,16 +87,21 @@ These rules are **not optional** — violations cause fuzz errors or unreadable 
 
 1. **Never use `\t1` through `\t9`** — fuzz does not support them. Use `\quad~` for indentation.
 2. **Keep schema lines under 80 characters** — longer lines overflow the PDF margin and become invisible.
-3. **Break long predicates at logical operators** (`\land`, `\lor`, `\implies`), placing the operator at the start of the continuation line with `\quad~` indent.
+3. **Break long predicates at logical operators** (`\land`, `\lor`, `\implies`), placing the operator at the start of the continuation line. Top-level continuations align at the left margin; use `\quad~` only for nested continuations (inside parentheses, after `\LET`/`\IF`).
 4. **Break long set comprehensions** after `|` with `\quad~` continuation.
 5. **Break `\LET` and `\IF` expressions** — put each clause on its own line with `\quad~`.
 
 Example of correct line breaking:
 ```latex
-% CORRECT — breaks at operators, indented with \quad~
+% CORRECT — top-level breaks at operators, left-aligned
 accuracy? \geq threshold \\
-\quad~ \land attempts \geq minAttempts \\
-\quad~ \land level < maxLevel
+\land attempts \geq minAttempts \\
+\land level < maxLevel
+
+% CORRECT — nested breaks use \quad~ indent
+(condition1 \\
+\quad~ \land condition2 \\
+\quad~ \implies effect)
 ```
 
 ### 5. Generate the Specification
@@ -186,24 +191,24 @@ attribute2' = defaultValue
 \Delta EntityName \\
 input? : InputType
 \where
-% preconditions — break long predicates with \quad~ indent
+% preconditions — top-level \land is left-aligned
 attribute1 < maxValue \\
-\quad~ \land input? > 0 \\
+\land input? > 0 \\
 % effects
 attribute1' = attribute1 + input? \\
 attribute2' = attribute2
 \end{schema}
 
-% Example: breaking a long predicate (NEVER use \t1)
+% Example: top-level \land left-aligned, nested uses \quad~ (NEVER use \t1)
 \begin{schema}{ComplexOp}
 \Delta EntityName \\
 value? : \nat
 \where
 value? \leq maxValue \\
-\quad~ \land (attribute1 + value? \leq maxValue \\
-\quad~ \quad~ \implies attribute1' = attribute1 + value?) \\
-\quad~ \land (attribute1 + value? > maxValue \\
-\quad~ \quad~ \implies attribute1' = maxValue) \\
+\land (attribute1 + value? \leq maxValue \\
+\quad~ \implies attribute1' = attribute1 + value?) \\
+\land (attribute1 + value? > maxValue \\
+\quad~ \implies attribute1' = maxValue) \\
 attribute2' = attribute2
 \end{schema}
 
