@@ -140,7 +140,17 @@ Note: The implementation includes additional rules not modeled here:
 \end{itemize}
 ```
 
-### 5. Verify
+### 5. Formatting Rules (Mandatory)
+
+When adding or modifying any Z LaTeX content, these rules apply:
+
+1. **Never use `\t1` through `\t9`** — fuzz does not support them. Use `\quad~` for indentation.
+2. **Keep schema lines under 80 characters** — longer lines overflow the PDF margin and become invisible.
+3. **Break long predicates at logical operators** (`\land`, `\lor`, `\implies`), placing the operator at the start of the continuation line with `\quad~` indent.
+
+See `reference/latex-style.md` for the full formatting guide and overflow fix process.
+
+### 6. Verify
 
 After enhancement:
 1. Run `fuzz -t <file>` to ensure type-checking still passes
@@ -148,7 +158,7 @@ After enhancement:
 3. Run `pdflatex` twice to generate PDF with table of contents
 4. Review for consistency between narrative and formal content
 
-### 6. Report
+### 7. Report
 
 Summarize:
 - Sections enhanced

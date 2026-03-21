@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - **Lux menu apps now register at MCP server startup** --- "Z Notation Tutorial" and "Z Spec Browser" menu items previously only appeared after calling `show_z_spec` or `browse` tools; now register eagerly via FastMCP lifespan hook
+- **Inline formatting rules in generation prompts** --- `code2model` and `elaborate` commands now include mandatory `\t1` ban, 80-char line limit, and `\quad~` indentation rules at the point of generation, preventing margin overflow and fuzz-incompatible indentation in produced specs
 
 ## [0.14.0] - 2026-03-14
 

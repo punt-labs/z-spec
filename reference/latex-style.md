@@ -1,5 +1,7 @@
 # LaTeX Style Guidelines for Z Specifications
 
+> **Critical**: Never use `\t1` through `\t9` for indentation — fuzz does not support them and will error. Use `\quad~` instead. Keep all schema lines under 80 characters to avoid PDF margin overflow.
+
 Consistent LaTeX formatting improves readability of Z specifications. This guide covers formatting conventions for Z notation documents.
 
 ## Document Structure
