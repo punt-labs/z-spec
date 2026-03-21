@@ -188,7 +188,7 @@ input? : InputType
 \where
 % preconditions — break long predicates with \quad~ indent
 attribute1 < maxValue \\
-\land input? > 0 \\
+\quad~ \land input? > 0 \\
 % effects
 attribute1' = attribute1 + input? \\
 attribute2' = attribute2
@@ -200,10 +200,10 @@ attribute2' = attribute2
 value? : \nat
 \where
 value? \leq maxValue \\
-\land (attribute1 + value? \leq maxValue \\
-\quad~ \implies attribute1' = attribute1 + value?) \\
-\land (attribute1 + value? > maxValue \\
-\quad~ \implies attribute1' = maxValue) \\
+\quad~ \land (attribute1 + value? \leq maxValue \\
+\quad~ \quad~ \implies attribute1' = attribute1 + value?) \\
+\quad~ \land (attribute1 + value? > maxValue \\
+\quad~ \quad~ \implies attribute1' = maxValue) \\
 attribute2' = attribute2
 \end{schema}
 
