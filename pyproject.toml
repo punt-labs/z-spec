@@ -1,6 +1,6 @@
 [project]
 name = "punt-z-spec"
-version = "0.14.0"
+version = "0.14.1"
 description = "Z specification toolkit: type-checker, model-checker, and Claude Code plugin"
 readme = "README.md"
 authors = [{ name = "Punt Labs", email = "hello@punt-labs.com" }]
