@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-03-21
+
 ### Fixed
 
 - **Lux menu apps now register at MCP server startup** --- "Z Notation Tutorial" and "Z Spec Browser" menu items previously only appeared after calling `show_z_spec` or `browse` tools; now register eagerly via FastMCP lifespan hook
