@@ -75,3 +75,4 @@ uv.lock
 .tmp/
 
 uv.toml
+.envrc.local
