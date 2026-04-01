@@ -47,7 +47,6 @@ examples/*.mf
 examples/*.out
 examples/*.toc
 *.out
-.envrc
 
 # Plugin runtime directories
 .lux/
