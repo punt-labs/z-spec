@@ -48,9 +48,6 @@ examples/*.out
 examples/*.toc
 *.out
 
-# Plugin runtime directories
-.lux/
-.vox/
 
 # Temp/config files
 CLAUDE.md.tmp
