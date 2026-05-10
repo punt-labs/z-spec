@@ -73,7 +73,7 @@ This project uses **beads** (`bd`) for issue tracking. If an issue discovered he
 
 Identity: `agent: claude` per `.punt-labs/ethos.yaml`. Sub-agent calls (`Agent(subagent_type=…)`) match ethos identity handles.
 
-z-spec is a hybrid Claude Code plugin + Python package for formal Z specifications. Its specialists are Z's foundational authors: **jms** (Mike Spivey, *The Z Notation Reference Manual*, fuzz type-checker) and **jra** (Jean-Raymond Abrial, originator of Z and B-method). Together they hold authority on notation, typing rules, and proof obligations. Beneath them sit the standard Python and CLI specialists who ship the deterministic L1 layer. Worker and evaluator must be distinct handles with no shared role. Claude is the leader, never the evaluator.
+z-spec is a hybrid Claude Code plugin + Python package for formal Z specifications. Its specialists are Z's foundational authors: **jms** (Mike Spivey, *The Z Notation Reference Manual*, fuzz type-checker) and **jra** (Jean-Raymond Abrial, originator of Z and B-method). Together they hold authority on notation, typing rules, and proof obligations. Beneath them sit the standard Python and CLI specialists who ship the deterministic L1 layer. Within each row, the worker and evaluator must be distinct handles. Claude is the leader, never the evaluator.
 
 | Task type | Worker | Evaluator |
 |-----------|--------|-----------|
