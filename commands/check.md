@@ -114,7 +114,7 @@ After a successful fuzz type-check, scan the specification for patterns that pas
 
 - [ ] **`\mu` in operation schemas**: Any use of `\mu` for record construction inside a `\Delta` or `\Xi` schema. Fix: replace with explicit set comprehension (`\{ a : Schema | ... \}`).
 
-- [ ] **Missing operation bounds**: Any operation that **grows** a collection (adds via `\cup`, `\oplus`, `\cat` without a corresponding removal in the same operation) without a `\# collection < maxBound` precondition. Operations that replace elements (paired remove + add) do not need this guard. Operations that grow a `\pfun` whose domain is constrained to a bounded set (e.g., `\dom handles \subseteq members` where `\# members \leq maxMembers`) are transitively bounded and do not need a separate guard. Fix: add a cardinality guard.
+- [ ] **Missing operation bounds**: Any operation that **grows** a collection (adds via `\cup` or `\cat` without a corresponding removal in the same operation) without a `\# collection < maxBound` precondition. Operations that replace elements (paired remove + add) do not need this guard. Operations that grow a `\pfun` whose domain is constrained to a bounded set (e.g., `\dom handles \subseteq members` where `\# members \leq maxMembers`) are transitively bounded and do not need a separate guard. Note: `\oplus` (functional override) updates existing mappings and does not need a bounds guard unless it introduces new domain elements. Fix: add a cardinality guard.
 
 **Output format**:
 
