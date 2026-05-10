@@ -33,7 +33,16 @@ node_modules/
 .claude/*
 !.claude/settings.json
 !.claude/hooks/
-.biff.local
+
+# Local-only files (machine-specific, per-user)
+*.local
+*.local.*
+
+# Lux UI runtime state
+Lux.ini
+
+# Vox cached audio
+.vox/*.mp3
 docs/fuzz.sty
 docs/*.mf
 docs/*.pk
@@ -71,4 +80,3 @@ uv.lock
 .tmp/
 
 uv.toml
-.envrc.local
