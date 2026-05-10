@@ -28,7 +28,7 @@ The **`z-specification`** Quarry collection contains the authoritative Z notatio
 
 ## What NOT to Change Without Care
 
-- **`skills/z-spec/SKILL.md`** — the main skill prompt. Test by running `/z-spec:check` and `/z-spec:test` after any edit.
+- **z-spec skill prompt** — the skill ships from `claude-plugins` marketplace once the plugin is built. Test by running `/z-spec:check` and `/z-spec:test` after any edit. (The prompt is not yet committed in this repo; populate `skills/z-spec/SKILL.md` here when the plugin layout lands.)
 - **Z notation conventions** — the plugin outputs ProB-compatible Z (avoids B keyword conflicts, uses bounded integers, flat schemas). These constraints are intentional.
 
 ## Documentation Discipline
@@ -82,7 +82,7 @@ z-spec is a hybrid Claude Code plugin + Python package for formal Z specificatio
 | Refinement / B-method / proof obligations | `jra` | `jms` |
 | Typing rules / fuzz type-checker semantics | `jms` | `jra` |
 | ProB-compatibility constraints (bounded ints, flat schemas) | `jra` | `jms` |
-| Skill prompt (`skills/z-spec/SKILL.md`) — guides spec creation | `jms` | `adt` (Hopper) |
+| Skill prompt (planned `skills/z-spec/SKILL.md`) — guides spec creation | `jms` | `adt` (Hopper) |
 | L1 Python: parsing, binary wrappers, report I/O | `rmh` (Hettinger) | `gvr` (van Rossum) |
 | L1 MCP tools (`check`, `model_check`, `animate`, `show_z_spec`) | `rmh` | `mdm` (Pike) |
 | Lux applet rendering for Z specs | `edt` (Tufte) | `dna` (Norman) |
