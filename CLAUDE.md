@@ -69,6 +69,29 @@ Do **not** merge immediately after creating a PR. Expect **2–6 review cycles**
 
 This project uses **beads** (`bd`) for issue tracking. If an issue discovered here affects multiple repos or requires a standards change, escalate to a [punt-kit bead](https://github.com/punt-labs/punt-kit) instead (see [bead placement scheme](../CLAUDE.md#where-to-create-a-bead)).
 
+## Ethos & Delegation
+
+Identity: `agent: claude` per `.punt-labs/ethos.yaml`. Sub-agent calls (`Agent(subagent_type=…)`) match ethos identity handles.
+
+z-spec is a hybrid Claude Code plugin + Python package for formal Z specifications. Its specialists are Z's foundational authors: **jms** (Mike Spivey, *The Z Notation Reference Manual*, fuzz type-checker) and **jra** (Jean-Raymond Abrial, originator of Z and B-method). Together they hold authority on notation, typing rules, and proof obligations. Beneath them sit the standard Python and CLI specialists who ship the deterministic L1 layer. Worker and evaluator must be distinct handles with no shared role. Claude is the leader, never the evaluator.
+
+| Task type | Worker | Evaluator |
+|-----------|--------|-----------|
+| Z schema authoring (`.tex` Z spec content) | `jms` (Spivey) | `jra` (Abrial) |
+| Z notation choices (operators, conventions, idioms) | `jms` | `jra` |
+| Refinement / B-method / proof obligations | `jra` | `jms` |
+| Typing rules / fuzz type-checker semantics | `jms` | `jra` |
+| ProB-compatibility constraints (bounded ints, flat schemas) | `jra` | `jms` |
+| Skill prompt (`skills/z-spec/SKILL.md`) — guides spec creation | `jms` | `adt` (Hopper) |
+| L1 Python: parsing, binary wrappers, report I/O | `rmh` (Hettinger) | `gvr` (van Rossum) |
+| L1 MCP tools (`check`, `model_check`, `animate`, `show_z_spec`) | `rmh` | `mdm` (Pike) |
+| Lux applet rendering for Z specs | `edt` (Tufte) | `dna` (Norman) |
+| CLI surface | `mdm` | `rmh` |
+| Plugin packaging / dev-prod swap / marketplace | `mdm` | `adb` (Lovelace) |
+| Quarry `z-specification` collection / sync | `adb` | `rmh` |
+
+Use the `formal` pipeline for any spec change — type-check with fuzz, animate with probcli, attach the report. Use `standard` for L1 Python or skill prompt changes. Use `quick` only for typo fixes that don't touch a schema. **Always ground Z work in the `z-specification` Quarry collection** before writing schemas — training-data Z is unreliable.
+
 ## Standards References
 
 - [GitHub](https://github.com/punt-labs/punt-kit/blob/main/standards/github.md)
