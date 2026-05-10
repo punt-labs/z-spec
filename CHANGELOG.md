@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Proactive probcli animation hints** --- 7 patterns that cause silent probcli failures (unbounded `\finset`/`\pfun`, cross-product triples, bare-type quantifiers, missing operation bounds, underscored constructors, `\mu` in operations, `\t1` indentation) are now documented in `reference/probcli-guide.md` (all 7) and `reference/schema-patterns.md` (6 structural patterns), embedded in `/z-spec:code2model` generation prompts, and 6 are warned about by `/z-spec:check` after successful fuzz type-checking (`\t1` is caught by fuzz itself)
+- **Animation hint test specs** --- `examples/animation-hints-good.tex` and `examples/animation-hints-bad.tex` demonstrate correct vs anti-pattern Z for probcli animation; good spec model-checks in 3s at setsize 2, bad spec explodes at setsize 4
+
+### Changed
+
+- **Makefile excludes `*-bad.tex` from test suite** --- intentionally broken specs are no longer model-checked by `make check`
+
+### Fixed
+
+- **Makefile `test-z-%` and `assert-%` now propagate probcli exit codes** --- previously, piping through `grep | head` swallowed non-zero exits, so counter-examples and assertion failures passed `make check` silently; now captures exit code before filtering output, and adds `-strict` flag
+
 ## [0.14.1] - 2026-03-21
 
 ### Fixed

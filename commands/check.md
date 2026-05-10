@@ -98,6 +98,39 @@ If errors:
 - Suggest specific fixes
 - Offer to apply fixes
 
+### 6. Animation Readiness Warnings
+
+After a successful fuzz type-check, scan the specification for patterns that pass fuzz but cause probcli animation failures. For each pattern found, emit a warning. Only emit warnings that actually apply to the spec.
+
+**Checklist** (prefix each with "Animation hint:"):
+
+- [ ] **Unbounded `\finset` or `\pfun`**: Any `\finset X` or `X \pfun Y` where `X` is a **given set** (declared with `[X]` syntax, not a free type declared with `Type ::= ...`) and there is no `\# variable \leq maxBound` constraint in the schema predicate. Free types are already finite and do not need cardinality bounds. Fix: add an axdef constant and a cardinality constraint.
+
+- [ ] **Cross products for records**: Any `\cross` used to combine 3+ types (e.g., `X \cross Y \cross Z`) where a named schema with fields would be more appropriate. Fix: define a schema with named fields instead.
+
+- [ ] **Bare-type quantifiers**: Any `\forall` or `\exists` that quantifies over a given type directly (e.g., `\forall n : NAME`) instead of over a set from state (e.g., `\forall n : members`). Fix: scope the quantifier to the relevant state set.
+
+- [ ] **Underscored free type constructors**: Any free type constructor containing `\_` (e.g., `reports\_to`). Fix: use camelCase (`reportsTo`) or concatenated names.
+
+- [ ] **`\mu` in operation schemas**: Any use of `\mu` for record construction inside a `\Delta` or `\Xi` schema. Fix: replace with explicit set comprehension (`\{ a : Schema | ... \}`).
+
+- [ ] **Missing operation bounds**: Any operation that **grows** a collection (adds via `\cup`, `\oplus`, `\cat` without a corresponding removal in the same operation) without a `\# collection < maxBound` precondition. Operations that replace elements (paired remove + add) do not need this guard. Fix: add a cardinality guard.
+
+**Output format**:
+
+```
+Animation hint: members (\finset NAME) has no cardinality bound.
+  Add: \# members \leq maxMembers (with maxMembers in axdef)
+
+Animation hint: assignments uses \cross triple — consider a named schema.
+  Replace: \finset (NAME \cross HANDLE \cross Relation)
+  With:    \finset Assignment (define Assignment schema with fields)
+
+Animation hint: \forall n : NAME quantifies over bare given type.
+  Replace: \forall n : NAME @ ...
+  With:    \forall n : members @ ...
+```
+
 ## Reference
 
 - Z notation: `reference/z-notation.md`

@@ -1,0 +1,144 @@
+%
+% animation-hints-bad.tex
+%
+% Z Specification demonstrating anti-patterns that pass fuzz
+% but fail or hang in probcli animation.
+%
+% Models a simple team/member registry.
+%
+% Anti-patterns demonstrated:
+%   1. \finset over given set with NO cardinality bound
+%   2. Cross product used where a schema should be
+%   3. \exists over bare given type (not scoped to state)
+%   4. Operation missing \# collection < maxBound precondition
+%   5. Free type constructor with underscores
+%
+% Type-check: fuzz -t examples/animation-hints-bad.tex
+% Animate:    probcli examples/animation-hints-bad.tex -animate 20
+%             -p DEFAULT_SETSIZE 3 -p TIME_OUT 10000
+%
+
+\documentclass[a4paper,10pt,fleqn]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{fuzz}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+\begin{document}
+
+\title{Team Registry (Bad Patterns)}
+\author{Animation Anti-Pattern Demonstrations}
+\date{May 2026}
+\maketitle
+
+\section{Basic Types}
+
+\begin{zed}
+  [NAME, HANDLE, TEAMID]
+\end{zed}
+
+\section{Free Types}
+
+Anti-pattern 5: underscored constructors may cause issues
+in probcli's B translation.
+
+\begin{zed}
+  Relation ::= reports\_to | mentors | peers
+\end{zed}
+
+\begin{zed}
+  ZBOOL ::= ztrue | zfalse
+\end{zed}
+
+\section{State}
+
+Anti-pattern 1: \verb|\finset| and \verb|\pfun| over given sets
+with NO cardinality bounds. probcli tries to enumerate all
+possible partial functions and subsets.
+
+Anti-pattern 2: cross product instead of schema for structured
+records. probcli cannot apply first/second to triples.
+
+\begin{schema}{TeamRegistry}
+  members : \finset NAME \\
+  handles : NAME \pfun HANDLE \\
+  teams : TEAMID \pfun \finset NAME \\
+  assignments : \finset (NAME \cross HANDLE \cross Relation)
+\where
+  \dom handles \subseteq members \\
+  \forall t : \dom teams @
+\quad~ teams(t) \subseteq members
+\end{schema}
+
+\section{Initialization}
+
+\begin{schema}{Init}
+  TeamRegistry'
+\where
+  members' = \emptyset \\
+  handles' = \emptyset \\
+  teams' = \emptyset \\
+  assignments' = \emptyset
+\end{schema}
+
+\section{Operations}
+
+Anti-pattern 4: no cardinality precondition on collection
+growth. The operation adds to members without checking a bound.
+
+\begin{schema}{AddMember}
+  \Delta TeamRegistry \\
+  name? : NAME \\
+  handle? : HANDLE
+\where
+  name? \notin members \\
+  members' = members \cup \{ name? \} \\
+  handles' = handles \cup \{ name? \mapsto handle? \} \\
+  teams' = teams \\
+  assignments' = assignments
+\end{schema}
+
+Anti-pattern 3: \verb|\exists| over bare given type HANDLE
+instead of scoping to the state set \verb|\ran handles|.
+probcli attempts to enumerate the entire given type.
+
+\begin{schema}{HasDuplicateHandle}
+  \Xi TeamRegistry \\
+  result! : ZBOOL
+\where
+  (\exists h : HANDLE @
+\quad~ \# \{ n : NAME | n \in \dom handles
+\quad~ \land handles(n) = h \} > 1) \\
+  \land result! = ztrue
+\end{schema}
+
+\begin{schema}{CreateTeam}
+  \Delta TeamRegistry \\
+  tid? : TEAMID \\
+  initial? : NAME
+\where
+  tid? \notin \dom teams \\
+  initial? \in members \\
+  members' = members \\
+  handles' = handles \\
+  teams' = teams \cup
+\quad~ \{ tid? \mapsto \{ initial? \} \} \\
+  assignments' = assignments
+\end{schema}
+
+\begin{schema}{RemoveMember}
+  \Delta TeamRegistry \\
+  name? : NAME
+\where
+  name? \in members \\
+  members' = members \setminus \{ name? \} \\
+  handles' = \{ name? \} \ndres handles \\
+  teams' = (\lambda t : \dom teams @
+\quad~ teams(t) \setminus \{ name? \}) \\
+  assignments' = \{ n : NAME; h : HANDLE;
+\quad~ r : Relation |
+\quad~ (n, h, r) \in assignments
+\quad~ \land n \neq name? @
+\quad~ (n, h, r) \}
+\end{schema}
+
+\end{document}

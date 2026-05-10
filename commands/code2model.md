@@ -403,6 +403,58 @@ If you have multiple entity types (e.g., `CharacterStat` and `State`), operation
 1. **Combine into single state schema** (recommended for animation)
 2. **Accept that sub-entity operations work independently** (operations on `CharacterStat` won't affect `State` variables)
 
+### 9. Bound Collection Cardinality
+
+Every `\finset` and `\pfun` over given sets needs a `#` constraint via axdef constants. Without bounds, probcli enumerates all possible subsets or partial functions, causing silent hangs at larger set sizes.
+
+```latex
+% Define bounds as axdef constants
+\begin{axdef}
+maxMembers : \nat
+\where
+maxMembers = 3
+\end{axdef}
+
+% Apply in state invariant
+\# members \leq maxMembers
+```
+
+### 10. Schemas Instead of Tuples
+
+Use named schemas with fields instead of cross products (`X \cross Y \cross Z`). probcli cannot project triples with `first`/`second`. Pattern matching `(x, y, z) \in set` works but produces larger state spaces than schema field access, and code that manipulates structured records becomes harder to write and verify.
+
+**Before** (no named field access, larger state space):
+```latex
+assignments : \finset (NAME \cross HANDLE \cross Relation)
+```
+
+**After** (named fields):
+```latex
+\begin{schema}{Assignment}
+aName : NAME \\
+aHandle : HANDLE \\
+aRelation : Relation
+\end{schema}
+
+assignments : \finset Assignment
+```
+
+### 11. Scope All Quantifiers
+
+`\forall` and `\exists` must quantify over sets from state, never over bare given types. `\forall n : NAME` enumerates the entire given type; `\forall n : members` enumerates only the current state set.
+
+### 12. No Underscored Free Type Constructors
+
+Constructors with underscores (`reports\_to`) pass fuzz but may cause issues in probcli's B translation. Use camelCase (`reportsTo`) or concatenated names.
+
+### 13. No \mu for Record Construction
+
+`\mu Schema` for definite description may not translate correctly in probcli. Use explicit set comprehension (`\{ a : Schema | ... \}`) instead.
+
+### 14. Operation Bounds
+
+Operations that add to collections must include `\# collection < maxBound` in preconditions. Without this guard, the operation silently becomes disabled when the state invariant's cardinality bound is already reached.
+
 ## Updating Existing Specifications
 
 When updating an existing `.tex` file (rather than creating new):
