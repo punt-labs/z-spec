@@ -104,7 +104,7 @@ After a successful fuzz type-check, scan the specification for patterns that pas
 
 **Checklist** (prefix each with "Animation hint:"):
 
-- [ ] **Unbounded `\finset` or `\pfun`**: Any `\finset X` or `X \pfun Y` where `X` is a **given set** (declared with `[X]` syntax, not a free type declared with `Type ::= ...`) and there is no `\# variable \leq maxBound` constraint in the schema predicate. Free types are already finite and do not need cardinality bounds. Fix: add an axdef constant and a cardinality constraint.
+- [ ] **Unbounded `\finset` or `\pfun`**: Any `\finset X` or `X \pfun Y` where `X` is a **given set** (declared with `[X]` syntax, not a free type declared with `Type ::= ...`) and there is no cardinality bound — either a direct `\# variable \leq maxBound` constraint or a domain subset constraint like `\dom variable \subseteq boundedSet` where `boundedSet` itself has a cardinality bound. Free types are already finite and do not need cardinality bounds. Fix: add an axdef constant and a cardinality constraint, or constrain the domain to a bounded set.
 
 - [ ] **Cross products for records**: Any `\cross` used to combine 3+ types (e.g., `X \cross Y \cross Z`) where a named schema with fields would be more appropriate. Fix: define a schema with named fields instead.
 
@@ -114,7 +114,7 @@ After a successful fuzz type-check, scan the specification for patterns that pas
 
 - [ ] **`\mu` in operation schemas**: Any use of `\mu` for record construction inside a `\Delta` or `\Xi` schema. Fix: replace with explicit set comprehension (`\{ a : Schema | ... \}`).
 
-- [ ] **Missing operation bounds**: Any operation that **grows** a collection (adds via `\cup`, `\oplus`, `\cat` without a corresponding removal in the same operation) without a `\# collection < maxBound` precondition. Operations that replace elements (paired remove + add) do not need this guard. Fix: add a cardinality guard.
+- [ ] **Missing operation bounds**: Any operation that **grows** a collection (adds via `\cup`, `\oplus`, `\cat` without a corresponding removal in the same operation) without a `\# collection < maxBound` precondition. Operations that replace elements (paired remove + add) do not need this guard. Operations that grow a `\pfun` whose domain is constrained to a bounded set (e.g., `\dom handles \subseteq members` where `\# members \leq maxMembers`) are transitively bounded and do not need a separate guard. Fix: add a cardinality guard.
 
 **Output format**:
 

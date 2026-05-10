@@ -296,8 +296,9 @@ assignments' = assignments \cup
 
 ### 7. Use \quad~ for Indentation
 
-fuzz uses `\t1`..`\t4` for indentation, but pdflatex interprets `\t` as an
-accent command in math mode. Use `\quad~` throughout for portable indentation.
+`\t1`..`\t4` appear in some older Z templates and documentation, but fuzz does
+not support them. pdflatex also interprets `\t` as an accent command in math
+mode. Use `\quad~` throughout for portable indentation.
 
 **Before** (breaks pdflatex):
 ```latex
