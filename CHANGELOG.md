@@ -15,7 +15,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- **Makefile `test-z-%` and `assert-%` now propagate probcli exit codes** --- previously, piping through `grep | head` swallowed non-zero exits, so counter-examples and assertion failures passed `make check` silently; now captures exit code before filtering output, and adds `-strict` flag
+- **Makefile `test-z-%` and `assert-%` now propagate probcli exit codes** --- previously, piping through `grep | head` swallowed non-zero exits, so counter-examples and assertion failures passed `make check` silently; now captures exit code before filtering output
 
 ## [0.14.1] - 2026-03-21
 

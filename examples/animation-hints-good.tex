@@ -120,9 +120,12 @@ types.
   \Xi TeamRegistry \\
   result! : ZBOOL
 \where
-  (\forall n : members @
-\quad~ n \in \dom handles) \\
-  \land result! = ztrue
+  ((\forall n : members @
+\quad~ n \in \dom handles)
+\quad~ \land result! = ztrue) \\
+  \lor (\lnot (\forall n : members @
+\quad~ n \in \dom handles)
+\quad~ \land result! = zfalse)
 \end{schema}
 
 \begin{schema}{RemoveMember}

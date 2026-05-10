@@ -105,10 +105,14 @@ probcli attempts to enumerate the entire given type.
   \Xi TeamRegistry \\
   result! : ZBOOL
 \where
-  (\exists h : HANDLE @
+  ((\exists h : HANDLE @
 \quad~ \# \{ n : NAME | n \in \dom handles
-\quad~ \land handles(n) = h \} > 1) \\
-  \land result! = ztrue
+\quad~ \land handles(n) = h \} > 1)
+\quad~ \land result! = ztrue) \\
+  \lor (\lnot (\exists h : HANDLE @
+\quad~ \# \{ n : NAME | n \in \dom handles
+\quad~ \land handles(n) = h \} > 1)
+\quad~ \land result! = zfalse)
 \end{schema}
 
 \begin{schema}{CreateTeam}
