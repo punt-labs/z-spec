@@ -158,9 +158,11 @@ model checking. See `examples/animation-hints-good.tex` and
 
 ### 1. Cardinality Bounds Are Mandatory
 
-Every `\finset` and `\pfun` over given sets needs a `#` constraint via axdef
-constants. Without bounds, probcli enumerates all possible subsets or partial
-functions, causing exponential state-space growth.
+Every `\finset` and `\pfun` over given sets needs a cardinality bound — either
+a direct `\#` constraint via axdef constants, or a domain subset constraint on
+an already-bounded set (e.g., `\dom handles \subseteq members` where
+`\# members \leq maxMembers`). Without bounds, probcli enumerates all possible
+subsets or partial functions, causing exponential state-space growth.
 
 **Before** (hangs at DEFAULT_SETSIZE >= 4):
 ```latex

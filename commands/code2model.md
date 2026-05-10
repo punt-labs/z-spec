@@ -405,7 +405,7 @@ If you have multiple entity types (e.g., `CharacterStat` and `State`), operation
 
 ### 9. Bound Collection Cardinality
 
-Every `\finset` and `\pfun` over given sets needs a `#` constraint via axdef constants. Without bounds, probcli enumerates all possible subsets or partial functions, causing silent hangs at larger set sizes.
+Every `\finset` and `\pfun` over given sets needs a cardinality bound — either a direct `\#` constraint via axdef constants, or a domain subset constraint on an already-bounded set (e.g., `\dom handles \subseteq members` where `\# members \leq maxMembers`). Without bounds, probcli enumerates all possible subsets or partial functions, causing silent hangs at larger set sizes.
 
 ```latex
 % Define bounds as axdef constants
