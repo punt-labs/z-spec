@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-05-10
+
 ### Added
 
 - **Proactive probcli animation hints** --- 7 patterns that cause silent probcli failures (unbounded `\finset`/`\pfun`, cross-product triples, bare-type quantifiers, missing operation bounds, underscored constructors, `\mu` in operations, `\t1` indentation) are now documented in `reference/probcli-guide.md` (all 7) and `reference/schema-patterns.md` (6 structural patterns), embedded in `/z-spec:code2model` generation prompts, and 6 are warned about by `/z-spec:check` after successful fuzz type-checking (`\t1` is caught by fuzz itself)
