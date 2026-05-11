@@ -412,6 +412,97 @@ Given sets default to small sizes (2-5) in model checking. Ensure invariants hol
 probcli spec.tex -model_check -p DEFAULT_SETSIZE 2
 ```
 
+### 8. Bound Collection Cardinality
+
+Every `\finset` and `\pfun` over given sets needs a `#` constraint via axdef constants. Without bounds, probcli enumerates all possible subsets/partial functions, causing silent hangs.
+
+```latex
+% BAD - unbounded, probcli hangs at large set sizes
+members : \finset NAME
+
+% GOOD - bounded via axdef constant
+\begin{axdef}
+maxMembers : \nat
+\where
+maxMembers = 3
+\end{axdef}
+
+members : \finset NAME
+\where
+\# members \leq maxMembers
+```
+
+### 9. Schemas Instead of Tuples
+
+Use named schemas with fields instead of cross products. probcli cannot apply `first`/`second` to triples or larger tuples.
+
+```latex
+% BAD - cross product triple
+assignments : \finset (NAME \cross HANDLE \cross Relation)
+
+% GOOD - named schema
+\begin{schema}{Assignment}
+aName : NAME \\
+aHandle : HANDLE \\
+aRelation : Relation
+\end{schema}
+
+assignments : \finset Assignment
+```
+
+### 10. Scope All Quantifiers
+
+Quantify over sets from state, never over bare given types. `\forall n : NAME` enumerates the entire given type; `\forall n : members` enumerates only the current state.
+
+```latex
+% BAD - enumerates all of NAME
+\forall n : NAME @ n \in members \implies n \in \dom handles
+
+% GOOD - scoped to state
+\forall n : members @ n \in \dom handles
+```
+
+### 11. Operation Bounds
+
+Operations that grow collections must include `\# collection < maxBound` in preconditions. Without this, the operation silently fails when the state invariant's bound is reached.
+
+```latex
+% BAD - no capacity check
+name? \notin members \\
+members' = members \cup \{ name? \}
+
+% GOOD - explicit bound
+name? \notin members \\
+\# members < maxMembers \\
+members' = members \cup \{ name? \}
+```
+
+### 12. No Underscored Constructors
+
+Free type constructors with underscores (`reports\_to`) work in fuzz but may cause issues in probcli's B translation. Use camelCase or concatenated names.
+
+```latex
+% BAD - underscore in constructor
+Relation ::= reports\_to | mentors | peers
+
+% GOOD - camelCase
+Relation ::= reportsTo | mentors | peers
+```
+
+### 13. No \mu for Record Construction
+
+`\mu Schema` for definite description may not translate correctly in probcli. Use explicit set comprehension instead.
+
+```latex
+% BAD - \mu may fail in probcli
+assignments' = assignments \cup
+    \{ \mu Assignment | aName = name? \land aHandle = handle? \}
+
+% GOOD - explicit comprehension
+assignments' = assignments \cup
+    \{ a : Assignment | a.aName = name? \land a.aHandle = handle? \}
+```
+
 ## Sequences (Expanded)
 
 ### Sequence Types

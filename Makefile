@@ -6,7 +6,10 @@ SETSIZE   ?= 1
 MAX_OPS   ?= 200
 TIMEOUT   ?= 300000
 
-SPECS     := $(wildcard examples/*.tex)
+# Specs ending in -bad.tex are intentional anti-pattern demonstrations
+# excluded from quality gates. Only use this suffix for specs designed
+# to demonstrate probcli animation failures.
+SPECS     := $(filter-out %-bad.tex,$(wildcard examples/*.tex))
 SPEC_NAMES := $(notdir $(basename $(SPECS)))
 
 # ── Required targets (makefile.md) ──────────────────────────
@@ -36,12 +39,16 @@ test-py:
 
 test-z-%: examples/%.tex
 	@echo "probcli $< (setsize=$(SETSIZE))"
+	@mkdir -p .tmp
 	@$(PROBCLI) $< -model_check \
 		-p DEFAULT_SETSIZE $(SETSIZE) \
 		-p MAX_OPERATIONS $(MAX_OPS) \
 		-p TIME_OUT $(TIMEOUT) \
-		2>&1 | grep -E "States analysed|Transitions fired|No counter|COUNTER|all open|not all" | head -5
-	@echo ""
+		> .tmp/probcli-$*.out 2>&1; \
+	rc=$$?; \
+	grep -E "States analysed|Transitions fired|No counter|COUNTER|all open|not all" .tmp/probcli-$*.out | head -5; \
+	echo ""; \
+	exit $$rc
 
 check: lint type test ## Run all quality gates
 
@@ -67,8 +74,13 @@ assert: $(addprefix assert-,$(SPEC_NAMES)) ## CBC assertion check all specs
 
 assert-%: examples/%.tex
 	@echo "cbc_assertions $<"
-	@$(PROBCLI) $< -cbc_assertions 2>&1 | grep -E "counter|ASSERTION" | head -3
-	@echo ""
+	@mkdir -p .tmp
+	@$(PROBCLI) $< -cbc_assertions \
+		> .tmp/probcli-assert-$*.out 2>&1; \
+	rc=$$?; \
+	grep -E "counter|ASSERTION" .tmp/probcli-assert-$*.out | head -3; \
+	echo ""; \
+	exit $$rc
 
 report: $(addprefix report-,$(SPEC_NAMES)) ## Generate reports for all specs
 
