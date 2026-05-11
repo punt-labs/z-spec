@@ -32,15 +32,15 @@ while IFS= read -r -d '' f; do
   dev_files+=("${COMMANDS_DIR}/$(basename "$f")")
 done < <(find "${REPO_ROOT}/${COMMANDS_DIR}" -name '*-dev.md' -print0)
 
+git -C "$REPO_ROOT" add "$PLUGIN_JSON"
+
 if [[ ${#dev_files[@]} -eq 0 ]]; then
-  echo "No -dev commands found in ${COMMANDS_DIR}" >&2
-  exit 1
+  echo "No -dev commands found in ${COMMANDS_DIR} — skipping command removal"
+else
+  for f in "${dev_files[@]}"; do
+    echo "Removing: $(basename "$f")"
+  done
+  git -C "$REPO_ROOT" rm "${dev_files[@]}"
 fi
 
-for f in "${dev_files[@]}"; do
-  echo "Removing: $(basename "$f")"
-done
-
-git -C "$REPO_ROOT" add "$PLUGIN_JSON"
-git -C "$REPO_ROOT" rm "${dev_files[@]}"
 git -C "$REPO_ROOT" commit --no-verify -m "chore: prepare plugin for release [skip ci]"
