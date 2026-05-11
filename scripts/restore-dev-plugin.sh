@@ -10,7 +10,7 @@ git -C "$REPO_ROOT" checkout HEAD~1 -- .claude-plugin/plugin.json
 git -C "$REPO_ROOT" add .claude-plugin/plugin.json
 
 # Restore -dev commands only if they were removed in the release prep commit
-if git -C "$REPO_ROOT" diff HEAD~1 --name-only -- commands/ | grep -q '-dev\.md$'; then
+if git -C "$REPO_ROOT" diff --name-only --diff-filter=D HEAD~1..HEAD -- commands/ | grep -q -e '-dev\.md$'; then
   git -C "$REPO_ROOT" checkout HEAD~1 -- commands/
   git -C "$REPO_ROOT" add commands/
 fi
