@@ -1,0 +1,159 @@
+%
+% animation-hints-good.tex
+%
+% Z Specification demonstrating correct patterns for
+% probcli-animatable Z specifications.
+%
+% Models the same team/member registry as animation-hints-bad.tex,
+% rewritten with all 7 animation hints applied:
+%   1. Cardinality bounds via axdef constants
+%   2. Named schemas instead of cross products
+%   3. Quantifiers scoped to state sets
+%   4. Operation bounds (\# < max preconditions)
+%   5. No underscored free type constructors
+%   6. No \mu for record construction
+%   7. \quad~ indentation (no \t1)
+%
+% Type-check: fuzz -t examples/animation-hints-good.tex
+% Animate:    probcli examples/animation-hints-good.tex -animate 20
+%             -model_check -p DEFAULT_SETSIZE 2 -p TIME_OUT 30000
+%
+
+\documentclass[a4paper,10pt,fleqn]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{fuzz}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+\begin{document}
+
+\title{Team Registry (Good Patterns)}
+\author{Animation-Ready Pattern Demonstrations}
+\date{May 2026}
+\maketitle
+
+\section{Basic Types}
+
+\begin{zed}
+  [NAME, HANDLE]
+\end{zed}
+
+\section{Free Types}
+
+Hint 5: no underscores in constructors --- use camelCase
+or concatenated names.
+
+\begin{zed}
+  Relation ::= reportsTo | mentors | peers
+\end{zed}
+
+\begin{zed}
+  ZBOOL ::= ztrue | zfalse
+\end{zed}
+
+\section{Global Constants}
+
+Hint 1: cardinality bounds are mandatory for every
+\verb|\finset| and \verb|\pfun| over given sets.
+
+\begin{axdef}
+  maxMembers : \nat \\
+  maxAssignments : \nat
+\where
+  maxMembers = 3 \\
+  maxAssignments = 4
+\end{axdef}
+
+\section{Record Schemas}
+
+Hint 2: use named schemas with fields instead of cross
+products. probcli handles schema field access correctly.
+
+\begin{schema}{Assignment}
+  aName : NAME \\
+  aHandle : HANDLE \\
+  aRelation : Relation
+\end{schema}
+
+\section{State}
+
+\begin{schema}{TeamRegistry}
+  members : \finset NAME \\
+  handles : NAME \pfun HANDLE \\
+  assignments : \finset Assignment
+\where
+  \dom handles \subseteq members \\
+  \# members \leq maxMembers \\
+  \# assignments \leq maxAssignments
+\end{schema}
+
+\section{Initialization}
+
+\begin{schema}{Init}
+  TeamRegistry'
+\where
+  members' = \emptyset \\
+  handles' = \emptyset \\
+  assignments' = \emptyset
+\end{schema}
+
+\section{Operations}
+
+Hint 4: operations that grow collections include a
+cardinality precondition.
+
+\begin{schema}{AddMember}
+  \Delta TeamRegistry \\
+  name? : NAME \\
+  handle? : HANDLE
+\where
+  name? \notin members \\
+  \# members < maxMembers \\
+  members' = members \cup \{ name? \} \\
+  handles' = handles \cup \{ name? \mapsto handle? \} \\
+  assignments' = assignments
+\end{schema}
+
+Hint 3: quantifiers scoped to state sets, not bare given
+types.
+
+\begin{schema}{CheckAllHaveHandles}
+  \Xi TeamRegistry \\
+  result! : ZBOOL
+\where
+  ((\forall n : members @
+\quad~ n \in \dom handles)
+\quad~ \land result! = ztrue) \\
+  \lor (\lnot (\forall n : members @
+\quad~ n \in \dom handles)
+\quad~ \land result! = zfalse)
+\end{schema}
+
+\begin{schema}{RemoveMember}
+  \Delta TeamRegistry \\
+  name? : NAME
+\where
+  name? \in members \\
+  members' = members \setminus \{ name? \} \\
+  handles' = \{ name? \} \ndres handles \\
+  assignments' = \{ a : assignments |
+\quad~ a.aName \neq name? \}
+\end{schema}
+
+\begin{schema}{AddAssignment}
+  \Delta TeamRegistry \\
+  name? : NAME \\
+  handle? : HANDLE \\
+  rel? : Relation
+\where
+  name? \in members \\
+  handle? \in \ran handles \\
+  \# assignments < maxAssignments \\
+  members' = members \\
+  handles' = handles \\
+  assignments' = assignments \cup
+\quad~ \{ a : Assignment | a.aName = name?
+\quad~ \land a.aHandle = handle?
+\quad~ \land a.aRelation = rel? \}
+\end{schema}
+
+\end{document}
