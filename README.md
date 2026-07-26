@@ -50,6 +50,23 @@ Both are installed automatically by `/z-spec:setup all`. fuzz is compiled from s
 curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/5b18f6d/install.sh | sh
 ```
 
+This installs the `z-spec` CLI and the Claude Code plugin. To install the CLI
+only — for non-Claude harnesses (Codex, Cursor, a plain terminal) or where org
+policy blocks plugin installation — skip the plugin with `--no-plugin`:
+
+```bash
+# flag form (passed through the pipe with sh -s --)
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/5b18f6d/install.sh | sh -s -- --no-plugin
+
+# env form (for argument-hostile contexts: templated CI, proxies)
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/5b18f6d/install.sh | ZSPEC_NO_PLUGIN=1 sh
+```
+
+The CLI-only install still sets up uv, Python, the `z-spec` binary, PATH, and
+runs `z-spec doctor`; only the marketplace-register and plugin-install steps are
+skipped. `ZSPEC_NO_PLUGIN` is honored only when set to exactly `1`. Missing
+`claude` or `git` auto-skips the plugin step (the CLI still installs).
+
 <details>
 <summary>Manual install (if you already have uv)</summary>
 
