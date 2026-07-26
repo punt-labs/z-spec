@@ -444,7 +444,6 @@ def get_report(file: str) -> str:
 def save_partition_report(file: str, report_json: str) -> str:
     """Validate and save a partition report for a Z specification.
 
-    Called by the /z-spec:partition skill after generating partitions.
     The report is saved as <stem>.partition.json alongside the .tex file.
 
     Args:
@@ -454,19 +453,9 @@ def save_partition_report(file: str, report_json: str) -> str:
     Returns:
         JSON with ok (bool) and path to saved report.
     """
-    from punt_zspec.report import partition_from_dict, save_partition
+    from punt_zspec.commands.partition import PartitionCommand
 
-    path = _validate_spec_path(file)
-    if path is None:
-        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
-
-    try:
-        data = json.loads(report_json)
-        report = partition_from_dict(data)
-        out = save_partition(path, report)
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
-        return json.dumps({"ok": False, "error": f"Invalid partition report: {exc}"})
-    return json.dumps({"ok": True, "path": str(out)})
+    return PartitionCommand().run(Path(file), report_json).to_json()
 
 
 @mcp.tool()

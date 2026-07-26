@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -37,6 +38,22 @@ def main(
 _TEX_ARG = typer.Argument(
     help="Path to .tex Z spec", exists=True, file_okay=True, dir_okay=False
 )
+
+_REPORT_OPT = typer.Option("--report", help="Report JSON file, or - for stdin")
+
+
+def _read_report(report: str) -> str:
+    """Read authored report JSON from stdin (``-``) or a file path.
+
+    A missing or unreadable file exits 1 with a clean message, no traceback.
+    """
+    if report == "-":
+        return sys.stdin.read()
+    try:
+        return Path(report).read_text("utf-8")
+    except OSError as exc:
+        typer.echo(f"error: cannot read report: {exc}", err=True)
+        raise typer.Exit(1) from exc
 
 
 @app.command()
@@ -155,6 +172,23 @@ def report(
         typer.echo(err.message, err=True)
         raise typer.Exit(1)
     typer.echo(json.dumps(result.unwrap().to_dict(), indent=2))
+
+
+@app.command()
+def partition(
+    file: Annotated[Path, _TEX_ARG],
+    report: Annotated[str, _REPORT_OPT] = "-",
+) -> None:
+    """Validate and persist an authored TTF partition report."""
+    from punt_zspec.commands.partition import PartitionCommand
+
+    raw = _read_report(report)
+    result = PartitionCommand().run(file, raw)
+    err = result.error
+    if err is not None:
+        typer.echo(f"error: {err.message}", err=True)
+        raise typer.Exit(1)
+    typer.echo(str(result.unwrap().path))
 
 
 @app.command()
