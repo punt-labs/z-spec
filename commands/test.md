@@ -1,6 +1,6 @@
 ---
 description: Validate and animate a Z specification with probcli
-argument-hint: "[file.tex] [options: -v verbose, -a N animate steps, -s N setsize]"
+argument-hint: "[file.tex] [options: -v verbose, -s N setsize]"
 allowed-tools: mcp__plugin_z-spec_zspec__test, mcp__plugin_z-spec_zspec__show_z_spec, Read, Glob
 ---
 
@@ -15,9 +15,16 @@ Arguments: $ARGUMENTS
 Parse arguments:
 
 - First positional argument: file path (or search in `docs/`)
-- `-v` or `--verbose`: Show full probcli output
-- `-a N` or `--animate N`: Animation steps / max operations (default: 20)
+- `-v` or `--verbose`: Show every check's `detail` field, not just the
+  summary line (display only — the tool returns structured JSON, not raw
+  probcli stdout, so there is no raw output to surface)
 - `-s N` or `--setsize N`: Default set size for model checking (default: 2)
+
+`-a` and `-v` are not parameters of the `test` tool. `run_full_suite`
+animates a fixed 20 steps internally — custom step counts are the separate
+`animate` capability. The tool's `max_ops` (default 1000) bounds
+model-checking only, and stays at the default; `-v` merely changes how this
+command renders the returned JSON.
 
 ## Process
 
@@ -28,9 +35,9 @@ If no file specified, look in `docs/` for `.tex` files.
 
 ### 2. Verify
 
-Call `mcp__plugin_z-spec_zspec__test` with `file`, plus `setsize` from `-s` and
-`max_ops` from `-a`. Leave `timeout` at the tool default. `-v` is the verbose
-flag (see step 3), not a tool argument.
+Call `mcp__plugin_z-spec_zspec__test` with `file`, plus `setsize` from `-s`.
+Leave `max_ops` and `timeout` at the tool defaults — they are not wired to
+flags. `-v` is the verbose flag (see step 3), not a tool argument.
 
 The tool runs the five checks — parse-and-init, animation, CBC assertions,
 CBC deadlock, model check — and returns:
@@ -78,8 +85,8 @@ Add explicit cardinality bounds, or lower `-s` (setsize).
 
 ### Timeout
 
-Increase `-v`-adjusted timeout via the tool, or reduce `-s` to shrink the
-explored state space.
+The tool's `timeout` stays at its default and is not flag-wired. To keep a
+run inside it, reduce `-s` (setsize) to shrink the explored state space.
 
 ### Given Set Cardinality
 
