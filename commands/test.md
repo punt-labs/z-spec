@@ -28,8 +28,9 @@ If no file specified, look in `docs/` for `.tex` files.
 
 ### 2. Verify
 
-Call `mcp__plugin_z-spec_zspec__test` with `file`, and `setsize`/`max_ops`/`timeout`
-parsed from the `-s`/`-a`/`-v` arguments.
+Call `mcp__plugin_z-spec_zspec__test` with `file`, plus `setsize` from `-s` and
+`max_ops` from `-a`. Leave `timeout` at the tool default. `-v` is the verbose
+flag (see step 3), not a tool argument.
 
 The tool runs the five checks — parse-and-init, animation, CBC assertions,
 CBC deadlock, model check — and returns:
@@ -43,6 +44,10 @@ CBC deadlock, model check — and returns:
 It persists `<stem>.report.json` alongside the spec.
 
 ### 3. Report
+
+If the returned JSON has an `error` field (e.g. the binary is not installed),
+surface `error` (and `hint` if present) verbatim to the user and stop — do not
+render the normal result.
 
 Render the JSON as text:
 
