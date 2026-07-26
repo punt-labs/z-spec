@@ -1,4 +1,4 @@
-.PHONY: help lint type test check check-oo update-oo check-coupling update-coupling check-suppressions update-suppressions format build clean depot assert report
+.PHONY: help lint type test check check-oo update-oo check-coupling update-coupling check-suppressions update-suppressions check-dev-commands gen-dev-commands format build clean depot assert report
 
 FUZZ      ?= fuzz
 PROBCLI   ?= $(HOME)/Applications/ProB/probcli
@@ -50,7 +50,15 @@ test-z-%: examples/%.tex
 	echo ""; \
 	exit $$rc
 
-check: lint type test check-oo check-coupling check-suppressions ## Run all quality gates
+check: lint type test check-oo check-coupling check-suppressions check-dev-commands ## Run all quality gates
+
+# ── Dev/prod plugin namespace ───────────────────────────────
+
+gen-dev-commands: ## Regenerate commands/*-dev.md twins from prod sources
+	uv run python tools/gen_dev_commands.py commands
+
+check-dev-commands: ## Fail if any -dev twin is missing or out of sync
+	uv run python tools/gen_dev_commands.py commands --check
 
 # ── OO gate suite (ratchet against committed baselines) ─────
 # Base-comparison flags injected by CI (e.g. --base-ref <merge-base>). Empty
