@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import final
-
 from .audit import AuditConfidence, AuditConstraint, AuditReport, AuditSuggestion
 from .fuzz import FuzzError, FuzzResult
 from .partition import (
@@ -21,6 +18,7 @@ from .prob import (
     ProbReport,
     TraceStep,
 )
+from .reports import SpecReports
 from .spec import BlockKind, SpecModel, ZBlock
 from .tutorial import Collection, Lesson
 
@@ -48,23 +46,3 @@ __all__ = [
     "TraceStep",
     "ZBlock",
 ]
-
-
-# ---------------------------------------------------------------------------
-# Persisted-report bundle
-# ---------------------------------------------------------------------------
-
-
-@final
-@dataclass(frozen=True, slots=True)
-class SpecReports:
-    """A frozen snapshot of the four reports persisted beside a spec.
-
-    Each field is optional because a spec may have no report of that kind yet —
-    absence is the documented contract, not a failure (PY-TS-14).
-    """
-
-    report: ProbReport | None
-    fuzz: FuzzResult | None
-    partition: PartitionReport | None
-    audit: AuditReport | None
