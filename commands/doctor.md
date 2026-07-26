@@ -1,6 +1,6 @@
 ---
 description: Check Z specification environment health
-allowed-tools: Bash(which:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(kpsewhich:*), Bash(brew:*), Bash(test:*), Bash(uname:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Read
+allowed-tools: mcp__plugin_z-spec_zspec__doctor, Bash(kpsewhich:*), Bash(brew:*), Bash(test:*), Bash(uname:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Read
 ---
 
 # Z Environment Health Check
@@ -18,13 +18,17 @@ uname -s   # Darwin or Linux
 uname -m   # arm64, x86_64, etc.
 ```
 
-### 2. fuzz binary (required)
+### 2. Required toolchain (fuzz, probcli, version)
 
-```bash
-which fuzz && fuzz -version
-```
+Call `mcp__plugin_z-spec_zspec__doctor`. It returns
+`{version, fuzz, probcli, healthy}` — the plugin version, the resolved
+`fuzz` and `probcli` binaries (presence and version), and an overall
+`healthy` flag for the required trio.
 
-If missing: suggest `Run /z-spec:setup fuzz`.
+- `fuzz` missing: suggest `Run /z-spec:setup fuzz`.
+- `probcli` missing: suggest `Run /z-spec:setup probcli`.
+
+probcli handles both Z specifications (`.tex`) and B machines (`.mch`, `.ref`, `.imp`).
 
 ### 3. fuzz.sty (required)
 
@@ -34,46 +38,36 @@ kpsewhich fuzz.sty
 
 If missing: suggest `Run /z-spec:setup fuzz` then `sudo texhash`.
 
-### 4. probcli binary (required)
-
-```bash
-which probcli || test -x "$HOME/Applications/ProB/probcli"
-```
-
-Also check `$PROBCLI` if set. If missing: suggest `Run /z-spec:setup probcli`.
-
-probcli handles both Z specifications (`.tex`) and B machines (`.mch`, `.ref`, `.imp`).
-
-### 5. Tcl/Tk (conditional — macOS only)
+### 4. Tcl/Tk (conditional — macOS only)
 
 Only check on Darwin:
 
 ```bash
-which wish || brew list tcl-tk 2>/dev/null
+brew list tcl-tk 2>/dev/null
 ```
 
 If missing on macOS: suggest `brew install tcl-tk`.
 
-### 6. elan (optional — for /z-spec:prove)
+### 5. elan (optional — for /z-spec:prove)
 
 ```bash
-which elan && elan --version
+elan --version
 ```
 
 If missing: suggest `Run /z-spec:setup lean`.
 
-### 7. lean (optional — for /z-spec:prove)
+### 6. lean (optional — for /z-spec:prove)
 
 ```bash
-which lean && lean --version
+lean --version
 ```
 
 If missing but elan is present: suggest `elan default leanprover/lean4:stable`.
 
-### 8. lake (optional — for /z-spec:prove)
+### 7. lake (optional — for /z-spec:prove)
 
 ```bash
-which lake && lake --version
+lake --version
 ```
 
 Usually installed alongside lean via elan.
