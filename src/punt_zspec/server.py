@@ -361,20 +361,11 @@ def model_check(
     Returns:
         JSON report with model checking results.
     """
-    from punt_zspec.prob import resolve_probcli, run_model_check
-    from punt_zspec.report import save_report
+    from punt_zspec.commands.model_check import ModelCheckCommand
+    from punt_zspec.commands.options import ProbOptions
 
-    path = _validate_spec_path(file)
-    if path is None:
-        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
-    binary = resolve_probcli()
-    if binary is None:
-        return json.dumps({"ok": False, "error": "probcli not found"})
-    rpt = run_model_check(
-        path, binary, setsize=setsize, max_ops=max_ops, timeout_ms=timeout
-    )
-    save_report(path, rpt)
-    return json.dumps(rpt.to_dict())
+    options = ProbOptions(setsize=setsize, max_ops=max_ops, timeout_ms=timeout)
+    return ModelCheckCommand().run(Path(file), options).to_json()
 
 
 @mcp.tool()
