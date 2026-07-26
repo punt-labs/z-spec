@@ -341,7 +341,7 @@ def test_browse_manifest_not_found() -> None:
     from punt_zspec.server import browse
 
     result = json.loads(browse("/nonexistent/manifest.toml"))
-    assert result["status"] == "error"
+    assert result["ok"] is False
     assert "not found" in result["error"].lower()
 
 
@@ -376,6 +376,6 @@ x : \nat
     mock_client = MagicMock()
     with patch("punt_zspec.server._get_client", return_value=mock_client):
         result = json.loads(browse(str(manifest)))
-    assert result["status"] == "displayed"
+    assert result["ok"] is True
     assert result["total"] == 1
     assert result["title"] == "Test Collection"

@@ -12,7 +12,7 @@ import typer
 from punt_zspec import __version__
 
 if TYPE_CHECKING:
-    from punt_zspec.types import SpecModel, SpecReports
+    from punt_zspec.types import Collection, SpecModel, SpecReports
 
 app = typer.Typer(
     name="z-spec",
@@ -40,6 +40,10 @@ def main(
 
 _TEX_ARG = typer.Argument(
     help="Path to .tex Z spec", exists=True, file_okay=True, dir_okay=False
+)
+
+_TOML_ARG = typer.Argument(
+    help="Path to manifest.toml", exists=True, file_okay=True, dir_okay=False
 )
 
 _REPORT_OPT = typer.Option("--report", help="Report JSON file, or - for stdin")
@@ -231,6 +235,26 @@ def show(
         )
 
     result = ShowCommand(build=build, display=LuxDisplay()).run(file)
+    err = result.error
+    if err is not None:
+        typer.echo(f"error: {err.message}", err=True)
+        raise typer.Exit(1)
+    typer.echo(result.to_json())
+
+
+@app.command()
+def browse(
+    manifest: Annotated[Path, _TOML_ARG],
+) -> None:
+    """Open a Z spec collection in the tutorial browser."""
+    from punt_zspec.browser import build_browser_scene
+    from punt_zspec.commands.browse import BrowseCommand
+    from punt_zspec.display import LuxDisplay
+
+    def build(collection: Collection, specs: list[tuple[SpecModel, Path]]) -> object:
+        return build_browser_scene(collection, specs)
+
+    result = BrowseCommand(build=build, display=LuxDisplay()).run(manifest)
     err = result.error
     if err is not None:
         typer.echo(f"error: {err.message}", err=True)

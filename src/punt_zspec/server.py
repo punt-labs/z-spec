@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import logging
 import os
 import threading
@@ -17,7 +16,7 @@ from mcp.server.fastmcp import FastMCP
 from punt_zspec import __version__
 
 if TYPE_CHECKING:
-    from punt_zspec.types import SpecModel, SpecReports
+    from punt_zspec.types import Collection, SpecModel, SpecReports
 
 logger = logging.getLogger(__name__)
 
@@ -269,30 +268,6 @@ def _reset_client_locked() -> None:
             _apps_registered_for = None
 
 
-def _with_lux(fn: Any) -> dict[str, Any]:
-    """Run fn(client) with auto-reconnect on socket failure."""
-    global _client, _apps_registered_for
-    with _client_lock:
-        try:
-            return fn(_get_client())  # type: ignore[no-any-return]
-        except (ConnectionError, OSError):
-            if _client is not None:
-                try:
-                    _client.close()
-                except Exception:
-                    logger.debug(
-                        "Error closing client before reconnect",
-                        exc_info=True,
-                    )
-                _client = None
-                _apps_registered_for = None
-            try:
-                return fn(_get_client())  # type: ignore[no-any-return]
-            except (ConnectionError, OSError) as exc:
-                logger.warning("Lux reconnect failed: %s", exc)
-                return {"status": "error", "message": str(exc)}
-
-
 # ---------------------------------------------------------------------------
 # MCP tools
 # ---------------------------------------------------------------------------
@@ -458,49 +433,17 @@ def browse(manifest: str) -> str:
         manifest: Path to the manifest.toml file.
 
     Returns:
-        JSON with status, total lessons, and collection title.
+        JSON with ok (bool), total lessons, and collection title.
     """
     from punt_zspec.browser import build_browser_scene
-    from punt_zspec.manifest import parse_manifest
-    from punt_zspec.parser import parse_spec
+    from punt_zspec.commands.browse import BrowseCommand
+    from punt_zspec.display import LuxDisplay
 
-    path = Path(manifest)
-    if not path.exists():
-        return json.dumps(
-            {"status": "error", "error": f"Manifest not found: {manifest}"}
-        )
+    def build(collection: Collection, specs: list[tuple[SpecModel, Path]]) -> object:
+        return build_browser_scene(collection, specs)
 
-    try:
-        collection = parse_manifest(path)
-        browse_specs: list[tuple[SpecModel, Path]] = []
-        for lesson in collection.lessons:
-            tex_path = collection.base_path / lesson.spec_path
-            if not tex_path.exists():
-                return json.dumps(
-                    {
-                        "status": "error",
-                        "error": f"Spec not found: {tex_path}",
-                    }
-                )
-            browse_specs.append((parse_spec(tex_path), tex_path))
-        scene = build_browser_scene(collection, browse_specs)
-
-        def _show(client: Any) -> dict[str, Any]:
-            client.show(
-                "z-spec-browser",
-                [scene],
-                frame_id="z-spec-browser",
-                frame_title=collection.title,
-            )
-            return {
-                "status": "displayed",
-                "total": len(collection.lessons),
-                "title": collection.title,
-            }
-
-        return json.dumps(_with_lux(_show))
-    except (FileNotFoundError, ValueError) as exc:
-        return json.dumps({"status": "error", "error": str(exc)})
+    display = LuxDisplay(provide=_get_client_locked, reset=_reset_client_locked)
+    return BrowseCommand(build=build, display=display).run(Path(manifest)).to_json()
 
 
 @mcp.tool()

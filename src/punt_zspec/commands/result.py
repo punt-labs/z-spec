@@ -25,6 +25,7 @@ class CommandFailure(StrEnum):
     report_missing = "report_missing"
     invalid_report = "invalid_report"  # authored partition/audit JSON
     spec_unreadable = "spec_unreadable"  # parse/read failed after the file exists
+    manifest_invalid = "manifest_invalid"  # manifest.toml malformed
     display_failed = "display_failed"  # lux surface unreachable
 
 
