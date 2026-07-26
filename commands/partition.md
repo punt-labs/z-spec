@@ -1,7 +1,7 @@
 ---
 description: Derive test cases from Z specification using TTF testing tactics
 argument-hint: "[spec.tex] [--code [language]] [--operation=NAME] [--json]"
-allowed-tools: Read, Glob, Grep, Write, mcp__plugin_lux_lux__ping, mcp__plugin_lux_lux__show
+allowed-tools: mcp__plugin_z-spec_zspec__save_partition_report, mcp__plugin_z-spec_zspec__show_z_spec, Read, Glob, Grep, Write
 ---
 
 # /z-spec:partition - Derive Test Cases from Z Specification
@@ -259,9 +259,15 @@ For each operation, produce:
 
 #### JSON Output (--json flag)
 
+This is the authored shape — identical to the `report_json` handed to
+`save_partition_report` in Step 11. Each operation's `summary` is **computed by
+the engine** on load and rendered in the markdown table and the Partition tab;
+the authored JSON omits it.
+
 ```json
 {
   "specification": "docs/example.tex",
+  "timestamp": "2026-07-25T12:00:00Z",
   "operations": [
     {
       "name": "OperationName",
@@ -291,13 +297,7 @@ For each operation, produce:
           "postState": null,
           "notes": "Precondition: input1 <= 150 fails"
         }
-      ],
-      "summary": {
-        "total": 5,
-        "accepted": 3,
-        "rejected": 1,
-        "pruned": 1
-      }
+      ]
     }
   ]
 }
@@ -493,153 +493,26 @@ If `--code` was used, also report:
 **Generated**: test_account_partition.py (33 test cases)
 ```
 
-### 11. Visual Display (when lux available)
+### 11. Persist and Display
 
-After generating the text summary, attempt to render an interactive lux table.
+Serialize the partition analysis to the JSON of Step 8 (the `--json` shape,
+matching `PartitionReport`: `{specification, timestamp, operations:[{name,
+kind, inputs, stateVars, branches, partitions:[{id, class, status, inputs,
+preState, postState?, branch?, notes}]}]}`). Each operation's `summary` is
+**computed by the engine** on load — do not author it.
 
-#### 11a. Check Lux Availability
+Call `mcp__plugin_z-spec_zspec__save_partition_report` with `file` (the spec
+path) and `report_json` (the serialized analysis). The tool validates the
+report against the schema and persists `<stem>.partition.json`.
 
-Try calling `mcp__plugin_lux_lux__ping`. If it succeeds, lux is available.
-If it fails or the tool does not exist, skip this step (text-only output is sufficient).
+- On `{"ok": true, "path": ...}`, confirm the saved path.
+- On `{"ok": false, "error": ...}`, report the `error` string verbatim (e.g.
+  `Invalid partition report: ...`) and fix the authored JSON — do not write a
+  malformed file.
 
-> **Note**: Once lux-t1p ships, replace this ping check with reading `.lux/config.md` instead.
-
-#### 11b. Build Spec Tab Content
-
-Before composing the partition table, parse the `.tex` source to
-build a Spec tab showing the Z specification rendered as Unicode
-math. This tab appears alongside the partition table.
-
-**Extract Z blocks** from the `.tex` file:
-
-- `\begin{schema}{Name}` ... `\end{schema}` — named schemas
-- `\begin{zed}` ... `\end{zed}` — standalone definitions, free types
-- `\begin{axdef}` ... `\end{axdef}` — axiomatic definitions
-- `\begin{gendef}` ... `\end{gendef}` — generic definitions
-
-**Split declarations from predicates** in each block:
-
-- For `schema`, `axdef`, and `gendef` blocks, split at the first
-  `\where`. Text before `\where` is the declaration part; text
-  after is the predicate part.
-- In the rendered box, place declarations above the `├──` rule
-  and predicates below it.
-- `zed` blocks have no `\where` — render as a single section.
-
-**Normalize layout tokens** so raw LaTeX does not appear:
-
-- Replace `\\` (and `\\[<len>]`) with newline characters
-- Replace `\quad~` and `\quad` with 2 spaces of indentation
-- Strip `%` comment lines entirely
-
-**Convert LaTeX Z commands to Unicode** using this translation
-table:
-
-<!-- markdownlint-disable MD013 -->
-| LaTeX | Unicode | LaTeX | Unicode | LaTeX | Unicode |
-|-------|---------|-------|---------|-------|---------|
-| `\nat` | ℕ | `\num` | ℤ | `\real` | ℝ |
-| `\power` | ℙ | `\finset` | F | `\seq` | seq |
-| `\cross` | × | `\fun` | → | `\pfun` | ⇸ |
-| `\bij` | ⤖ | `\pinj` | ⤔ | `\surj` | ↠ |
-| `\rel` | ↔ | `\in` | ∈ | `\notin` | ∉ |
-| `\subseteq` | ⊆ | `\subset` | ⊂ | `\cup` | ∪ |
-| `\cap` | ∩ | `\setminus` | ∖ | `\emptyset` | ∅ |
-| `\langle` | ⟨ | `\rangle` | ⟩ | `\forall` | ∀ |
-| `\exists` | ∃ | `\land` | ∧ | `\lor` | ∨ |
-| `\lnot` | ¬ | `\implies` | ⇒ | `\iff` | ⇔ |
-| `\Delta` | Δ | `\Xi` | Ξ | `\dom` | dom |
-| `\ran` | ran | `\dres` | ◁ | `\rres` | ▷ |
-| `\ndres` | ⩤ | `\nrres` | ⩥ | `\oplus` | ⊕ |
-| `\mapsto` | ↦ | `\neq` | ≠ | `\leq` | ≤ |
-| `\geq` | ≥ | `\#` | # | `\theta` | θ |
-| `\upto` | ‥ | `\cat` | ⁀ | `'` suffix | ′ |
-| `\semi` | ⨟ | `\pipe` | ≫ | `\project` | ↾ |
-
-> **BMP only**: All symbols above are in the Basic Multilingual
-> Plane (U+0000–FFFF). Do NOT use `𝔽` (U+1D53D) for `\finset`
-> — it renders as a replacement glyph in lux.
-
-**Render schemas as open-right boxes** using box-drawing
-characters. No right border (lux uses proportional font —
-right-side `│` characters will not align):
-
-```text
-┌─ SchemaName ──────────────────────────────────────────
-│ declaration1
-│ declaration2
-├───────────────────────────────────────────────────
-│ predicate1
-│ predicate2
-└───────────────────────────────────────────────────
-```
-
-The `┌` top line with the schema name must have ~5 MORE `─`
-characters than the `├`/`└` lines to compensate for the
-proportional-width name text. All rules should be generously
-long (60+ `─` characters).
-
-**Group under `collapsing_header`** elements by `\section{}`
-from the `.tex` source. Types/constants/state sections:
-`default_open: true`. Operations: `default_open: false`.
-
-Build an array of these elements — this becomes the Spec tab
-children.
-
-#### 11c. Compose Partition Display
-
-Use a `tab_bar` to wrap the partition table and spec content. Call
-`mcp__plugin_lux_lux__show` with a JSON scene:
-
-```json
-{
-  "scene_id": "z-spec-partition-matrix",
-  "title": "<spec filename> — Test Partitions",
-  "elements": [
-    {"kind": "tab_bar", "id": "partition_tabs", "tabs": [
-      {"label": "Partitions", "children": [
-        {"kind": "group", "id": "summary", "layout": "columns", "children": [
-          {"kind": "text", "id": "s_ops", "content": "Operations: <N>"},
-          {"kind": "text", "id": "s_accepted", "content": "Accepted: <A>"},
-          {"kind": "text", "id": "s_rejected", "content": "Rejected: <R>"},
-          {"kind": "text", "id": "s_pruned", "content": "Pruned: <P>"},
-          {"kind": "text", "id": "s_total", "content": "Total: <T>"}
-        ]},
-        {"kind": "separator"},
-        {"kind": "input_text", "id": "filter_search", "label": "Search",
-         "hint": "Filter by operation name..."},
-        {"kind": "combo", "id": "filter_status", "label": "Status",
-         "items": ["All", "Accepted", "Rejected", "Pruned"], "selected": 0},
-        {"kind": "separator"},
-        {"kind": "table", "id": "partitions",
-         "columns": ["#", "Operation", "Class", "Branch", "Inputs",
-                      "Pre-state", "Post-state", "Status", "Notes"],
-         "rows": [
-           ["1", "<OpName>", "Happy path", "1", "<inputs>", "<pre>",
-            "<post>", "Accepted", "<notes>"],
-           ["2", "<OpName>", "Boundary: min", "1", "<inputs>", "<pre>",
-            "<post>", "Accepted", "<notes>"],
-           ["3", "<OpName>", "REJECTED", "-", "<inputs>", "<pre>",
-            "(no change)", "Rejected", "<notes>"],
-           ["4", "<OpName>", "PRUNED", "-", "-", "-", "-", "Pruned",
-            "<notes>"]
-         ], "flags": ["borders", "row_bg", "resizable"]}
-      ]},
-      {"label": "Spec", "children": ["<spec tab elements from 11b>"]}
-    ]}
-  ]
-}
-```
-
-Populate rows from the partition table generated in Steps 7–8:
-- One row per partition across all operations
-- Status column values: "Accepted", "Rejected", or "Pruned"
-- **Spec tab**: the collapsing_header elements built in step 11b
-
-#### 11d. Graceful Degradation
-
-If the lux `show` call fails for any reason, continue with text-only output.
-Lux supplements the conversation, it never replaces it.
+Then call `mcp__plugin_z-spec_zspec__show_z_spec` with `file` to render the
+Partition tab beside the Spec tab. The tool reads the `<stem>.partition.json`
+just written; no hand-rolled lux.
 
 ## Integration with Other Commands
 
