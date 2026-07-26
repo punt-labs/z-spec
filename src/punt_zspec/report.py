@@ -10,6 +10,7 @@ Convention:
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,8 @@ from punt_zspec.types import (
     ProbReport,
     TraceStep,
 )
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Path helpers
@@ -93,7 +96,8 @@ def load_report(tex_path: Path) -> ProbReport | None:
     try:
         data: dict[str, Any] = json.loads(rpt.read_text(encoding="utf-8"))
         return prob_from_dict(data)
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        logger.warning("report file %s is corrupt (%s); treating as absent", rpt, exc)
         return None
 
 

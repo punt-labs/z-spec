@@ -6,9 +6,13 @@ import asyncio
 import json
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 from punt_zspec.server import _lifespan, mcp  # pyright: ignore[reportPrivateUsage]
+
+if TYPE_CHECKING:
+    import pytest
 
 
 def test_server_has_correct_name() -> None:
@@ -102,28 +106,34 @@ def test_check_tool_file_not_found() -> None:
     assert "Spec file not found" in result["error"]
 
 
-def test_check_tool_fuzz_not_found(tmp_path: Path) -> None:
+def test_check_tool_fuzz_not_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     tex = tmp_path / "spec.tex"
     tex.write_text("dummy")
-    with patch("punt_zspec.fuzz.resolve_fuzz", return_value=None):
-        from punt_zspec.server import check
+    # Make resolve_fuzz genuinely fail: $FUZZ points nowhere and PATH is empty.
+    monkeypatch.setenv("FUZZ", str(tmp_path / "no-such-fuzz"))
+    monkeypatch.setenv("PATH", "")
+    from punt_zspec.server import check
 
-        result = json.loads(check(str(tex)))
+    result = json.loads(check(str(tex)))
     assert result["ok"] is False
     assert "fuzz not found" in result["error"]
 
 
-def test_check_tool_success(tmp_path: Path) -> None:
+def test_check_tool_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     tex = tmp_path / "spec.tex"
     tex.write_text("dummy")
+    # $FUZZ points at a real file so resolve_fuzz returns it; the run itself
+    # is stubbed to a clean exit so the test needs no installed fuzz.
+    fake_fuzz = tmp_path / "fuzz"
+    fake_fuzz.write_text("")
+    monkeypatch.setenv("FUZZ", str(fake_fuzz))
 
     mock_result = subprocess.CompletedProcess(
         args=[], returncode=0, stdout="0 type errors\n", stderr=""
     )
-    with (
-        patch("punt_zspec.fuzz.resolve_fuzz", return_value=Path("/usr/bin/fuzz")),
-        patch("subprocess.run", return_value=mock_result),
-    ):
+    with patch("subprocess.run", return_value=mock_result):
         from punt_zspec.server import check
 
         result = json.loads(check(str(tex)))
