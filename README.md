@@ -47,15 +47,17 @@ Both are installed automatically by `/z-spec:setup all`. fuzz is compiled from s
 ## Ways to Use It
 
 z-spec is one engine — the LaTeX Z parser, the fuzz and probcli wrappers, the
-report store — behind three clients: a Claude Code plugin, a `z-spec` CLI, and
-an MCP server. A given capability runs the same engine code whichever client
-calls it, so behavior is identical across all three.
+report store — reached through two clients: a `z-spec` CLI and an MCP server. A
+given capability runs the same engine code through either client. The Claude
+Code plugin is not a third client: its `/z-spec:*` slash commands are LLM
+prompts that drive the MCP client. Three ways it gets used:
 
-**1. Claude Code plugin.** Install the plugin and drive everything with
-`/z-spec:*` slash commands. The commands add LLM authoring on top of the
-engine — generating a spec from a codebase (`/z-spec:code2model`), deriving TTF
-partition analyses, explaining a counter-example — then call the engine to
-type-check, model-check, and render results in Lux. See [Quick Start](#quick-start).
+**1. Claude Code plugin (prompts over the MCP client).** Install the plugin and
+drive everything with `/z-spec:*` slash commands. The commands are LLM prompts
+that add authoring on top of the engine — generating a spec from a codebase
+(`/z-spec:code2model`), deriving TTF partition analyses, explaining a
+counter-example — then call the MCP client to type-check, model-check, and
+render results in Lux. See [Quick Start](#quick-start).
 
 **2. CLI + MCP without the plugin.** For agents that are not the Claude Code
 plugin — Codex, Cursor, or Claude Code under an org policy that blocks plugin
