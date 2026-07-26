@@ -23,7 +23,10 @@ class CommandFailure(StrEnum):
     binary_missing = "binary_missing"
     spec_not_found = "spec_not_found"
     report_missing = "report_missing"
-    invalid_report = "invalid_report"  # authored partition/audit JSON (Phase 2)
+    invalid_report = "invalid_report"  # authored partition/audit JSON
+    spec_unreadable = "spec_unreadable"  # parse/read failed after the file exists
+    manifest_invalid = "manifest_invalid"  # manifest.toml malformed
+    display_failed = "display_failed"  # lux surface unreachable
 
 
 @final

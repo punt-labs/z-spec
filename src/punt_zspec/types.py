@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, final
 
 
 class BlockKind(StrEnum):
@@ -429,6 +429,26 @@ class AuditReport:
             "constraints": [c.to_dict() for c in self.constraints],
             "uncovered": [u.to_dict() for u in self.uncovered],
         }
+
+
+# ---------------------------------------------------------------------------
+# Persisted-report bundle
+# ---------------------------------------------------------------------------
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class SpecReports:
+    """A frozen snapshot of the four reports persisted beside a spec.
+
+    Each field is optional because a spec may have no report of that kind yet —
+    absence is the documented contract, not a failure (PY-TS-14).
+    """
+
+    report: ProbReport | None
+    fuzz: FuzzResult | None
+    partition: PartitionReport | None
+    audit: AuditReport | None
 
 
 # ---------------------------------------------------------------------------

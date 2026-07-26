@@ -4,17 +4,19 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import logging
 import os
 import threading
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from mcp.server.fastmcp import FastMCP
 
 from punt_zspec import __version__
+
+if TYPE_CHECKING:
+    from punt_zspec.types import Collection, SpecModel, SpecReports
 
 logger = logging.getLogger(__name__)
 
@@ -247,41 +249,28 @@ def _get_client() -> Any:
     return _client
 
 
-def _with_lux(fn: Any) -> dict[str, Any]:
-    """Run fn(client) with auto-reconnect on socket failure."""
+def _get_client_locked() -> Any:
+    """Return the shared menu client, connecting under the client lock."""
+    with _client_lock:
+        return _get_client()
+
+
+def _reset_client_locked() -> None:
+    """Drop the shared menu client so the next connect rebuilds it."""
     global _client, _apps_registered_for
     with _client_lock:
-        try:
-            return fn(_get_client())  # type: ignore[no-any-return]
-        except (ConnectionError, OSError):
-            if _client is not None:
-                try:
-                    _client.close()
-                except Exception:
-                    logger.debug(
-                        "Error closing client before reconnect",
-                        exc_info=True,
-                    )
-                _client = None
-                _apps_registered_for = None
+        if _client is not None:
             try:
-                return fn(_get_client())  # type: ignore[no-any-return]
-            except (ConnectionError, OSError) as exc:
-                logger.warning("Lux reconnect failed: %s", exc)
-                return {"status": "error", "message": str(exc)}
+                _client.close()
+            except Exception:
+                logger.debug("Error closing client before reconnect", exc_info=True)
+            _client = None
+            _apps_registered_for = None
 
 
 # ---------------------------------------------------------------------------
 # MCP tools
 # ---------------------------------------------------------------------------
-
-
-def _validate_spec_path(file: str) -> Path | None:
-    """Validate a spec file path. Returns Path if valid, None if not."""
-    path = Path(file)
-    if not path.exists() or not path.is_file():
-        return None
-    return path
 
 
 @mcp.tool()
@@ -370,6 +359,18 @@ def model_check(
 
 
 @mcp.tool()
+def doctor() -> str:
+    """Report Z-toolkit environment health.
+
+    Returns:
+        JSON with version, resolved fuzz/probcli paths, and healthy (bool).
+    """
+    from punt_zspec.commands.doctor import DoctorCommand
+
+    return DoctorCommand().run().to_json()
+
+
+@mcp.tool()
 def show_z_spec(file: str) -> str:
     """Parse a Z spec and display it in lux.
 
@@ -380,49 +381,24 @@ def show_z_spec(file: str) -> str:
         file: Path to the .tex Z specification file.
 
     Returns:
-        JSON with status ("displayed" or "error").
+        JSON with ok (bool) and scene_id on success, or error.
     """
     from punt_zspec.applet import build_z_spec_scene
-    from punt_zspec.parser import parse_spec
-    from punt_zspec.report import (
-        load_audit,
-        load_fuzz,
-        load_partition,
-        load_report,
-    )
+    from punt_zspec.commands.show import ShowCommand
+    from punt_zspec.display import LuxDisplay
 
-    path = _validate_spec_path(file)
-    if path is None:
-        return json.dumps({"status": "error", "error": f"Spec file not found: {file}"})
-
-    try:
-        spec = parse_spec(path)
-        scene = build_z_spec_scene(
-            path,
+    def build(spec: Path, model: SpecModel, reports: SpecReports) -> object:
+        return build_z_spec_scene(
             spec,
-            report=load_report(path),
-            fuzz=load_fuzz(path),
-            partition=load_partition(path),
-            audit=load_audit(path),
+            model,
+            report=reports.report,
+            fuzz=reports.fuzz,
+            partition=reports.partition,
+            audit=reports.audit,
         )
-    except (
-        FileNotFoundError,
-        OSError,
-        UnicodeDecodeError,
-        json.JSONDecodeError,
-    ) as exc:
-        return json.dumps({"status": "error", "error": f"Failed to read spec: {exc}"})
 
-    def _show(client: Any) -> dict[str, Any]:
-        client.show(
-            "z-spec",
-            [scene],
-            frame_id="z-spec",
-            frame_title=f"Z-Spec: {path.name}",
-        )
-        return {"status": "displayed", "scene_id": "z-spec"}
-
-    return json.dumps(_with_lux(_show))
+    display = LuxDisplay(provide=_get_client_locked, reset=_reset_client_locked)
+    return ShowCommand(build=build, display=display).run(Path(file)).to_json()
 
 
 @mcp.tool()
@@ -444,7 +420,6 @@ def get_report(file: str) -> str:
 def save_partition_report(file: str, report_json: str) -> str:
     """Validate and save a partition report for a Z specification.
 
-    Called by the /z-spec:partition skill after generating partitions.
     The report is saved as <stem>.partition.json alongside the .tex file.
 
     Args:
@@ -454,19 +429,9 @@ def save_partition_report(file: str, report_json: str) -> str:
     Returns:
         JSON with ok (bool) and path to saved report.
     """
-    from punt_zspec.report import partition_from_dict, save_partition
+    from punt_zspec.commands.partition import PartitionCommand
 
-    path = _validate_spec_path(file)
-    if path is None:
-        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
-
-    try:
-        data = json.loads(report_json)
-        report = partition_from_dict(data)
-        out = save_partition(path, report)
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
-        return json.dumps({"ok": False, "error": f"Invalid partition report: {exc}"})
-    return json.dumps({"ok": True, "path": str(out)})
+    return PartitionCommand().run(Path(file), report_json).to_json()
 
 
 @mcp.tool()
@@ -480,57 +445,23 @@ def browse(manifest: str) -> str:
         manifest: Path to the manifest.toml file.
 
     Returns:
-        JSON with status, total lessons, and collection title.
+        JSON with ok (bool), total lessons, and collection title.
     """
     from punt_zspec.browser import build_browser_scene
-    from punt_zspec.manifest import parse_manifest
-    from punt_zspec.parser import parse_spec
-    from punt_zspec.types import SpecModel
+    from punt_zspec.commands.browse import BrowseCommand
+    from punt_zspec.display import LuxDisplay
 
-    path = Path(manifest)
-    if not path.exists():
-        return json.dumps(
-            {"status": "error", "error": f"Manifest not found: {manifest}"}
-        )
+    def build(collection: Collection, specs: list[tuple[SpecModel, Path]]) -> object:
+        return build_browser_scene(collection, specs)
 
-    try:
-        collection = parse_manifest(path)
-        browse_specs: list[tuple[SpecModel, Path]] = []
-        for lesson in collection.lessons:
-            tex_path = collection.base_path / lesson.spec_path
-            if not tex_path.exists():
-                return json.dumps(
-                    {
-                        "status": "error",
-                        "error": f"Spec not found: {tex_path}",
-                    }
-                )
-            browse_specs.append((parse_spec(tex_path), tex_path))
-        scene = build_browser_scene(collection, browse_specs)
-
-        def _show(client: Any) -> dict[str, Any]:
-            client.show(
-                "z-spec-browser",
-                [scene],
-                frame_id="z-spec-browser",
-                frame_title=collection.title,
-            )
-            return {
-                "status": "displayed",
-                "total": len(collection.lessons),
-                "title": collection.title,
-            }
-
-        return json.dumps(_with_lux(_show))
-    except (FileNotFoundError, ValueError) as exc:
-        return json.dumps({"status": "error", "error": str(exc)})
+    display = LuxDisplay(provide=_get_client_locked, reset=_reset_client_locked)
+    return BrowseCommand(build=build, display=display).run(Path(manifest)).to_json()
 
 
 @mcp.tool()
 def save_audit_report(file: str, report_json: str) -> str:
     """Validate and save an audit report for a Z specification.
 
-    Called by the /z-spec:audit skill after auditing test coverage.
     The report is saved as <stem>.audit.json alongside the .tex file.
 
     Args:
@@ -540,16 +471,6 @@ def save_audit_report(file: str, report_json: str) -> str:
     Returns:
         JSON with ok (bool) and path to saved report.
     """
-    from punt_zspec.report import audit_from_dict, save_audit
+    from punt_zspec.commands.audit import AuditCommand
 
-    path = _validate_spec_path(file)
-    if path is None:
-        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
-
-    try:
-        data = json.loads(report_json)
-        report = audit_from_dict(data)
-        out = save_audit(path, report)
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
-        return json.dumps({"ok": False, "error": f"Invalid audit report: {exc}"})
-    return json.dumps({"ok": True, "path": str(out)})
+    return AuditCommand().run(Path(file), report_json).to_json()
