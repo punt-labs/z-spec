@@ -336,18 +336,11 @@ def animate(file: str, steps: int = 20, setsize: int = 2) -> str:
     Returns:
         JSON report with animation results.
     """
-    from punt_zspec.prob import resolve_probcli, run_animate
-    from punt_zspec.report import save_report
+    from punt_zspec.commands.animate import AnimateCommand
+    from punt_zspec.commands.options import AnimateOptions
 
-    path = _validate_spec_path(file)
-    if path is None:
-        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
-    binary = resolve_probcli()
-    if binary is None:
-        return json.dumps({"ok": False, "error": "probcli not found"})
-    rpt = run_animate(path, binary, steps=steps, setsize=setsize)
-    save_report(path, rpt)
-    return json.dumps(rpt.to_dict())
+    options = AnimateOptions(steps=steps, setsize=setsize)
+    return AnimateCommand().run(Path(file), options).to_json()
 
 
 @mcp.tool()

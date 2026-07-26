@@ -99,18 +99,16 @@ def animate(
     ] = 2,
 ) -> None:
     """Animate a Z specification with probcli."""
-    from punt_zspec.prob import resolve_probcli, run_animate
-    from punt_zspec.report import save_report
+    from punt_zspec.commands.animate import AnimateCommand
+    from punt_zspec.commands.options import AnimateOptions
 
-    binary = resolve_probcli()
-    if binary is None:
-        typer.echo(
-            "error: probcli not found. Set $PROBCLI or add probcli to PATH.",
-            err=True,
-        )
+    result = AnimateCommand().run(file, AnimateOptions(steps=steps, setsize=setsize))
+    err = result.error
+    if err is not None:
+        suffix = f" {err.hint}" if err.hint else ""
+        typer.echo(f"error: {err.message}.{suffix}", err=True)
         raise typer.Exit(1)
-    report = run_animate(file, binary, steps=steps, setsize=setsize)
-    save_report(file, report)
+    report = result.unwrap()
     typer.echo(json.dumps(report.to_dict(), indent=2))
     if not report.ok:
         raise typer.Exit(1)

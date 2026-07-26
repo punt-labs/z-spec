@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from punt_zspec.commands.animate import AnimateCommand
 from punt_zspec.commands.check import CheckCommand
 from punt_zspec.commands.doctor import DoctorCommand
 from punt_zspec.commands.report import ReportCommand
@@ -13,6 +14,7 @@ from punt_zspec.commands.result import (
 from punt_zspec.commands.test import TestCommand
 
 __all__ = [
+    "AnimateCommand",
     "CheckCommand",
     "CommandError",
     "CommandFailure",
