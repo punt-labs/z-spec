@@ -76,6 +76,13 @@ ignore = [
     "RUF001", # Ambiguous Unicode — intentional for Z notation symbols
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Vendored OO gate suite (adopted verbatim from the canonical vox tools). C420
+# (dict comprehension over dict.fromkeys) is the only rule z-spec's ruff config
+# flags in the byte-identical tool sources; keeping the tools verbatim requires
+# ignoring it there.
+"tools/*" = ["C420"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["punt_zspec"]
 combine-as-imports = true
