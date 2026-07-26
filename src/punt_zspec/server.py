@@ -294,18 +294,9 @@ def check(file: str) -> str:
     Returns:
         JSON with ok (bool) and errors (list).
     """
-    from punt_zspec.fuzz import resolve_fuzz, run_fuzz
-    from punt_zspec.report import save_fuzz
+    from punt_zspec.commands.check import CheckCommand
 
-    path = _validate_spec_path(file)
-    if path is None:
-        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
-    binary = resolve_fuzz()
-    if binary is None:
-        return json.dumps({"ok": False, "error": "fuzz not found"})
-    result = run_fuzz(path, binary)
-    save_fuzz(path, result)
-    return json.dumps(result.to_dict())
+    return CheckCommand().run(Path(file)).to_json()
 
 
 @mcp.tool()

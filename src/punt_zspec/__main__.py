@@ -44,20 +44,22 @@ def check(
     file: Annotated[Path, _TEX_ARG],
 ) -> None:
     """Type-check a Z specification with fuzz."""
-    from punt_zspec.fuzz import resolve_fuzz, run_fuzz
+    from punt_zspec.commands.check import CheckCommand
 
-    binary = resolve_fuzz()
-    if binary is None:
-        typer.echo("error: fuzz not found. Set $FUZZ or add fuzz to PATH.", err=True)
+    result = CheckCommand().run(file)
+    err = result.error
+    if err is not None:
+        suffix = f" {err.hint}" if err.hint else ""
+        typer.echo(f"error: {err.message}.{suffix}", err=True)
         raise typer.Exit(1)
-    result = run_fuzz(file, binary)
-    if result.ok:
+    fuzz = result.unwrap()
+    if fuzz.ok:
         typer.echo(f"fuzz: {file.name} OK")
-    else:
-        typer.echo(f"fuzz: {file.name} FAIL", err=True)
-        for err in result.errors:
-            typer.echo(f"  {err.line}:{err.column}: {err.message}", err=True)
-        raise typer.Exit(1)
+        return
+    typer.echo(f"fuzz: {file.name} FAIL", err=True)
+    for e in fuzz.errors:
+        typer.echo(f"  {e.line}:{e.column}: {e.message}", err=True)
+    raise typer.Exit(1)
 
 
 @app.command()
