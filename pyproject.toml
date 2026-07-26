@@ -76,6 +76,11 @@ ignore = [
     "RUF001", # Ambiguous Unicode — intentional for Z notation symbols
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Vendored OO gate suite (adopted verbatim from the canonical vox tools): carry
+# across vox's own tool lint policy so the byte-identical tools stay lint-clean.
+"tools/*" = ["T20", "S603", "S607", "C901", "PERF403", "SIM102", "N806", "C420"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["punt_zspec"]
 combine-as-imports = true

@@ -1,0 +1,19 @@
+{
+  "total": 3,
+  "by_category": {
+    "noqa": 0,
+    "type_ignore": 0,
+    "pylint_disable": 0,
+    "pyright_ignore": 3,
+    "per_file_ignores": 0
+  },
+  "by_file": {
+    "src/punt_zspec/server.py": {
+      "pyright_ignore": 2
+    },
+    "src/punt_zspec/types.py": {
+      "pyright_ignore": 1
+    }
+  },
+  "updated_at": "2026-07-26T15:07:29Z"
+}
