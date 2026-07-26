@@ -58,7 +58,7 @@ def _read_report(report: str) -> str:
         return sys.stdin.read()
     try:
         return Path(report).read_text("utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         typer.echo(f"error: cannot read report: {exc}", err=True)
         raise typer.Exit(1) from exc
 

@@ -114,6 +114,48 @@ def test_load_report_corrupt_logs_warning(
     assert any("corrupt" in record.message for record in caplog.records)
 
 
+def test_load_fuzz_corrupt_logs_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    tex = tmp_path / "spec.tex"
+    tex.write_text("dummy")
+    fuzz_path(tex).write_text("{ not valid json", encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING):
+        loaded = load_fuzz(tex)
+
+    assert loaded is None
+    assert any("corrupt" in record.message for record in caplog.records)
+
+
+def test_load_partition_corrupt_logs_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    tex = tmp_path / "spec.tex"
+    tex.write_text("dummy")
+    partition_path(tex).write_text("{ not valid json", encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING):
+        loaded = load_partition(tex)
+
+    assert loaded is None
+    assert any("corrupt" in record.message for record in caplog.records)
+
+
+def test_load_audit_corrupt_logs_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    tex = tmp_path / "spec.tex"
+    tex.write_text("dummy")
+    audit_path(tex).write_text("{ not valid json", encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING):
+        loaded = load_audit(tex)
+
+    assert loaded is None
+    assert any("corrupt" in record.message for record in caplog.records)
+
+
 def test_is_stale_when_no_report(tmp_path: Path) -> None:
     tex = tmp_path / "spec.tex"
     tex.write_text("dummy")

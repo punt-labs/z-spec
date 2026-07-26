@@ -165,7 +165,8 @@ def load_fuzz(tex_path: Path) -> FuzzResult | None:
     try:
         data: dict[str, Any] = json.loads(fp.read_text(encoding="utf-8"))
         return fuzz_from_dict(data)
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        logger.warning("fuzz file %s is corrupt (%s); treating as absent", fp, exc)
         return None
 
 
@@ -195,7 +196,8 @@ def load_partition(tex_path: Path) -> PartitionReport | None:
     try:
         data: dict[str, Any] = json.loads(pp.read_text(encoding="utf-8"))
         return partition_from_dict(data)
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        logger.warning("partition file %s is corrupt (%s); treating as absent", pp, exc)
         return None
 
 
@@ -250,7 +252,8 @@ def load_audit(tex_path: Path) -> AuditReport | None:
     try:
         data: dict[str, Any] = json.loads(ap.read_text(encoding="utf-8"))
         return audit_from_dict(data)
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        logger.warning("audit file %s is corrupt (%s); treating as absent", ap, exc)
         return None
 
 

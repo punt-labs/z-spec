@@ -86,3 +86,18 @@ def test_partition_invalid_schema(spec: Path) -> None:
     error = result.error
     assert error is not None
     assert error.kind is CommandFailure.invalid_report
+
+
+@pytest.mark.parametrize("payload", ["[]", "null", '"x"', "3"])
+def test_partition_non_dict_json_is_invalid(spec: Path, payload: str) -> None:
+    # The real parser calls .get() on the parsed value; a non-dict raises
+    # AttributeError, which the command must classify as invalid_report.
+    cmd = PartitionCommand(persist=_unreachable_persist)
+
+    result = cmd.run(spec, payload)
+
+    assert not result.is_ok
+    error = result.error
+    assert error is not None
+    assert error.kind is CommandFailure.invalid_report
+    assert "Invalid partition report" in error.message

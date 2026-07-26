@@ -64,12 +64,18 @@ class PartitionCommand:
             )
         try:  # PY-EH-5 exception: json + wire-schema decode is an I/O boundary
             report = self._parse(json.loads(report_json))
-            out = self._persist(spec, report)
-        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        except (
+            json.JSONDecodeError,
+            KeyError,
+            TypeError,
+            ValueError,
+            AttributeError,
+        ) as exc:
             return CommandResult[SavedReport].failed(
                 CommandError(
                     CommandFailure.invalid_report,
                     f"Invalid partition report: {exc}",
                 )
             )
+        out = self._persist(spec, report)
         return CommandResult.ok(SavedReport(out))
