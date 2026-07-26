@@ -192,6 +192,23 @@ def partition(
 
 
 @app.command()
+def audit(
+    file: Annotated[Path, _TEX_ARG],
+    report: Annotated[str, _REPORT_OPT] = "-",
+) -> None:
+    """Validate and persist an authored test-coverage audit report."""
+    from punt_zspec.commands.audit import AuditCommand
+
+    raw = _read_report(report)
+    result = AuditCommand().run(file, raw)
+    err = result.error
+    if err is not None:
+        typer.echo(f"error: {err.message}", err=True)
+        raise typer.Exit(1)
+    typer.echo(str(result.unwrap().path))
+
+
+@app.command()
 def doctor() -> None:
     """Check Z specification environment health."""
     from punt_zspec.commands.doctor import DoctorCommand

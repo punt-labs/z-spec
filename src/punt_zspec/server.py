@@ -519,7 +519,6 @@ def browse(manifest: str) -> str:
 def save_audit_report(file: str, report_json: str) -> str:
     """Validate and save an audit report for a Z specification.
 
-    Called by the /z-spec:audit skill after auditing test coverage.
     The report is saved as <stem>.audit.json alongside the .tex file.
 
     Args:
@@ -529,16 +528,6 @@ def save_audit_report(file: str, report_json: str) -> str:
     Returns:
         JSON with ok (bool) and path to saved report.
     """
-    from punt_zspec.report import audit_from_dict, save_audit
+    from punt_zspec.commands.audit import AuditCommand
 
-    path = _validate_spec_path(file)
-    if path is None:
-        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
-
-    try:
-        data = json.loads(report_json)
-        report = audit_from_dict(data)
-        out = save_audit(path, report)
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
-        return json.dumps({"ok": False, "error": f"Invalid audit report: {exc}"})
-    return json.dumps({"ok": True, "path": str(out)})
+    return AuditCommand().run(Path(file), report_json).to_json()
