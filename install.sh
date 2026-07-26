@@ -157,7 +157,7 @@ if [ "$SKIP_PLUGIN" = "0" ]; then
 
   info "Registering Punt Labs marketplace..."
 
-  if claude plugin marketplace list < /dev/null 2>/dev/null | grep -q "$MARKETPLACE_NAME"; then
+  if claude plugin marketplace list < /dev/null | grep -q "$MARKETPLACE_NAME"; then
     ok "marketplace already registered"
     claude plugin marketplace update "$MARKETPLACE_NAME" < /dev/null || warn "marketplace refresh failed; continuing with cached version"
   else
@@ -180,7 +180,7 @@ if [ "$SKIP_PLUGIN" = "0" ]; then
 
   if ! ssh -n -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=5 -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
     warn "SSH auth to GitHub unavailable, using HTTPS fallback"
-    git config --global url."https://github.com/".insteadOf "git@github.com:"
+    git config --global --add url."https://github.com/".insteadOf "git@github.com:"
     NEED_HTTPS_REWRITE=1
   fi
 
@@ -193,7 +193,7 @@ if [ "$SKIP_PLUGIN" = "0" ]; then
     cleanup_https_rewrite
     fail "Failed to install $PLUGIN_NAME"
   fi
-  if ! claude plugin list < /dev/null 2>/dev/null | grep -q "$PLUGIN_NAME@$MARKETPLACE_NAME"; then
+  if ! claude plugin list < /dev/null | grep -q "$PLUGIN_NAME@$MARKETPLACE_NAME"; then
     cleanup_https_rewrite
     fail "$PLUGIN_NAME install reported success but plugin not found"
   fi
