@@ -44,20 +44,22 @@ def check(
     file: Annotated[Path, _TEX_ARG],
 ) -> None:
     """Type-check a Z specification with fuzz."""
-    from punt_zspec.fuzz import resolve_fuzz, run_fuzz
+    from punt_zspec.commands.check import CheckCommand
 
-    binary = resolve_fuzz()
-    if binary is None:
-        typer.echo("error: fuzz not found. Set $FUZZ or add fuzz to PATH.", err=True)
+    result = CheckCommand().run(file)
+    err = result.error
+    if err is not None:
+        suffix = f" {err.hint}" if err.hint else ""
+        typer.echo(f"error: {err.message}.{suffix}", err=True)
         raise typer.Exit(1)
-    result = run_fuzz(file, binary)
-    if result.ok:
+    fuzz = result.unwrap()
+    if fuzz.ok:
         typer.echo(f"fuzz: {file.name} OK")
-    else:
-        typer.echo(f"fuzz: {file.name} FAIL", err=True)
-        for err in result.errors:
-            typer.echo(f"  {err.line}:{err.column}: {err.message}", err=True)
-        raise typer.Exit(1)
+        return
+    typer.echo(f"fuzz: {file.name} FAIL", err=True)
+    for e in fuzz.errors:
+        typer.echo(f"  {e.line}:{e.column}: {e.message}", err=True)
+    raise typer.Exit(1)
 
 
 @app.command()
@@ -72,20 +74,17 @@ def test(
     ] = 30000,
 ) -> None:
     """Run full probcli test suite and save report."""
-    from punt_zspec.prob import resolve_probcli, run_full_suite
-    from punt_zspec.report import save_report
+    from punt_zspec.commands.options import ProbOptions
+    from punt_zspec.commands.test import TestCommand
 
-    binary = resolve_probcli()
-    if binary is None:
-        typer.echo(
-            "error: probcli not found. Set $PROBCLI or add probcli to PATH.",
-            err=True,
-        )
+    options = ProbOptions(setsize=setsize, max_ops=max_ops, timeout_ms=timeout)
+    result = TestCommand().run(file, options)
+    err = result.error
+    if err is not None:
+        suffix = f" {err.hint}" if err.hint else ""
+        typer.echo(f"error: {err.message}.{suffix}", err=True)
         raise typer.Exit(1)
-    report = run_full_suite(
-        file, binary, setsize=setsize, max_ops=max_ops, timeout_ms=timeout
-    )
-    save_report(file, report)
+    report = result.unwrap()
     typer.echo(json.dumps(report.to_dict(), indent=2))
     if not report.ok:
         raise typer.Exit(1)
@@ -100,18 +99,16 @@ def animate(
     ] = 2,
 ) -> None:
     """Animate a Z specification with probcli."""
-    from punt_zspec.prob import resolve_probcli, run_animate
-    from punt_zspec.report import save_report
+    from punt_zspec.commands.animate import AnimateCommand
+    from punt_zspec.commands.options import AnimateOptions
 
-    binary = resolve_probcli()
-    if binary is None:
-        typer.echo(
-            "error: probcli not found. Set $PROBCLI or add probcli to PATH.",
-            err=True,
-        )
+    result = AnimateCommand().run(file, AnimateOptions(steps=steps, setsize=setsize))
+    err = result.error
+    if err is not None:
+        suffix = f" {err.hint}" if err.hint else ""
+        typer.echo(f"error: {err.message}.{suffix}", err=True)
         raise typer.Exit(1)
-    report = run_animate(file, binary, steps=steps, setsize=setsize)
-    save_report(file, report)
+    report = result.unwrap()
     typer.echo(json.dumps(report.to_dict(), indent=2))
     if not report.ok:
         raise typer.Exit(1)
@@ -129,20 +126,17 @@ def model_check(
     ] = 30000,
 ) -> None:
     """Model-check a Z specification with probcli."""
-    from punt_zspec.prob import resolve_probcli, run_model_check
-    from punt_zspec.report import save_report
+    from punt_zspec.commands.model_check import ModelCheckCommand
+    from punt_zspec.commands.options import ProbOptions
 
-    binary = resolve_probcli()
-    if binary is None:
-        typer.echo(
-            "error: probcli not found. Set $PROBCLI or add probcli to PATH.",
-            err=True,
-        )
+    options = ProbOptions(setsize=setsize, max_ops=max_ops, timeout_ms=timeout)
+    result = ModelCheckCommand().run(file, options)
+    err = result.error
+    if err is not None:
+        suffix = f" {err.hint}" if err.hint else ""
+        typer.echo(f"error: {err.message}.{suffix}", err=True)
         raise typer.Exit(1)
-    report = run_model_check(
-        file, binary, setsize=setsize, max_ops=max_ops, timeout_ms=timeout
-    )
-    save_report(file, report)
+    report = result.unwrap()
     typer.echo(json.dumps(report.to_dict(), indent=2))
     if not report.ok:
         raise typer.Exit(1)
@@ -153,31 +147,29 @@ def report(
     file: Annotated[Path, _TEX_ARG],
 ) -> None:
     """Load and display an existing report."""
-    from punt_zspec.report import load_report
+    from punt_zspec.commands.report import ReportCommand
 
-    rpt = load_report(file)
-    if rpt is None:
-        typer.echo(f"No report found for {file.name}", err=True)
+    result = ReportCommand().run(file)
+    err = result.error
+    if err is not None:
+        typer.echo(err.message, err=True)
         raise typer.Exit(1)
-    typer.echo(json.dumps(rpt.to_dict(), indent=2))
+    typer.echo(json.dumps(result.unwrap().to_dict(), indent=2))
 
 
 @app.command()
 def doctor() -> None:
     """Check Z specification environment health."""
-    from punt_zspec.fuzz import resolve_fuzz
-    from punt_zspec.prob import resolve_probcli
+    from punt_zspec.commands.doctor import DoctorCommand
 
-    fuzz_bin = resolve_fuzz()
-    prob_bin = resolve_probcli()
-
-    typer.echo(f"z-spec {__version__}")
-    fuzz_status = f"OK ({fuzz_bin})" if fuzz_bin else "NOT FOUND"
-    prob_status = f"OK ({prob_bin})" if prob_bin else "NOT FOUND"
+    health = DoctorCommand().run().unwrap()
+    typer.echo(f"z-spec {health.version}")
+    fuzz_status = f"OK ({health.fuzz})" if health.fuzz else "NOT FOUND"
+    prob_status = f"OK ({health.probcli})" if health.probcli else "NOT FOUND"
     typer.echo(f"  fuzz:    {fuzz_status}")
     typer.echo(f"  probcli: {prob_status}")
 
-    if fuzz_bin is None or prob_bin is None:
+    if not health.healthy:
         raise typer.Exit(1)
 
 

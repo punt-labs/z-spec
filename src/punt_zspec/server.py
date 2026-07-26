@@ -292,20 +292,12 @@ def check(file: str) -> str:
         file: Path to the .tex Z specification file.
 
     Returns:
-        JSON with ok (bool) and errors (list).
+        JSON: on success {ok: true, errors: [...]}, on failure
+        {ok: false, error: <str>}.
     """
-    from punt_zspec.fuzz import resolve_fuzz, run_fuzz
-    from punt_zspec.report import save_fuzz
+    from punt_zspec.commands.check import CheckCommand
 
-    path = _validate_spec_path(file)
-    if path is None:
-        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
-    binary = resolve_fuzz()
-    if binary is None:
-        return json.dumps({"ok": False, "error": "fuzz not found"})
-    result = run_fuzz(path, binary)
-    save_fuzz(path, result)
-    return json.dumps(result.to_dict())
+    return CheckCommand().run(Path(file)).to_json()
 
 
 @mcp.tool()
@@ -326,20 +318,11 @@ def test(
     Returns:
         JSON report with all check results.
     """
-    from punt_zspec.prob import resolve_probcli, run_full_suite
-    from punt_zspec.report import save_report
+    from punt_zspec.commands.options import ProbOptions
+    from punt_zspec.commands.test import TestCommand
 
-    path = _validate_spec_path(file)
-    if path is None:
-        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
-    binary = resolve_probcli()
-    if binary is None:
-        return json.dumps({"ok": False, "error": "probcli not found"})
-    rpt = run_full_suite(
-        path, binary, setsize=setsize, max_ops=max_ops, timeout_ms=timeout
-    )
-    save_report(path, rpt)
-    return json.dumps(rpt.to_dict())
+    options = ProbOptions(setsize=setsize, max_ops=max_ops, timeout_ms=timeout)
+    return TestCommand().run(Path(file), options).to_json()
 
 
 @mcp.tool()
@@ -354,18 +337,11 @@ def animate(file: str, steps: int = 20, setsize: int = 2) -> str:
     Returns:
         JSON report with animation results.
     """
-    from punt_zspec.prob import resolve_probcli, run_animate
-    from punt_zspec.report import save_report
+    from punt_zspec.commands.animate import AnimateCommand
+    from punt_zspec.commands.options import AnimateOptions
 
-    path = _validate_spec_path(file)
-    if path is None:
-        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
-    binary = resolve_probcli()
-    if binary is None:
-        return json.dumps({"ok": False, "error": "probcli not found"})
-    rpt = run_animate(path, binary, steps=steps, setsize=setsize)
-    save_report(path, rpt)
-    return json.dumps(rpt.to_dict())
+    options = AnimateOptions(steps=steps, setsize=setsize)
+    return AnimateCommand().run(Path(file), options).to_json()
 
 
 @mcp.tool()
@@ -386,20 +362,11 @@ def model_check(
     Returns:
         JSON report with model checking results.
     """
-    from punt_zspec.prob import resolve_probcli, run_model_check
-    from punt_zspec.report import save_report
+    from punt_zspec.commands.model_check import ModelCheckCommand
+    from punt_zspec.commands.options import ProbOptions
 
-    path = _validate_spec_path(file)
-    if path is None:
-        return json.dumps({"ok": False, "error": f"Spec file not found: {file}"})
-    binary = resolve_probcli()
-    if binary is None:
-        return json.dumps({"ok": False, "error": "probcli not found"})
-    rpt = run_model_check(
-        path, binary, setsize=setsize, max_ops=max_ops, timeout_ms=timeout
-    )
-    save_report(path, rpt)
-    return json.dumps(rpt.to_dict())
+    options = ProbOptions(setsize=setsize, max_ops=max_ops, timeout_ms=timeout)
+    return ModelCheckCommand().run(Path(file), options).to_json()
 
 
 @mcp.tool()
@@ -468,13 +435,9 @@ def get_report(file: str) -> str:
     Returns:
         JSON report or error if no report exists.
     """
-    from punt_zspec.report import load_report
+    from punt_zspec.commands.report import ReportCommand
 
-    path = Path(file)
-    rpt = load_report(path)
-    if rpt is None:
-        return json.dumps({"ok": False, "error": f"No report found for {path.name}"})
-    return json.dumps(rpt.to_dict())
+    return ReportCommand().run(Path(file)).to_json()
 
 
 @mcp.tool()

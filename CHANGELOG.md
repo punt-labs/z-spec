@@ -6,10 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **Shared `commands/` orchestration layer** --- the CLI and MCP server are now thin clients over one engine. Each capability (`check`, `report`, `doctor`, `test`, `animate`, `model-check`) is a single command class with injected collaborators, returning a typed `CommandResult`; both surfaces construct the command and render or return its result, eliminating the duplicated resolve/run/persist/serialize logic that previously lived twice.
 - **`--no-plugin` CLI-only install** --- `install.sh` now accepts a `--no-plugin` flag and a `ZSPEC_NO_PLUGIN=1` environment variable (over the pipe as `sh -s -- --no-plugin` or `ZSPEC_NO_PLUGIN=1 sh`) to install the `z-spec` CLI while skipping the Claude Code marketplace-register and plugin-install steps, conforming to punt-kit [`install-cli-only.md`](https://github.com/punt-labs/punt-kit/blob/main/standards/install-cli-only.md). Unknown flags exit 2 with usage; only `ZSPEC_NO_PLUGIN=1` is honored.
 
 ### Changed
 
+- **`z-spec check` now persists `<stem>.fuzz.json`** --- the CLI `check` command now writes its fuzz result alongside the spec, matching the MCP `check` tool. Both surfaces persist via one code path; every other command's stdout, stderr, exit code, and MCP JSON output is unchanged.
 - **Missing `claude`/`git` auto-skips the plugin step** --- `install.sh` previously aborted when the `claude` CLI or `git` was absent; both are now capability auto-skips that install the CLI and skip only the plugin. `curl` remains a hard prerequisite. The CLI-only success message is identical for the auto-skip and explicit-skip paths and prints no plugin-activation line.
 
 ## [0.16.0] - 2026-05-10
