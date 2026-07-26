@@ -11,6 +11,7 @@ from punt_zspec.report import (
     audit_path,
     fuzz_path,
     is_stale,
+    load_all_reports,
     load_audit,
     load_fuzz,
     load_partition,
@@ -321,3 +322,33 @@ def test_audit_roundtrip(tmp_path: Path) -> None:
 
 def test_load_audit_missing(tmp_path: Path) -> None:
     assert load_audit(tmp_path / "missing.tex") is None
+
+
+# ---------------------------------------------------------------------------
+# load_all_reports
+# ---------------------------------------------------------------------------
+
+
+def test_load_all_reports_all_absent(tmp_path: Path) -> None:
+    bundle = load_all_reports(tmp_path / "spec.tex")
+    assert bundle.report is None
+    assert bundle.fuzz is None
+    assert bundle.partition is None
+    assert bundle.audit is None
+
+
+def test_load_all_reports_loads_each_present(tmp_path: Path) -> None:
+    tex = tmp_path / "spec.tex"
+    tex.write_text("dummy")
+    save_report(tex, _make_report())
+    save_fuzz(tex, FuzzResult(ok=True))
+
+    bundle = load_all_reports(tex)
+
+    assert bundle.report is not None
+    assert bundle.report.states_analysed == 10
+    assert bundle.fuzz is not None
+    assert bundle.fuzz.ok is True
+    # partition/audit were never written, so they stay absent.
+    assert bundle.partition is None
+    assert bundle.audit is None

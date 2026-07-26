@@ -30,6 +30,7 @@ from punt_zspec.types import (
     PartitionReport,
     PartitionStatus,
     ProbReport,
+    SpecReports,
     TraceStep,
 )
 
@@ -282,4 +283,23 @@ def audit_from_dict(data: dict[str, Any]) -> AuditReport:
         timestamp=data.get("timestamp", ""),
         constraints=constraints,
         uncovered=uncovered,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Aggregate loader
+# ---------------------------------------------------------------------------
+
+
+def load_all_reports(tex_path: Path) -> SpecReports:
+    """Load every persisted report beside a spec into one bundle.
+
+    Each field is None when that report is missing or corrupt — the individual
+    loaders already treat absence and corruption as "not present".
+    """
+    return SpecReports(
+        report=load_report(tex_path),
+        fuzz=load_fuzz(tex_path),
+        partition=load_partition(tex_path),
+        audit=load_audit(tex_path),
     )
