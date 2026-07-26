@@ -1,4 +1,4 @@
-.PHONY: help lint type test check format build clean depot assert report
+.PHONY: help lint type test check check-oo update-oo check-coupling update-coupling check-suppressions update-suppressions format build clean depot assert report
 
 FUZZ      ?= fuzz
 PROBCLI   ?= $(HOME)/Applications/ProB/probcli
@@ -26,7 +26,7 @@ type: type-py $(addprefix type-z-,$(SPEC_NAMES)) ## Type-check Python and Z spec
 
 type-py:
 	uv run mypy src/ tests/
-	uv run pyright
+	uv run pyright src/ tests/
 
 type-z-%: examples/%.tex
 	@echo "fuzz $<"
@@ -50,7 +50,32 @@ test-z-%: examples/%.tex
 	echo ""; \
 	exit $$rc
 
-check: lint type test ## Run all quality gates
+check: lint type test check-oo check-coupling check-suppressions ## Run all quality gates
+
+# ── OO gate suite (ratchet against committed baselines) ─────
+# Base-comparison flags injected by CI (e.g. --base-ref <merge-base>). Empty
+# locally, where the tools default the base to `git merge-base origin/main HEAD`.
+OO_BASE          ?=
+COUPLING_BASE    ?=
+SUPPRESSION_BASE ?=
+
+check-oo: ## OO ratchet — must improve over baseline, never regress
+	uv run python tools/oo_score.py src/punt_zspec/ --check $(OO_BASE)
+
+update-oo: ## Update OO baseline (stage .oo-baseline.json and .oo-audit.jsonl)
+	uv run python tools/oo_score.py src/punt_zspec/ --update $(OO_BASE)
+
+check-coupling: ## Coupling ratchet — merge-base scoped, must not regress
+	uv run python tools/oo_coupling.py src/punt_zspec/ --check $(COUPLING_BASE)
+
+update-coupling: ## Update coupling baseline (stage baseline and audit jsonl)
+	uv run python tools/oo_coupling.py src/punt_zspec/ --update $(COUPLING_BASE)
+
+check-suppressions: ## Suppression ratchet — base-commit scoped, count must not rise
+	uv run python tools/suppression_ratchet.py src/punt_zspec/ --check $(SUPPRESSION_BASE)
+
+update-suppressions: ## Update suppression baseline
+	uv run python tools/suppression_ratchet.py src/punt_zspec/ --update
 
 format: ## Auto-format code
 	uv run ruff format .
@@ -83,6 +108,7 @@ assert-%: examples/%.tex
 	exit $$rc
 
 report: $(addprefix report-,$(SPEC_NAMES)) ## Generate reports for all specs
+	-uv run python tools/oo_score.py src/punt_zspec/ --threshold
 
 report-%: examples/%.tex
 	@echo "report $<"
