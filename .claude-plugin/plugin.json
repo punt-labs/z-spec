@@ -6,6 +6,7 @@
     "name": "Punt Labs",
     "email": "hello@punt-labs.com"
   },
+  "hooks": "./hooks/hooks.json",
   "mcpServers": {
     "zspec": {
       "type": "stdio",

@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__(plugin_z-spec(-dev)?_)?zspec__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/suppress-output.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
