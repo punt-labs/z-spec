@@ -15,9 +15,10 @@ Arguments: $ARGUMENTS
 Parse arguments:
 
 - First positional argument: file path (or search in `docs/`)
-- `-v` or `--verbose`: Show every check's `detail` field, not just the
-  summary line (display only — the tool returns structured JSON, not raw
-  probcli stdout, so there is no raw output to surface)
+- `-v` or `--verbose`: Append each check's `detail` field to its summary
+  line. Without `-v`, render only `<name>: <status>`; with `-v`, render
+  `<name>: <status> — <detail>` (display only — the tool returns structured
+  JSON, not raw probcli stdout, so there is no raw output to surface)
 - `-s N` or `--setsize N`: Default set size for model checking (default: 2)
 
 `-a` and `-v` are not parameters of the `test` tool. `run_full_suite`
@@ -56,11 +57,13 @@ If the returned JSON has an `error` field (e.g. the binary is not installed),
 surface `error` (and `hint` if present) verbatim to the user and stop — do not
 render the normal result.
 
-Render the JSON as text:
+Render the JSON as text. Without `-v`, render each check as
+`<check.name>: <check.status>` (summary only). With `-v`, append the detail
+as `<check.name>: <check.status> — <check.detail>`:
 
 ```
 Results (setsize N):
-  <check.name>: <check.status>   <check.detail>
+  <check.name>: <check.status>
   ...
 States: <states_analysed>   Transitions: <transitions_fired>
 Coverage: <count of operations with covered=true>/<len(operations)>
