@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, final
 
+from .fuzz import FuzzError, FuzzResult
 from .spec import BlockKind, SpecModel, ZBlock
 
 __all__ = [
@@ -42,33 +43,6 @@ class CheckStatus(StrEnum):
     failed = "failed"
     warning = "warning"
     skipped = "skipped"
-
-
-@dataclass(frozen=True)
-class FuzzError:
-    """A single fuzz type-checking error."""
-
-    line: int
-    column: int
-    message: str
-
-
-@dataclass(frozen=True)
-class FuzzResult:
-    """Result of running fuzz -t."""
-
-    ok: bool
-    errors: list[FuzzError] = field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    raw_output: str = ""
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "ok": self.ok,
-            "errors": [
-                {"line": e.line, "column": e.column, "message": e.message}
-                for e in self.errors
-            ],
-        }
 
 
 @dataclass(frozen=True)
