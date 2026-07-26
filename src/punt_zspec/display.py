@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Protocol, Self, final
 
 from punt_zspec.commands.show import DisplayError
+
+logger = logging.getLogger(__name__)
 
 
 class ClientProvider(Protocol):
@@ -57,6 +60,7 @@ class LuxDisplay:
             try:
                 self._render(scene, frame_id=frame_id, frame_title=frame_title)
             except (ConnectionError, OSError) as exc:
+                logger.warning("Lux reconnect failed: %s", exc)
                 raise DisplayError(str(exc)) from exc
 
     def _render(self, scene: object, *, frame_id: str, frame_title: str) -> None:

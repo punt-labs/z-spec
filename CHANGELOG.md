@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 - **`z-spec check` now persists `<stem>.fuzz.json`** --- the CLI `check` command now writes its fuzz result alongside the spec, matching the MCP `check` tool. Both surfaces persist via one code path; every other command's stdout, stderr, exit code, and MCP JSON output is unchanged.
 - **`show_z_spec` and `browse` MCP tools use the `{ok: ...}` convention** --- both tools previously returned `{"status": "displayed"|"error", ...}`; they now return `{"ok": true, ...}` on success and `{"ok": false, "error": ...}` on failure, matching every other tool. The error message strings are unchanged; only the discriminator key flips. The partition, audit, and report tool outputs are byte-for-byte unchanged.
 - **Missing `claude`/`git` auto-skips the plugin step** --- `install.sh` previously aborted when the `claude` CLI or `git` was absent; both are now capability auto-skips that install the CLI and skip only the plugin. `curl` remains a hard prerequisite. The CLI-only success message is identical for the auto-skip and explicit-skip paths and prints no plugin-activation line.
+- **Lux render lock now scopes to client acquisition/reset, not the full render** --- the MCP server's display lock is held only while acquiring or resetting the shared lux client, not for the duration of a scene render; menu callbacks already render unlocked. This is a deliberate narrowing for the single-user display; concurrent renders are no longer serialized end-to-end.
 
 ## [0.16.0] - 2026-05-10
 
