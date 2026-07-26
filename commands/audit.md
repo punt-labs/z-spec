@@ -200,21 +200,16 @@ The following constraints have no detected test coverage:
 
 #### JSON Output (--json flag)
 
+This is the authored shape — identical to the `report_json` handed to
+`save_audit_report` in Step 8. `summary` and `byCategory` are **computed by the
+engine** on load and rendered in the markdown output and the Audit tab; the
+authored JSON omits them.
+
 ```json
 {
   "specification": "docs/example.tex",
   "testDirectory": "ExampleTests/",
-  "summary": {
-    "covered": 15,
-    "total": 19,
-    "percentage": 79
-  },
-  "byCategory": {
-    "invariant": { "covered": 8, "total": 10 },
-    "precondition": { "covered": 4, "total": 4 },
-    "effect": { "covered": 3, "total": 4 },
-    "bound": { "covered": 0, "total": 1 }
-  },
+  "timestamp": "2026-07-25T12:00:00Z",
   "constraints": [
     {
       "text": "level >= 1",
@@ -264,8 +259,9 @@ and `report_json` (the serialized audit). The tool validates the report against
 the schema and persists `<stem>.audit.json`.
 
 - On `{"ok": true, "path": ...}`, confirm the saved path.
-- On an `invalid_report` error, report the message (e.g. `Invalid audit report:
-  ...`) and fix the authored JSON — do not write a malformed file.
+- On `{"ok": false, "error": ...}`, report the `error` string verbatim (e.g.
+  `Invalid audit report: ...`) and fix the authored JSON — do not write a
+  malformed file.
 
 Then call `mcp__plugin_z-spec_zspec__show_z_spec` with `file` to render the
 Audit tab beside the Spec tab. The tool reads the `<stem>.audit.json` just

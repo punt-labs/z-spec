@@ -259,9 +259,15 @@ For each operation, produce:
 
 #### JSON Output (--json flag)
 
+This is the authored shape — identical to the `report_json` handed to
+`save_partition_report` in Step 11. Each operation's `summary` is **computed by
+the engine** on load and rendered in the markdown table and the Partition tab;
+the authored JSON omits it.
+
 ```json
 {
   "specification": "docs/example.tex",
+  "timestamp": "2026-07-25T12:00:00Z",
   "operations": [
     {
       "name": "OperationName",
@@ -291,13 +297,7 @@ For each operation, produce:
           "postState": null,
           "notes": "Precondition: input1 <= 150 fails"
         }
-      ],
-      "summary": {
-        "total": 5,
-        "accepted": 3,
-        "rejected": 1,
-        "pruned": 1
-      }
+      ]
     }
   ]
 }
@@ -498,15 +498,17 @@ If `--code` was used, also report:
 Serialize the partition analysis to the JSON of Step 8 (the `--json` shape,
 matching `PartitionReport`: `{specification, timestamp, operations:[{name,
 kind, inputs, stateVars, branches, partitions:[{id, class, status, inputs,
-preState, postState?, branch?, notes}]}]}`).
+preState, postState?, branch?, notes}]}]}`). Each operation's `summary` is
+**computed by the engine** on load — do not author it.
 
 Call `mcp__plugin_z-spec_zspec__save_partition_report` with `file` (the spec
 path) and `report_json` (the serialized analysis). The tool validates the
 report against the schema and persists `<stem>.partition.json`.
 
 - On `{"ok": true, "path": ...}`, confirm the saved path.
-- On an `invalid_report` error, report the message (e.g. `Invalid partition
-  report: ...`) and fix the authored JSON — do not write a malformed file.
+- On `{"ok": false, "error": ...}`, report the `error` string verbatim (e.g.
+  `Invalid partition report: ...`) and fix the authored JSON — do not write a
+  malformed file.
 
 Then call `mcp__plugin_z-spec_zspec__show_z_spec` with `file` to render the
 Partition tab beside the Spec tab. The tool reads the `<stem>.partition.json`
