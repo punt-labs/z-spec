@@ -168,19 +168,16 @@ def report(
 @app.command()
 def doctor() -> None:
     """Check Z specification environment health."""
-    from punt_zspec.fuzz import resolve_fuzz
-    from punt_zspec.prob import resolve_probcli
+    from punt_zspec.commands.doctor import DoctorCommand
 
-    fuzz_bin = resolve_fuzz()
-    prob_bin = resolve_probcli()
-
-    typer.echo(f"z-spec {__version__}")
-    fuzz_status = f"OK ({fuzz_bin})" if fuzz_bin else "NOT FOUND"
-    prob_status = f"OK ({prob_bin})" if prob_bin else "NOT FOUND"
+    health = DoctorCommand().run().unwrap()
+    typer.echo(f"z-spec {health.version}")
+    fuzz_status = f"OK ({health.fuzz})" if health.fuzz else "NOT FOUND"
+    prob_status = f"OK ({health.probcli})" if health.probcli else "NOT FOUND"
     typer.echo(f"  fuzz:    {fuzz_status}")
     typer.echo(f"  probcli: {prob_status}")
 
-    if fuzz_bin is None or prob_bin is None:
+    if not health.healthy:
         raise typer.Exit(1)
 
 
