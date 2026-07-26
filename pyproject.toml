@@ -77,9 +77,11 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Vendored OO gate suite (adopted verbatim from the canonical vox tools): carry
-# across vox's own tool lint policy so the byte-identical tools stay lint-clean.
-"tools/*" = ["T20", "S603", "S607", "C901", "PERF403", "SIM102", "N806", "C420"]
+# Vendored OO gate suite (adopted verbatim from the canonical vox tools). C420
+# (dict comprehension over dict.fromkeys) is the only rule z-spec's ruff config
+# flags in the byte-identical tool sources; keeping the tools verbatim requires
+# ignoring it there.
+"tools/*" = ["C420"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["punt_zspec"]
