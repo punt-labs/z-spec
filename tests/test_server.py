@@ -19,21 +19,8 @@ def test_server_has_correct_name() -> None:
     assert mcp.name == "zspec"
 
 
-def test_server_has_all_tools() -> None:
-    tool_names = {tool.name for tool in mcp._tool_manager.list_tools()}  # pyright: ignore[reportPrivateUsage]
-    expected = {
-        "check",
-        "test",
-        "animate",
-        "model_check",
-        "doctor",
-        "show_z_spec",
-        "get_report",
-        "save_partition_report",
-        "save_audit_report",
-        "browse",
-    }
-    assert expected == tool_names
+# The full MCP tool set and its CLI counterpart are enforced by the
+# registry-driven parity guard in tests/commands/test_parity.py.
 
 
 # ---------------------------------------------------------------------------
