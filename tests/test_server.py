@@ -179,7 +179,7 @@ def test_show_z_spec_file_not_found() -> None:
     from punt_zspec.server import show_z_spec
 
     result = json.loads(show_z_spec("nonexistent.tex"))
-    assert result["status"] == "error"
+    assert result["ok"] is False
     assert "Spec file not found" in result["error"]
 
 
@@ -203,7 +203,7 @@ x \leq 10
     mock_client = MagicMock()
     with patch("punt_zspec.server._get_client", return_value=mock_client):
         result = json.loads(show_z_spec(str(tex)))
-    assert result["status"] == "displayed"
+    assert result["ok"] is True
     assert result["scene_id"] == "z-spec"
 
 
@@ -227,8 +227,8 @@ x : \nat
         side_effect=ConnectionError("lux not running"),
     ):
         result = json.loads(show_z_spec(str(tex)))
-    assert result["status"] == "error"
-    assert "lux not running" in result["message"]
+    assert result["ok"] is False
+    assert "lux not running" in result["error"]
 
 
 # ---------------------------------------------------------------------------

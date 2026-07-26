@@ -5,11 +5,14 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
 from punt_zspec import __version__
+
+if TYPE_CHECKING:
+    from punt_zspec.types import SpecModel, SpecReports
 
 app = typer.Typer(
     name="z-spec",
@@ -206,6 +209,33 @@ def audit(
         typer.echo(f"error: {err.message}", err=True)
         raise typer.Exit(1)
     typer.echo(str(result.unwrap().path))
+
+
+@app.command()
+def show(
+    file: Annotated[Path, _TEX_ARG],
+) -> None:
+    """Display a Z specification and its reports in lux."""
+    from punt_zspec.applet import build_z_spec_scene
+    from punt_zspec.commands.show import ShowCommand
+    from punt_zspec.display import LuxDisplay
+
+    def build(spec: Path, model: SpecModel, reports: SpecReports) -> object:
+        return build_z_spec_scene(
+            spec,
+            model,
+            report=reports.report,
+            fuzz=reports.fuzz,
+            partition=reports.partition,
+            audit=reports.audit,
+        )
+
+    result = ShowCommand(build=build, display=LuxDisplay()).run(file)
+    err = result.error
+    if err is not None:
+        typer.echo(f"error: {err.message}", err=True)
+        raise typer.Exit(1)
+    typer.echo(result.to_json())
 
 
 @app.command()
