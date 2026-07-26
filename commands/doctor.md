@@ -1,6 +1,6 @@
 ---
 description: Check Z specification environment health
-allowed-tools: Bash(which:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(kpsewhich:*), Bash(brew:*), Bash(test:*), Bash(uname:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Read
+allowed-tools: mcp__plugin_z-spec_zspec__doctor, Bash(kpsewhich:*), Bash(brew:*), Bash(command:*), Bash(test:*), Bash(uname:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Read
 ---
 
 # Z Environment Health Check
@@ -18,13 +18,22 @@ uname -s   # Darwin or Linux
 uname -m   # arm64, x86_64, etc.
 ```
 
-### 2. fuzz binary (required)
+### 2. Required toolchain (fuzz, probcli, plugin version)
 
-```bash
-which fuzz && fuzz -version
-```
+Call `mcp__plugin_z-spec_zspec__doctor`. It returns
+`{version, fuzz, probcli, healthy}` — the plugin `version` string, the
+resolved `fuzz` and `probcli` binary **paths** (or `null` when absent), and
+an overall `healthy` flag for the required pair.
 
-If missing: suggest `Run /z-spec:setup fuzz`.
+Report fuzz and probcli as presence, not version: `installed (<path>)` when
+the path field is set, `not found` when it is `null`. Do not report fuzz or
+probcli binary version strings — the tool does not provide them. (Binary
+versions return once `DoctorReport` is widened; that work is beaded.)
+
+- `fuzz` null: suggest `Run /z-spec:setup fuzz`.
+- `probcli` null: suggest `Run /z-spec:setup probcli`.
+
+probcli handles both Z specifications (`.tex`) and B machines (`.mch`, `.ref`, `.imp`).
 
 ### 3. fuzz.sty (required)
 
@@ -34,46 +43,38 @@ kpsewhich fuzz.sty
 
 If missing: suggest `Run /z-spec:setup fuzz` then `sudo texhash`.
 
-### 4. probcli binary (required)
+### 4. Tcl/Tk (conditional — macOS only)
+
+Only check on Darwin. Present if EITHER Homebrew has `tcl-tk` OR `wish` is on
+PATH (catches installs outside Homebrew). The probe always prints one line,
+so the status table populates even when `brew` is absent:
 
 ```bash
-which probcli || test -x "$HOME/Applications/ProB/probcli"
+brew list tcl-tk >/dev/null 2>&1 || command -v wish >/dev/null 2>&1 && echo "Tcl/Tk: installed" || echo "Tcl/Tk: not found"
 ```
 
-Also check `$PROBCLI` if set. If missing: suggest `Run /z-spec:setup probcli`.
+If it prints `not found` on macOS: suggest `brew install tcl-tk`.
 
-probcli handles both Z specifications (`.tex`) and B machines (`.mch`, `.ref`, `.imp`).
-
-### 5. Tcl/Tk (conditional — macOS only)
-
-Only check on Darwin:
+### 5. elan (optional — for /z-spec:prove)
 
 ```bash
-which wish || brew list tcl-tk 2>/dev/null
-```
-
-If missing on macOS: suggest `brew install tcl-tk`.
-
-### 6. elan (optional — for /z-spec:prove)
-
-```bash
-which elan && elan --version
+command -v elan >/dev/null 2>&1 && elan --version || echo "elan: not installed"
 ```
 
 If missing: suggest `Run /z-spec:setup lean`.
 
-### 7. lean (optional — for /z-spec:prove)
+### 6. lean (optional — for /z-spec:prove)
 
 ```bash
-which lean && lean --version
+command -v lean >/dev/null 2>&1 && lean --version || echo "lean: not installed"
 ```
 
 If missing but elan is present: suggest `elan default leanprover/lean4:stable`.
 
-### 8. lake (optional — for /z-spec:prove)
+### 7. lake (optional — for /z-spec:prove)
 
 ```bash
-which lake && lake --version
+command -v lake >/dev/null 2>&1 && lake --version || echo "lake: not installed"
 ```
 
 Usually installed alongside lean via elan.
@@ -88,7 +89,8 @@ Present results as a status table, then a summary:
 | Check | Status |
 |-------|--------|
 | Platform | macOS arm64 |
-| fuzz | ✓ Installed (version 3.4.1) |
+| Plugin | ✓ version 0.16.0 |
+| fuzz | ✓ Installed (/opt/homebrew/bin/fuzz) |
 | fuzz.sty | ✓ Found at /usr/local/texlive/.../fuzz.sty |
 | probcli | ✗ Not found |
 | Tcl/Tk | ✓ Available |

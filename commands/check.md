@@ -1,7 +1,7 @@
 ---
 description: Type-check a Z specification with fuzz
 argument-hint: "[file.tex]"
-allowed-tools: Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(which:*), Bash(pdflatex:*), Read, Glob
+allowed-tools: mcp__plugin_z-spec_zspec__check, Read, Glob
 ---
 
 # Check Z Specification with Fuzz
@@ -14,91 +14,34 @@ File: $ARGUMENTS
 
 ## Process
 
-### 0. Check Prerequisites
-
-Verify fuzz is installed:
-
-```bash
-which fuzz >/dev/null 2>&1 || echo "FUZZ_NOT_FOUND"
-```
-
-**If fuzz not found**: Stop and tell the user:
-> fuzz is not installed. Run `/z-spec:setup` first to install the Z specification tools.
-
-### 1. Ensure TeX Files Available
-
-Before checking, ensure fuzz.sty is available in the docs/ directory:
-
-```bash
-if [ ! -f docs/fuzz.sty ]; then
-    if [ -f /usr/local/share/texmf/tex/latex/fuzz.sty ]; then
-        cp /usr/local/share/texmf/tex/latex/fuzz.sty docs/
-        cp /usr/local/share/texmf/fonts/source/public/oxsz/*.mf docs/
-    else
-        curl -sL -o docs/fuzz.sty "https://raw.githubusercontent.com/Spivoxity/fuzz/master/tex/fuzz.sty"
-        for mf in oxsz.mf oxsz10.mf oxsz5.mf oxsz6.mf oxsz7.mf oxsz8.mf oxsz9.mf zarrow.mf zletter.mf zsymbol.mf; do
-            curl -sL -o "docs/$mf" "https://raw.githubusercontent.com/Spivoxity/fuzz/master/tex/$mf"
-        done
-    fi
-    # Update .gitignore
-    for pattern in "docs/fuzz.sty" "docs/*.mf" "docs/*.pk" "docs/*.tfm" "docs/*.aux" "docs/*.log" "docs/*.fuzz" "docs/*.toc"; do
-        grep -qxF "$pattern" .gitignore 2>/dev/null || echo "$pattern" >> .gitignore
-    done
-fi
-```
-
-### 2. Locate the Specification
+### 1. Locate the Specification
 
 If a file path is provided, use it directly.
 
 If no file specified:
+
 - Look in `docs/` for `.tex` files containing Z specifications
 - Present options if multiple files exist
 
-### 3. Run Fuzz Type-Checker
+### 2. Type-check
 
-```bash
-fuzz -t <file>.tex
-```
+Call `mcp__plugin_z-spec_zspec__check` with `file` set to the resolved path.
 
-The `-t` flag reports types of global definitions, which helps verify the specification is correctly typed.
+### 3. Report
 
-### 4. Interpret Results
+The tool returns an object with `ok` (bool) and `errors` (list).
 
-**Success**: Fuzz outputs the types of all definitions without errors.
+If the returned JSON has an `error` field (e.g. the binary is not installed),
+show that message to the user and stop — do not render the normal result.
 
-Example good output:
-```
-Given USERID
-Schema Account
-    balance: NN
-    status: Status
-End
-```
+- `ok: true` → `fuzz: <name> OK`.
+- `ok: false` → `fuzz: <name> FAIL`, then one line per error, indented two
+  spaces: `<line>:<column>: <message>`.
 
-**Errors**: Fuzz reports line numbers and error descriptions.
+The tool has written `<stem>.fuzz.json`; `/z-spec:show` (or `show_z_spec`)
+will render it in the Fuzz tab.
 
-Common errors and fixes:
-
-| Error | Likely Cause | Fix |
-|-------|--------------|-----|
-| `Identifier X is not declared` | Missing type definition | Add given set or free type |
-| `Application of a non-function` | Using `#` incorrectly | Reformulate cardinality expression |
-| `Syntax error at symbol "true"` | Using `true`/`false` | Define BOOL free type with btrue/bfalse |
-| `Type mismatch` | Wrong type in expression | Check types in fuzz output |
-
-### 5. Report Results
-
-If successful:
-- Confirm the specification type-checks
-- Summarize the schemas and their types
-
-If errors:
-- List each error with line number
-- Suggest specific fixes
-- Offer to apply fixes
-
-### 6. Animation Readiness Warnings
+### 4. Animation Readiness Warnings
 
 After a successful fuzz type-check, scan the specification for patterns that pass fuzz but cause probcli animation failures. For each pattern found, emit a warning. Only emit warnings that actually apply to the spec.
 

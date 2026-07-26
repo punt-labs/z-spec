@@ -1,7 +1,7 @@
 ---
 description: Audit test coverage for Z specification constraints
 argument-hint: "[spec.tex] [--json] [--test-dir=DIR]"
-allowed-tools: Read, Glob, Grep
+allowed-tools: mcp__plugin_z-spec_zspec__save_audit_report, mcp__plugin_z-spec_zspec__show_z_spec, Read, Glob, Grep
 ---
 
 # /z-spec:audit - Test Coverage Audit
@@ -200,21 +200,16 @@ The following constraints have no detected test coverage:
 
 #### JSON Output (--json flag)
 
+This is the authored shape — identical to the `report_json` handed to
+`save_audit_report` in Step 8. `summary` and `byCategory` are **computed by the
+engine** on load and rendered in the markdown output and the Audit tab; the
+authored JSON omits them.
+
 ```json
 {
   "specification": "docs/example.tex",
   "testDirectory": "ExampleTests/",
-  "summary": {
-    "covered": 15,
-    "total": 19,
-    "percentage": 79
-  },
-  "byCategory": {
-    "invariant": { "covered": 8, "total": 10 },
-    "precondition": { "covered": 4, "total": 4 },
-    "effect": { "covered": 3, "total": 4 },
-    "bound": { "covered": 0, "total": 1 }
-  },
+  "timestamp": "2026-07-25T12:00:00Z",
   "constraints": [
     {
       "text": "level >= 1",
@@ -250,6 +245,27 @@ For each uncovered constraint, generate a specific test suggestion:
 | `cond => effect` (implication) | "Test that when {cond}, then {effect}" |
 
 Include framework-specific assertion patterns from `reference/test-patterns.md`.
+
+### 8. Persist and Display
+
+Serialize the audit to the JSON of Step 6 (the `--json` shape, matching
+`AuditReport`: `{specification, testDirectory, timestamp, constraints:[{text,
+category, source, coveredBy?, confidence?}], uncovered:[{text, category,
+source, suggestion, testPattern?}]}`). The `summary` and `byCategory` fields
+are **computed by the engine** — do not author them.
+
+Call `mcp__plugin_z-spec_zspec__save_audit_report` with `file` (the spec path)
+and `report_json` (the serialized audit). The tool validates the report against
+the schema and persists `<stem>.audit.json`.
+
+- On `{"ok": true, "path": ...}`, confirm the saved path.
+- On `{"ok": false, "error": ...}`, report the `error` string verbatim (e.g.
+  `Invalid audit report: ...`) and fix the authored JSON — do not write a
+  malformed file.
+
+Then call `mcp__plugin_z-spec_zspec__show_z_spec` with `file` to render the
+Audit tab beside the Spec tab. The tool reads the `<stem>.audit.json` just
+written.
 
 ## Error Handling
 
