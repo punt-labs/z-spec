@@ -292,7 +292,8 @@ def check(file: str) -> str:
         file: Path to the .tex Z specification file.
 
     Returns:
-        JSON with ok (bool) and errors (list).
+        JSON: on success {ok: true, errors: [...]}, on failure
+        {ok: false, error: <str>}.
     """
     from punt_zspec.commands.check import CheckCommand
 

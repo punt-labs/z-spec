@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from punt_zspec.report import (
     audit_path,
@@ -38,6 +40,9 @@ from punt_zspec.types import (
     ProbReport,
     TraceStep,
 )
+
+if TYPE_CHECKING:
+    import pytest
 
 
 def _make_report() -> ProbReport:
@@ -92,6 +97,20 @@ def test_save_and_load_roundtrip(tmp_path: Path) -> None:
 def test_load_report_missing(tmp_path: Path) -> None:
     tex = tmp_path / "missing.tex"
     assert load_report(tex) is None
+
+
+def test_load_report_corrupt_logs_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    tex = tmp_path / "spec.tex"
+    tex.write_text("dummy")
+    report_path(tex).write_text("{ this is not valid json", encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING):
+        loaded = load_report(tex)
+
+    assert loaded is None
+    assert any("corrupt" in record.message for record in caplog.records)
 
 
 def test_is_stale_when_no_report(tmp_path: Path) -> None:
