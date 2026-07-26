@@ -10,6 +10,7 @@ from punt_zspec.commands.result import (
     CommandFailure,
     CommandResult,
 )
+from punt_zspec.commands.test import TestCommand
 
 __all__ = [
     "CheckCommand",
@@ -18,4 +19,5 @@ __all__ = [
     "CommandResult",
     "DoctorCommand",
     "ReportCommand",
+    "TestCommand",
 ]

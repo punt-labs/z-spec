@@ -74,20 +74,17 @@ def test(
     ] = 30000,
 ) -> None:
     """Run full probcli test suite and save report."""
-    from punt_zspec.prob import resolve_probcli, run_full_suite
-    from punt_zspec.report import save_report
+    from punt_zspec.commands.options import ProbOptions
+    from punt_zspec.commands.test import TestCommand
 
-    binary = resolve_probcli()
-    if binary is None:
-        typer.echo(
-            "error: probcli not found. Set $PROBCLI or add probcli to PATH.",
-            err=True,
-        )
+    options = ProbOptions(setsize=setsize, max_ops=max_ops, timeout_ms=timeout)
+    result = TestCommand().run(file, options)
+    err = result.error
+    if err is not None:
+        suffix = f" {err.hint}" if err.hint else ""
+        typer.echo(f"error: {err.message}.{suffix}", err=True)
         raise typer.Exit(1)
-    report = run_full_suite(
-        file, binary, setsize=setsize, max_ops=max_ops, timeout_ms=timeout
-    )
-    save_report(file, report)
+    report = result.unwrap()
     typer.echo(json.dumps(report.to_dict(), indent=2))
     if not report.ok:
         raise typer.Exit(1)
