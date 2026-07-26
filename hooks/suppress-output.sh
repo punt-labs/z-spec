@@ -69,15 +69,20 @@ fi
 # All four payloads are ProbReport.to_dict(): {ok, states_analysed,
 # transitions_fired, checks:[{name,status,detail}], operations, ...}.
 prob_panel() {
-  local label="$1" ok states trans passed total verdict
+  local label="$1" ok states trans nonfailing total verdict
   ok=$(printf '%s' "$RESULT" | jq -r '.ok // false' 2>/dev/null)
   states=$(printf '%s' "$RESULT" | jq -r '.states_analysed // 0' 2>/dev/null)
   trans=$(printf '%s' "$RESULT" | jq -r '.transitions_fired // 0' 2>/dev/null)
-  total=$(printf '%s' "$RESULT" | jq -r '.checks | length' 2>/dev/null)
-  passed=$(printf '%s' "$RESULT" \
-    | jq -r '[.checks[] | select(.status == "passed")] | length' 2>/dev/null)
+  # ProbReport.ok is all(status in {passed,skipped,warning}) — only "failed" is
+  # a fail. The numerator must count every NON-failing check (status != failed)
+  # so the "N/M" tally is consistent with the OK/FAIL verdict. Counting only
+  # "passed" reads "OK — 2/4" when all four are non-failing. (.checks // [])
+  # defaults a malformed payload to 0, not a blank.
+  total=$(printf '%s' "$RESULT" | jq -r '(.checks // []) | length' 2>/dev/null)
+  nonfailing=$(printf '%s' "$RESULT" \
+    | jq -r '[(.checks // [])[] | select(.status != "failed")] | length' 2>/dev/null)
   if [[ "$ok" == "true" ]]; then verdict="OK"; else verdict="FAIL"; fi
-  emit "${label} ${verdict} — ${passed}/${total} checks, ${states} states, ${trans} transitions" "$RESULT"
+  emit "${label} ${verdict} — ${nonfailing}/${total} checks, ${states} states, ${trans} transitions" "$RESULT"
 }
 
 case "$TOOL_NAME" in
@@ -131,13 +136,10 @@ case "$TOOL_NAME" in
     ;;
   *)
     # Fallback for a tool with no handler (e.g. a newly added @mcp.tool()).
-    # Surface the full output so nothing is silently hidden — but this branch
-    # firing is a Handler-completeness bug: add a case above.
-    jq -n --rawfile r <(printf '%s' "$RESULT") '{
-      hookSpecificOutput: {
-        hookEventName: "PostToolUse",
-        updatedMCPToolOutput: $r
-      }
-    }'
+    # Must follow the same two-channel contract as every handler above: a
+    # SHORT panel line, full payload in additionalContext. Dumping raw JSON
+    # into the panel channel would defeat suppression — the whole point of the
+    # hook. This branch firing is still a Handler-completeness bug: add a case.
+    emit "${TOOL_NAME}: (unhandled — see result)" "$RESULT"
     ;;
 esac
