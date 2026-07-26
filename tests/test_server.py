@@ -26,6 +26,7 @@ def test_server_has_all_tools() -> None:
         "test",
         "animate",
         "model_check",
+        "doctor",
         "show_z_spec",
         "get_report",
         "save_partition_report",
@@ -140,6 +141,15 @@ def test_check_tool_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     assert result["ok"] is True
     # Fuzz result should be saved
     assert (tmp_path / "spec.fuzz.json").exists()
+
+
+def test_doctor_tool_returns_health() -> None:
+    from punt_zspec.server import doctor
+
+    result = json.loads(doctor())
+    assert "version" in result
+    assert "healthy" in result
+    assert isinstance(result["healthy"], bool)
 
 
 def test_get_report_missing() -> None:

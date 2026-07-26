@@ -359,6 +359,18 @@ def model_check(
 
 
 @mcp.tool()
+def doctor() -> str:
+    """Report Z-toolkit environment health.
+
+    Returns:
+        JSON with version, resolved fuzz/probcli paths, and healthy (bool).
+    """
+    from punt_zspec.commands.doctor import DoctorCommand
+
+    return DoctorCommand().run().to_json()
+
+
+@mcp.tool()
 def show_z_spec(file: str) -> str:
     """Parse a Z spec and display it in lux.
 
