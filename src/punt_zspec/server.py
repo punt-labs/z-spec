@@ -459,13 +459,9 @@ def get_report(file: str) -> str:
     Returns:
         JSON report or error if no report exists.
     """
-    from punt_zspec.report import load_report
+    from punt_zspec.commands.report import ReportCommand
 
-    path = Path(file)
-    rpt = load_report(path)
-    if rpt is None:
-        return json.dumps({"ok": False, "error": f"No report found for {path.name}"})
-    return json.dumps(rpt.to_dict())
+    return ReportCommand().run(Path(file)).to_json()
 
 
 @mcp.tool()

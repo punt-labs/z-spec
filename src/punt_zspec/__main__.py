@@ -155,13 +155,14 @@ def report(
     file: Annotated[Path, _TEX_ARG],
 ) -> None:
     """Load and display an existing report."""
-    from punt_zspec.report import load_report
+    from punt_zspec.commands.report import ReportCommand
 
-    rpt = load_report(file)
-    if rpt is None:
-        typer.echo(f"No report found for {file.name}", err=True)
+    result = ReportCommand().run(file)
+    err = result.error
+    if err is not None:
+        typer.echo(err.message, err=True)
         raise typer.Exit(1)
-    typer.echo(json.dumps(rpt.to_dict(), indent=2))
+    typer.echo(json.dumps(result.unwrap().to_dict(), indent=2))
 
 
 @app.command()

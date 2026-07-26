@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from punt_zspec.commands.check import CheckCommand
+from punt_zspec.commands.report import ReportCommand
 from punt_zspec.commands.result import (
     CommandError,
     CommandFailure,
@@ -14,4 +15,5 @@ __all__ = [
     "CommandError",
     "CommandFailure",
     "CommandResult",
+    "ReportCommand",
 ]
