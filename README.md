@@ -44,6 +44,40 @@ Z Spec orchestrates two established tools that do the mathematical heavy lifting
 
 Both are installed automatically by `/z-spec:setup all`. fuzz is compiled from source; ProB is downloaded as a pre-built binary for your platform.
 
+## Ways to Use It
+
+z-spec is one engine — the LaTeX Z parser, the fuzz and probcli wrappers, the
+report store — behind three clients: a Claude Code plugin, a `z-spec` CLI, and
+an MCP server. A given capability runs the same engine code whichever client
+calls it, so behavior is identical across all three.
+
+**1. Claude Code plugin.** Install the plugin and drive everything with
+`/z-spec:*` slash commands. The commands add LLM authoring on top of the
+engine — generating a spec from a codebase (`/z-spec:code2model`), deriving TTF
+partition analyses, explaining a counter-example — then call the engine to
+type-check, model-check, and render results in Lux. See [Quick Start](#quick-start).
+
+**2. CLI + MCP without the plugin.** For agents that are not the Claude Code
+plugin — Codex, Cursor, or Claude Code under an org policy that blocks plugin
+installation — install CLI-only with `--no-plugin`. The `z-spec` CLI and its MCP
+server (`z-spec mcp`) expose every deterministic capability. The CLI does not
+embed an LLM; the agent authors the artifact itself and passes it to the CLI as
+data. A partition or audit report the agent generates is validated and persisted
+by piping it in:
+
+```bash
+cat analysis.json | z-spec partition spec.tex
+```
+
+So a bash-only agent reaches the same partition, audit, type-check, and
+model-check results as the plugin, without the plugin. See
+[CLI-only install](#quick-start) and [Python Package](#python-package-cli--mcp).
+
+**3. Command line, by hand.** A person at a terminal runs `z-spec check spec.tex`,
+`z-spec test spec.tex`, and the rest — the same verbs, no agent, no plugin.
+Reports are written as JSON next to the spec; `z-spec show spec.tex` renders them
+in Lux.
+
 ## Quick Start
 
 ```bash
@@ -125,18 +159,30 @@ uv add punt-z-spec                 # As a library dependency
 ### CLI
 
 ```bash
-z-spec check examples/auth.tex              # Type-check with fuzz
+z-spec check examples/auth.tex              # Type-check with fuzz, saves .fuzz.json
 z-spec test examples/auth.tex               # Full probcli suite, saves .report.json
 z-spec animate examples/auth.tex            # Animate only
 z-spec model-check examples/auth.tex        # Model-check only
-z-spec report examples/auth.tex             # Load existing report
+z-spec partition examples/auth.tex          # Validate + persist an authored partition report (JSON on stdin, or --report FILE)
+z-spec audit examples/auth.tex              # Validate + persist an authored coverage-audit report (stdin, or --report FILE)
+z-spec show examples/auth.tex               # Render the spec and its reports in Lux
+z-spec browse tutorial/manifest.toml        # Open a tutorial collection in Lux
+z-spec report examples/auth.tex             # Load an existing report
 z-spec doctor                               # Check tool availability
 z-spec mcp                                  # Start MCP server (stdio)
 ```
 
+The `partition` and `audit` verbs read the report JSON an agent (or a human)
+has authored — from stdin by default, or from a file with `--report FILE`
+(`--report -` is stdin). The CLI validates the JSON against the report schema
+and persists it; it does not generate the analysis. That authoring is the LLM's
+job, done in the plugin's `/z-spec:partition` / `/z-spec:audit` commands or by
+any agent driving the CLI.
+
 ### MCP Tools
 
-The MCP server (`zspec`) provides 9 tools:
+The MCP server (`zspec`) provides 10 tools. Each mirrors a CLI verb and returns
+JSON, so a plugin, an agent, and a human at a terminal all reach the same engine:
 
 | Tool | Description |
 |------|-------------|
@@ -144,11 +190,16 @@ The MCP server (`zspec`) provides 9 tools:
 | `test(file, setsize, max_ops, timeout)` | Full probcli suite, saves `.report.json` |
 | `animate(file, steps, setsize)` | Animate only, saves `.report.json` |
 | `model_check(file, setsize, max_ops, timeout)` | Model-check only, saves `.report.json` |
-| `show_z_spec(file)` | Display spec + all reports in lux |
-| `get_report(file)` | Load existing ProB report |
-| `save_partition_report(file, report_json)` | Save partition analysis report |
-| `save_audit_report(file, report_json)` | Save test coverage audit report |
-| `browse(manifest)` | Open a tutorial collection in the paged browser |
+| `doctor()` | Report fuzz/probcli presence, version, and health |
+| `get_report(file)` | Load an existing ProB report |
+| `save_partition_report(file, report_json)` | Validate + persist an authored partition report |
+| `save_audit_report(file, report_json)` | Validate + persist an authored coverage-audit report |
+| `show_z_spec(file)` | Render the spec and all its reports in Lux |
+| `browse(manifest)` | Open a tutorial collection in the paged Lux browser |
+
+Every tool returns `{"ok": true, ...}` on success or `{"ok": false, "error": ...}`
+on failure — one convention across all ten. A [PostToolUse hook](hooks/hooks.json)
+renders each result as a concise panel rather than raw JSON in the conversation.
 
 ### Reports
 
