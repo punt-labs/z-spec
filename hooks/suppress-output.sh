@@ -13,9 +13,17 @@
 #
 # No `set -euo pipefail` — hooks must degrade gracefully on malformed input
 # rather than failing the tool call.
+#
+# Every field read below uses `.field? // default`, not `.field // default`.
+# The `//` operator only rescues null/false/missing; it does NOT rescue a type
+# error. When RESULT is a non-object (a serialized array, or a raw non-JSON
+# string preserved by the fallback), a bare `.field` throws "Cannot index
+# <type> with string" and — swallowed by `2>/dev/null` — blanks the panel. The
+# `?` suppresses that error so the read falls through to its default. Well-formed
+# object input is unaffected: `?` changes nothing when the value is an object.
 
 INPUT=$(cat)
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name? // empty' 2>/dev/null)
 # Tool names are mcp__<prefix>__<tool>; strip everything through the last __.
 TOOL_NAME="${TOOL##*__}"
 
@@ -33,8 +41,13 @@ RESULT=$(printf '%s' "$INPUT" | jq -r '
 ' 2>/dev/null)
 
 # Fallback: if unpack failed or yielded nothing, use raw tool_response.
+# `jq -r` cannot render an array/object — it would print nothing for a
+# non-string payload, silently losing it. Serialize non-strings with tojson so
+# the payload survives into additionalContext. `// empty` first, so a
+# null/missing tool_response still degrades to "(no output)" rather than "null".
 if [[ -z "$RESULT" ]]; then
-  RESULT=$(printf '%s' "$INPUT" | jq -r '.tool_response // empty' 2>/dev/null)
+  RESULT=$(printf '%s' "$INPUT" \
+    | jq -r '.tool_response // empty | if type == "string" then . else tojson end' 2>/dev/null)
   [[ -z "$RESULT" ]] && RESULT="(no output)"
 fi
 
@@ -59,7 +72,7 @@ emit() {
 # type errors emits {"ok": false, "errors": [...]} (note the plural, no "error"
 # key) — that is a FAIL result, not a tool error, and is rendered by its own
 # handler below. So the guard keys strictly on the singular "error" field.
-ERROR_MSG=$(printf '%s' "$RESULT" | jq -r '.error // empty' 2>/dev/null)
+ERROR_MSG=$(printf '%s' "$RESULT" | jq -r '.error? // empty' 2>/dev/null)
 if [[ -n "$ERROR_MSG" ]]; then
   emit "${TOOL_NAME}: error — ${ERROR_MSG}" "$RESULT"
   exit 0
@@ -70,9 +83,9 @@ fi
 # transitions_fired, checks:[{name,status,detail}], operations, ...}.
 prob_panel() {
   local label="$1" ok states trans nonfailing total verdict
-  ok=$(printf '%s' "$RESULT" | jq -r '.ok // false' 2>/dev/null)
-  states=$(printf '%s' "$RESULT" | jq -r '.states_analysed // 0' 2>/dev/null)
-  trans=$(printf '%s' "$RESULT" | jq -r '.transitions_fired // 0' 2>/dev/null)
+  ok=$(printf '%s' "$RESULT" | jq -r '.ok? // false' 2>/dev/null)
+  states=$(printf '%s' "$RESULT" | jq -r '.states_analysed? // 0' 2>/dev/null)
+  trans=$(printf '%s' "$RESULT" | jq -r '.transitions_fired? // 0' 2>/dev/null)
   # ProbReport.ok is all(status in {passed,skipped,warning}) — only "failed" is
   # a fail. The numerator must count every NON-failing check (status != failed)
   # so the "N/M" tally is consistent with the OK/FAIL verdict. Counting only
@@ -89,7 +102,8 @@ case "$TOOL_NAME" in
   check)
     # FuzzResult.to_dict(): {ok, errors:[{line,column,message}]}.
     ok=$(printf '%s' "$RESULT" | jq -r '.ok // false' 2>/dev/null)
-    errs=$(printf '%s' "$RESULT" | jq -r '.errors | length' 2>/dev/null)
+    # (.errors // []) defaults a malformed/missing payload to 0, not a crash.
+    errs=$(printf '%s' "$RESULT" | jq -r '(.errors // []) | length' 2>/dev/null)
     if [[ "$ok" == "true" ]]; then
       emit "check OK — ${errs} errors" "$RESULT"
     else
