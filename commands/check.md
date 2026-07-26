@@ -29,11 +29,10 @@ Call `mcp__plugin_z-spec_zspec__check` with `file` set to the resolved path.
 
 ### 3. Report
 
-The tool returns `{"ok", "errors"}`.
+The tool returns an object with `ok` (bool) and `errors` (list).
 
 If the returned JSON has an `error` field (e.g. the binary is not installed),
-surface `error` (and `hint` if present) verbatim to the user and stop — do not
-render the normal result.
+show that message to the user and stop — do not render the normal result.
 
 - `ok: true` → `fuzz: <name> OK`.
 - `ok: false` → `fuzz: <name> FAIL`, then one line per error, indented two

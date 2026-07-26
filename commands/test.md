@@ -54,8 +54,7 @@ It persists `<stem>.report.json` alongside the spec.
 ### 3. Report
 
 If the returned JSON has an `error` field (e.g. the binary is not installed),
-surface `error` (and `hint` if present) verbatim to the user and stop — do not
-render the normal result.
+show that message to the user and stop — do not render the normal result.
 
 Render the JSON as text. Without `-v`, render each check as
 `<check.name>: <check.status>` (summary only). With `-v`, append the detail
