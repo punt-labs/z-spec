@@ -19,20 +19,8 @@ def test_server_has_correct_name() -> None:
     assert mcp.name == "zspec"
 
 
-def test_server_has_all_tools() -> None:
-    tool_names = {tool.name for tool in mcp._tool_manager.list_tools()}  # pyright: ignore[reportPrivateUsage]
-    expected = {
-        "check",
-        "test",
-        "animate",
-        "model_check",
-        "show_z_spec",
-        "get_report",
-        "save_partition_report",
-        "save_audit_report",
-        "browse",
-    }
-    assert expected == tool_names
+# The full MCP tool set and its CLI counterpart are enforced by the
+# registry-driven parity guard in tests/commands/test_parity.py.
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +130,15 @@ def test_check_tool_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     assert (tmp_path / "spec.fuzz.json").exists()
 
 
+def test_doctor_tool_returns_health() -> None:
+    from punt_zspec.server import doctor
+
+    result = json.loads(doctor())
+    assert "version" in result
+    assert "healthy" in result
+    assert isinstance(result["healthy"], bool)
+
+
 def test_get_report_missing() -> None:
     from punt_zspec.server import get_report
 
@@ -179,7 +176,7 @@ def test_show_z_spec_file_not_found() -> None:
     from punt_zspec.server import show_z_spec
 
     result = json.loads(show_z_spec("nonexistent.tex"))
-    assert result["status"] == "error"
+    assert result["ok"] is False
     assert "Spec file not found" in result["error"]
 
 
@@ -203,7 +200,7 @@ x \leq 10
     mock_client = MagicMock()
     with patch("punt_zspec.server._get_client", return_value=mock_client):
         result = json.loads(show_z_spec(str(tex)))
-    assert result["status"] == "displayed"
+    assert result["ok"] is True
     assert result["scene_id"] == "z-spec"
 
 
@@ -227,8 +224,8 @@ x : \nat
         side_effect=ConnectionError("lux not running"),
     ):
         result = json.loads(show_z_spec(str(tex)))
-    assert result["status"] == "error"
-    assert "lux not running" in result["message"]
+    assert result["ok"] is False
+    assert "lux not running" in result["error"]
 
 
 # ---------------------------------------------------------------------------
@@ -341,7 +338,7 @@ def test_browse_manifest_not_found() -> None:
     from punt_zspec.server import browse
 
     result = json.loads(browse("/nonexistent/manifest.toml"))
-    assert result["status"] == "error"
+    assert result["ok"] is False
     assert "not found" in result["error"].lower()
 
 
@@ -376,6 +373,6 @@ x : \nat
     mock_client = MagicMock()
     with patch("punt_zspec.server._get_client", return_value=mock_client):
         result = json.loads(browse(str(manifest)))
-    assert result["status"] == "displayed"
+    assert result["ok"] is True
     assert result["total"] == 1
     assert result["title"] == "Test Collection"

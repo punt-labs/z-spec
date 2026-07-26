@@ -7,12 +7,16 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **Shared `commands/` orchestration layer** --- the CLI and MCP server are now thin clients over one engine. Each capability (`check`, `report`, `doctor`, `test`, `animate`, `model-check`) is a single command class with injected collaborators, returning a typed `CommandResult`; both surfaces construct the command and render or return its result, eliminating the duplicated resolve/run/persist/serialize logic that previously lived twice.
+- **CLI parity verbs `partition`, `audit`, `show`, `browse`** --- the four capabilities that were previously MCP-only are now CLI verbs too. `z-spec partition <spec>` and `z-spec audit <spec>` validate and persist an authored report read from stdin by default, or from `--report FILE` (`--report -` is stdin); an unreadable `--report` file exits 1 with `error: cannot read report: <exc>` and no traceback. `z-spec show <spec>` renders a spec and its reports in lux, and `z-spec browse <manifest>` opens a collection. Every deterministic capability is now reachable from both the CLI and the MCP server, enforced by a registry-driven parity test.
+- **MCP `doctor` tool** --- toolchain health (`fuzz`/`probcli` resolution and version) is now available on the MCP surface as well as the `z-spec doctor` CLI verb.
 - **`--no-plugin` CLI-only install** --- `install.sh` now accepts a `--no-plugin` flag and a `ZSPEC_NO_PLUGIN=1` environment variable (over the pipe as `sh -s -- --no-plugin` or `ZSPEC_NO_PLUGIN=1 sh`) to install the `z-spec` CLI while skipping the Claude Code marketplace-register and plugin-install steps, conforming to punt-kit [`install-cli-only.md`](https://github.com/punt-labs/punt-kit/blob/main/standards/install-cli-only.md). Unknown flags exit 2 with usage; only `ZSPEC_NO_PLUGIN=1` is honored.
 
 ### Changed
 
 - **`z-spec check` now persists `<stem>.fuzz.json`** --- the CLI `check` command now writes its fuzz result alongside the spec, matching the MCP `check` tool. Both surfaces persist via one code path; every other command's stdout, stderr, exit code, and MCP JSON output is unchanged.
+- **`show_z_spec` and `browse` MCP tools use the `{ok: ...}` convention** --- both tools previously returned `{"status": "displayed"|"error", ...}`; they now return `{"ok": true, ...}` on success and `{"ok": false, "error": ...}` on failure, matching every other tool. The error message strings are unchanged; only the discriminator key flips. The partition, audit, and report tool outputs are byte-for-byte unchanged.
 - **Missing `claude`/`git` auto-skips the plugin step** --- `install.sh` previously aborted when the `claude` CLI or `git` was absent; both are now capability auto-skips that install the CLI and skip only the plugin. `curl` remains a hard prerequisite. The CLI-only success message is identical for the auto-skip and explicit-skip paths and prints no plugin-activation line.
+- **Lux render lock now scopes to client acquisition/reset, not the full render** --- the MCP server's display lock is held only while acquiring or resetting the shared lux client, not for the duration of a scene render; menu callbacks already render unlocked. This is a deliberate narrowing for the single-user display; concurrent renders are no longer serialized end-to-end.
 
 ## [0.16.0] - 2026-05-10
 

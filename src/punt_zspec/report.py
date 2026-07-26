@@ -30,6 +30,7 @@ from punt_zspec.types import (
     PartitionReport,
     PartitionStatus,
     ProbReport,
+    SpecReports,
     TraceStep,
 )
 
@@ -164,7 +165,8 @@ def load_fuzz(tex_path: Path) -> FuzzResult | None:
     try:
         data: dict[str, Any] = json.loads(fp.read_text(encoding="utf-8"))
         return fuzz_from_dict(data)
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        logger.warning("fuzz file %s is corrupt (%s); treating as absent", fp, exc)
         return None
 
 
@@ -194,7 +196,8 @@ def load_partition(tex_path: Path) -> PartitionReport | None:
     try:
         data: dict[str, Any] = json.loads(pp.read_text(encoding="utf-8"))
         return partition_from_dict(data)
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        logger.warning("partition file %s is corrupt (%s); treating as absent", pp, exc)
         return None
 
 
@@ -249,7 +252,8 @@ def load_audit(tex_path: Path) -> AuditReport | None:
     try:
         data: dict[str, Any] = json.loads(ap.read_text(encoding="utf-8"))
         return audit_from_dict(data)
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+        logger.warning("audit file %s is corrupt (%s); treating as absent", ap, exc)
         return None
 
 
@@ -282,4 +286,23 @@ def audit_from_dict(data: dict[str, Any]) -> AuditReport:
         timestamp=data.get("timestamp", ""),
         constraints=constraints,
         uncovered=uncovered,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Aggregate loader
+# ---------------------------------------------------------------------------
+
+
+def load_all_reports(tex_path: Path) -> SpecReports:
+    """Load every persisted report beside a spec into one bundle.
+
+    Each field is None when that report is missing or corrupt — the individual
+    loaders already treat absence and corruption as "not present".
+    """
+    return SpecReports(
+        report=load_report(tex_path),
+        fuzz=load_fuzz(tex_path),
+        partition=load_partition(tex_path),
+        audit=load_audit(tex_path),
     )
