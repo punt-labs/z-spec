@@ -159,7 +159,7 @@ if [ "$SKIP_PLUGIN" = "0" ]; then
 
   if claude plugin marketplace list < /dev/null 2>/dev/null | grep -q "$MARKETPLACE_NAME"; then
     ok "marketplace already registered"
-    claude plugin marketplace update "$MARKETPLACE_NAME" < /dev/null 2>/dev/null || true
+    claude plugin marketplace update "$MARKETPLACE_NAME" < /dev/null || warn "marketplace refresh failed; continuing with cached version"
   else
     claude plugin marketplace add "$MARKETPLACE_REPO" < /dev/null || fail "Failed to register marketplace"
     ok "marketplace registered"
@@ -172,7 +172,7 @@ if [ "$SKIP_PLUGIN" = "0" ]; then
   NEED_HTTPS_REWRITE=0
   cleanup_https_rewrite() {
     if [ "$NEED_HTTPS_REWRITE" = "1" ]; then
-      git config --global --unset url."https://github.com/".insteadOf 2>/dev/null || true
+      git config --global --unset url."https://github.com/".insteadOf '^git@github\.com:$' 2>/dev/null || warn "could not remove temporary git HTTPS rewrite; undo manually with: git config --global --unset url.\"https://github.com/\".insteadOf"
       NEED_HTTPS_REWRITE=0
     fi
   }
@@ -219,7 +219,8 @@ printf '\n'
 # "restart to activate the plugin" line when no plugin was ever installed.
 if [ "$SKIP_PLUGIN" = "1" ]; then
   printf '%b%b%s CLI installed (CLI-only mode — Claude Code plugin skipped)%b\n\n' "$GREEN" "$BOLD" "$BINARY" "$NC"
-  printf 'The CLI is fully functional via the command line and MCP ("%s mcp").\n' "$BINARY"
+  printf 'The z-spec CLI and its MCP server ("%s mcp") are installed. Type-checking\n' "$BINARY"
+  printf 'and model-checking also need fuzz and probcli — run "%s doctor" to check.\n' "$BINARY"
   printf 'To get started:\n\n'
   printf '  %s doctor                 # check fuzz/probcli availability\n' "$BINARY"
   printf '  %s check <spec.tex>       # type-check a Z spec with fuzz\n' "$BINARY"
