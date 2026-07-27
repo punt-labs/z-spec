@@ -435,10 +435,11 @@ Generated specs follow this structure:
 <summary>Dev/prod namespace isolation</summary>
 
 The working tree is the dev plugin: `plugin.json` has `name: "z-spec-dev"` and
-its MCP server runs the working tree via `uv run --directory ${CLAUDE_PLUGIN_ROOT}
-z-spec mcp`. The marketplace release is the prod plugin: `name: "z-spec"` with the
-MCP server invoking the installed `z-spec` binary. The two names differ, so both
-load at once — you get production commands and working-tree commands side by side.
+its MCP server runs the working tree via
+`uv run --directory ${CLAUDE_PLUGIN_ROOT} z-spec mcp`. The marketplace release is
+the prod plugin: `name: "z-spec"` with the MCP server invoking the installed
+`z-spec` binary. The two names differ, so both load at once — you get production
+commands and working-tree commands side by side.
 
 | Source | Commands | MCP tools | What they run |
 |--------|----------|-----------|---------------|
