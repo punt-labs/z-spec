@@ -79,4 +79,10 @@ uv.lock
 # Scratch/temp directory (TMPDIR set via .envrc)
 .tmp/
 
+# Local per-machine tool state under .punt-labs (the ethos submodule and
+# ethos.yaml are tracked; these dirs are session-local and must not be committed)
+.punt-labs/biff/
+.punt-labs/local/
+.punt-labs/quarry/
+
 uv.toml
