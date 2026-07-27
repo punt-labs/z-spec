@@ -48,12 +48,26 @@ def _dev_path(prod: Path) -> Path:
     return prod.with_name(f"{prod.stem}{DEV_SUFFIX}.md")
 
 
+def _orphan_twins(commands_dir: Path) -> list[Path]:
+    """Return dev twins whose prod source no longer exists (stale after a
+    prod command is renamed or deleted)."""
+    prod_stems = {p.stem for p in _prod_commands(commands_dir)}
+    return sorted(
+        twin
+        for twin in commands_dir.glob(f"*{DEV_SUFFIX}.md")
+        if twin.stem[: -len(DEV_SUFFIX)] not in prod_stems
+    )
+
+
 def _write(commands_dir: Path) -> int:
     """Generate every dev twin. Return 0."""
     for prod in _prod_commands(commands_dir):
         dev = _dev_path(prod)
         dev.write_text(_to_dev(prod.read_text(encoding="utf-8")), encoding="utf-8")
         print(f"wrote {dev.name}")
+    for orphan in _orphan_twins(commands_dir):
+        orphan.unlink()
+        print(f"removed orphan {orphan.name}")
     return 0
 
 
@@ -67,6 +81,10 @@ def _check(commands_dir: Path) -> int:
             drift.append(f"{dev.name}: missing (run `make gen-dev-commands`)")
         elif dev.read_text(encoding="utf-8") != want:
             drift.append(f"{dev.name}: stale (run `make gen-dev-commands`)")
+    for orphan in _orphan_twins(commands_dir):
+        drift.append(
+            f"{orphan.name}: orphaned, no prod source (run `make gen-dev-commands`)"
+        )
     if drift:
         for line in drift:
             print(f"gen-dev-commands: {line}", file=sys.stderr)
