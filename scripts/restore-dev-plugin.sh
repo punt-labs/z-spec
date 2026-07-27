@@ -12,17 +12,30 @@ set -euo pipefail
 # command, and the -dev command twins.
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PLUGIN_JSON="${REPO_ROOT}/.claude-plugin/plugin.json"
+cd "$REPO_ROOT"
+
+# Pathspecs are repo-relative: git rejects absolute pathspecs on some versions.
+PLUGIN_JSON=".claude-plugin/plugin.json"
 
 # Preflight: abort if the repo has uncommitted changes.
-if [[ -n "$(git -C "$REPO_ROOT" status --porcelain -uno)" ]]; then
+if [[ -n "$(git status --porcelain -uno)" ]]; then
   echo "restore-dev-plugin: repository has uncommitted changes; commit or stash first" >&2
+  exit 1
+fi
+
+# Guard: only restore when the working tree is in released (prod) state. Release
+# prep swaps the name to 'z-spec'; restore swaps it back to 'z-spec-dev'. Running
+# against a dev tree — a second run, or a run against an older release-prep — would
+# check out the parent's commands/ over live command edits and lose them.
+current_name="$(python3 -c "import json; print(json.load(open('${PLUGIN_JSON}'))['name'])")"
+if [[ "$current_name" != "z-spec" ]]; then
+  echo "restore-dev-plugin: plugin name is '${current_name}', not 'z-spec'; refusing to run (working tree is not in released prod state)" >&2
   exit 1
 fi
 
 RELEASE_PREP_COMMIT="${1:-}"
 if [[ -z "$RELEASE_PREP_COMMIT" ]]; then
-  RELEASE_PREP_COMMIT="$(git -C "$REPO_ROOT" log -n 1 --grep='prepare plugin for release' --pretty=format:%H || true)"
+  RELEASE_PREP_COMMIT="$(git log -n 1 --grep='prepare plugin for release' --pretty=format:%H || true)"
   if [[ -z "$RELEASE_PREP_COMMIT" ]]; then
     echo "restore-dev-plugin: no 'prepare plugin for release' commit found; pass a commit or tag" >&2
     exit 1
@@ -30,12 +43,12 @@ if [[ -z "$RELEASE_PREP_COMMIT" ]]; then
 fi
 
 echo "Restoring dev state from parent of ${RELEASE_PREP_COMMIT:0:12}"
-git -C "$REPO_ROOT" checkout "${RELEASE_PREP_COMMIT}^" -- "$PLUGIN_JSON"
+git checkout "${RELEASE_PREP_COMMIT}^" -- "$PLUGIN_JSON"
 
 # Restore the -dev command twins if the parent commit had them.
-if git -C "$REPO_ROOT" ls-tree "${RELEASE_PREP_COMMIT}^" -- commands/ | grep -q -e '-dev\.md'; then
-  git -C "$REPO_ROOT" checkout "${RELEASE_PREP_COMMIT}^" -- commands/
+if git ls-tree "${RELEASE_PREP_COMMIT}^" -- commands/ | grep -q -e '-dev\.md'; then
+  git checkout "${RELEASE_PREP_COMMIT}^" -- commands/
 fi
 
-git -C "$REPO_ROOT" add "$PLUGIN_JSON" commands/
-git -C "$REPO_ROOT" commit --no-verify -m "chore: restore dev plugin state"
+git add "$PLUGIN_JSON" commands/
+git commit --no-verify -m "chore: restore dev plugin state"

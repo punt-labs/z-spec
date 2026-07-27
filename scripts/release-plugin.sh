@@ -7,11 +7,14 @@ set -euo pipefail
 # from it. scripts/restore-dev-plugin.sh puts main back into dev state.
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PLUGIN_JSON="${REPO_ROOT}/.claude-plugin/plugin.json"
-COMMANDS_DIR="${REPO_ROOT}/commands"
+cd "$REPO_ROOT"
+
+# Pathspecs are repo-relative: git rejects absolute pathspecs on some versions.
+PLUGIN_JSON=".claude-plugin/plugin.json"
+COMMANDS_DIR="commands"
 
 # Preflight: abort if the repo has uncommitted changes.
-if [[ -n "$(git -C "$REPO_ROOT" status --porcelain -uno)" ]]; then
+if [[ -n "$(git status --porcelain -uno)" ]]; then
   echo "release-plugin: repository has uncommitted changes; commit or stash first" >&2
   exit 1
 fi
@@ -49,8 +52,8 @@ else
   for f in "${dev_files[@]}"; do
     echo "Removing: $(basename "$f")"
   done
-  git -C "$REPO_ROOT" rm "${dev_files[@]}"
+  git rm "${dev_files[@]}"
 fi
 
-git -C "$REPO_ROOT" add "$PLUGIN_JSON"
-git -C "$REPO_ROOT" commit --no-verify -m "chore: prepare plugin for release"
+git add "$PLUGIN_JSON"
+git commit --no-verify -m "chore: prepare plugin for release"

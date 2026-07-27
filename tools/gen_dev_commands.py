@@ -27,7 +27,7 @@ DEV_MCP_PREFIX = "mcp__plugin_z-spec-dev_zspec__"
 # A z-spec slash command: /z-spec:<name> where <name> is lowercase words joined
 # by single hyphens (b-animate, code2model, check). The trailing (?![\w-]) stops
 # the match before an already-hyphenated tail so it cannot re-consume output.
-SELF_REF = re.compile(r"/z-spec:([a-z0-9]+(?:-[a-z0-9]+)*)")
+SELF_REF = re.compile(r"/z-spec:([a-z0-9]+(?:-[a-z0-9]+)*)(?![\w-])")
 
 
 def _to_dev(text: str) -> str:
@@ -52,7 +52,7 @@ def _write(commands_dir: Path) -> int:
     """Generate every dev twin. Return 0."""
     for prod in _prod_commands(commands_dir):
         dev = _dev_path(prod)
-        dev.write_text(_to_dev(prod.read_text()))
+        dev.write_text(_to_dev(prod.read_text(encoding="utf-8")), encoding="utf-8")
         print(f"wrote {dev.name}")
     return 0
 
@@ -62,10 +62,10 @@ def _check(commands_dir: Path) -> int:
     drift: list[str] = []
     for prod in _prod_commands(commands_dir):
         dev = _dev_path(prod)
-        want = _to_dev(prod.read_text())
+        want = _to_dev(prod.read_text(encoding="utf-8"))
         if not dev.exists():
             drift.append(f"{dev.name}: missing (run `make gen-dev-commands`)")
-        elif dev.read_text() != want:
+        elif dev.read_text(encoding="utf-8") != want:
             drift.append(f"{dev.name}: stale (run `make gen-dev-commands`)")
     if drift:
         for line in drift:
