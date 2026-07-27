@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-07-26
+
 ### Added
 
 - **Dev/prod plugin namespace isolation** --- the working tree is now the dev plugin (`plugin.json` name `z-spec-dev`, MCP server running the working tree via `uv run --directory ${CLAUDE_PLUGIN_ROOT} z-spec mcp`), so `claude --plugin-dir .` loads `z-spec-dev` alongside the installed marketplace `z-spec` for local pre-release testing. Every prod command `commands/<c>.md` gains a generated `commands/<c>-dev.md` twin (19 total) that rewrites MCP tool references to `mcp__plugin_z-spec-dev_zspec__*` and `/z-spec:<cmd>` self-references to `/z-spec-dev:<cmd>-dev`. The twins are produced and verified by `tools/gen_dev_commands.py` via `make gen-dev-commands` and `make check-dev-commands` (the latter wired into `make check`, failing on any drift). The `z-spec-dev` namespace carries a hyphen, matching the `hooks/hooks.json` matcher `mcp__(plugin_z-spec(-dev)?_)?zspec__.*`. README documents the exact `claude --plugin-dir .` local-test procedure.
