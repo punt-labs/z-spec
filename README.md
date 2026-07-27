@@ -47,15 +47,17 @@ Both are installed automatically by `/z-spec:setup all`. fuzz is compiled from s
 ## Ways to Use It
 
 z-spec is one engine — the LaTeX Z parser, the fuzz and probcli wrappers, the
-report store — behind three clients: a Claude Code plugin, a `z-spec` CLI, and
-an MCP server. A given capability runs the same engine code whichever client
-calls it, so behavior is identical across all three.
+report store — reached through two clients: a `z-spec` CLI and an MCP server. A
+given capability runs the same engine code through either client. The Claude
+Code plugin is not a third client: its `/z-spec:*` slash commands are LLM
+prompts that drive the MCP client. Three ways it gets used:
 
-**1. Claude Code plugin.** Install the plugin and drive everything with
-`/z-spec:*` slash commands. The commands add LLM authoring on top of the
-engine — generating a spec from a codebase (`/z-spec:code2model`), deriving TTF
-partition analyses, explaining a counter-example — then call the engine to
-type-check, model-check, and render results in Lux. See [Quick Start](#quick-start).
+**1. Claude Code plugin (prompts over the MCP client).** Install the plugin and
+drive everything with `/z-spec:*` slash commands. The commands are LLM prompts
+that add authoring on top of the engine — generating a spec from a codebase
+(`/z-spec:code2model`), deriving TTF partition analyses, explaining a
+counter-example — then call the MCP client to type-check, model-check, and
+render results in Lux. See [Quick Start](#quick-start).
 
 **2. CLI + MCP without the plugin.** For agents that are not the Claude Code
 plugin — Codex, Cursor, or Claude Code under an org policy that blocks plugin
@@ -432,27 +434,59 @@ Generated specs follow this structure:
 <details>
 <summary>Dev/prod namespace isolation</summary>
 
-The working tree uses `name: "z-spec-dev"` in `plugin.json`. The marketplace release uses `name: "z-spec"`. This lets developers run both side by side:
+The working tree is the dev plugin: `plugin.json` has `name: "z-spec-dev"` and
+its MCP server runs the working tree via
+`uv run --directory ${CLAUDE_PLUGIN_ROOT} z-spec mcp`. The marketplace release is
+the prod plugin: `name: "z-spec"` with the MCP server invoking the installed
+`z-spec` binary. The two names differ, so both load at once — you get production
+commands and working-tree commands side by side.
+
+| Source | Commands | MCP tools | What they run |
+|--------|----------|-----------|---------------|
+| Marketplace `z-spec` | `/z-spec:check`, `/z-spec:test`, ... | `mcp__plugin_z-spec_zspec__*` | Installed `z-spec` binary |
+| Local `z-spec-dev` | `/z-spec-dev:check-dev`, `/z-spec-dev:test-dev`, ... | `mcp__plugin_z-spec-dev_zspec__*` | Working tree (`uv run`) |
+
+The `-dev` command twins are generated, not hand-written. Every prod command
+`commands/<c>.md` has a `commands/<c>-dev.md` twin that is identical except its
+MCP tool references gain the `-dev` plugin suffix and its `/z-spec:<cmd>`
+self-references become `/z-spec-dev:<cmd>-dev`. Regenerate them after editing any
+prod command:
 
 ```bash
-claude --plugin-dir .
+make gen-dev-commands     # rewrite the twins from prod sources
+make check-dev-commands   # fail if any twin is missing or stale (part of `make check`)
 ```
 
-| Source | Commands | What they run |
-|--------|----------|---------------|
-| Marketplace `z-spec` | `/z-spec:check`, `/z-spec:test`, ... | Production prompts |
-| Local `z-spec-dev` | `/z-spec-dev:check-dev`, `/z-spec-dev:test-dev`, ... | Working tree prompts |
+**Local test.** From the repo root, with the working tree in dev state:
+
+```bash
+uv sync                   # 1. install the working-tree z-spec into the project venv
+claude --plugin-dir .     # 2. launch Claude Code loading z-spec-dev alongside z-spec
+/z-spec-dev:check-dev docs/account.tex   # 3. run a dev command against the working tree
+```
+
+`/z-spec-dev:*` commands and their `mcp__plugin_z-spec-dev_zspec__*` tools exercise
+the code in the working tree; the marketplace `/z-spec:*` commands stay on the
+installed release. Nothing is published — the dev plugin is loaded only for that
+session.
 
 </details>
 
 <details>
 <summary>Release flow</summary>
 
+`release-plugin.sh` performs three swaps in one commit: the plugin name
+(`z-spec-dev` → `z-spec`), the MCP server command (`uv run` working tree → the
+installed `z-spec` binary, so marketplace users without a uv project can run it),
+and it strips the `-dev` command twins. `restore-dev-plugin.sh` restores all three
+by checking out `plugin.json` and `commands/` from the parent of the release-prep
+commit.
+
 ```bash
-# 1. Prepare release (swaps name to prod, removes -dev commands)
+# 1. Prepare release (swaps name + MCP command to prod, removes -dev commands)
 bash scripts/release-plugin.sh
 
-# 2. Tag the release
+# 2. Tag the release — the tag must point at the prod-named commit
 git tag v0.1.0
 git push origin v0.1.0
 
@@ -460,6 +494,8 @@ git push origin v0.1.0
 bash scripts/restore-dev-plugin.sh
 git push origin main
 ```
+
+Both scripts abort if the working tree has uncommitted changes.
 
 </details>
 
@@ -476,8 +512,10 @@ commands/
   b-check-dev.md        # /z-spec-dev:b-check-dev (dev, B-Method)
   ...                   # One prod + one dev variant per command
 scripts/
-  release-plugin.sh     # Swap to prod name, remove -dev commands
+  release-plugin.sh     # Swap to prod name + MCP command, remove -dev commands
   restore-dev-plugin.sh # Restore dev state after tagging
+tools/
+  gen_dev_commands.py   # Generate/verify the commands/*-dev.md twins
 reference/
   z-notation.md         # Z notation cheat sheet
   schema-patterns.md    # Common patterns and ProB tips

@@ -21,7 +21,7 @@ Parse as:
 - `all` - Install fuzz, probcli, and lean
 - (no argument) - Same as `check`
 
-**Note**: TeX files (fuzz.sty, *.mf) are automatically copied to your project's `docs/` directory when you run `/z-spec:create`, `/z-spec:check`, or `/z-spec:test`. Use `/z-spec:cleanup` to remove them.
+**Note**: TeX files (fuzz.sty, *.mf) are automatically copied to your project's `docs/` directory when you run `/z-spec-dev:create-dev`, `/z-spec-dev:check-dev`, or `/z-spec-dev:test-dev`. Use `/z-spec-dev:cleanup-dev` to remove them.
 
 ## Process
 
@@ -49,7 +49,7 @@ kpsewhich fuzz.sty
 # Check Tcl/Tk (needed for probcli on some systems)
 which wish || brew list tcl-tk 2>/dev/null
 
-# Check Lean 4 (optional, for /z-spec:prove)
+# Check Lean 4 (optional, for /z-spec-dev:prove-dev)
 which elan && elan --version
 which lean && lean --version
 which lake && lake --version
@@ -306,7 +306,7 @@ Run `source ~/.zshrc` or restart your terminal.
 
 ### 5. Install Lean 4
 
-Lean 4 is the theorem prover used by `/z-spec:prove` to generate
+Lean 4 is the theorem prover used by `/z-spec-dev:prove-dev` to generate
 machine-checked proof obligations from Z specifications.
 
 #### Install elan (Lean version manager)
