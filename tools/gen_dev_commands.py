@@ -82,7 +82,7 @@ def main(argv: list[str]) -> int:
     positional = [a for a in args if a != "--check"]
     if len(positional) != 1:
         print(
-            "usage: gen_dev_commands.py <commands-dir> [--check]",
+            "usage: gen_dev_commands.py <commands-dir> [--write | --check]",
             file=sys.stderr,
         )
         return 2

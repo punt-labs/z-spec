@@ -13,9 +13,19 @@ cd "$REPO_ROOT"
 PLUGIN_JSON=".claude-plugin/plugin.json"
 COMMANDS_DIR="commands"
 
-# Preflight: abort if the repo has uncommitted changes.
+# Preflight: abort if the repo has uncommitted changes to tracked files.
 if [[ -n "$(git status --porcelain -uno)" ]]; then
   echo "release-plugin: repository has uncommitted changes; commit or stash first" >&2
+  exit 1
+fi
+
+# The check above (-uno) skips untracked files so local scratch does not block a
+# release. But an untracked (non-ignored) file under the paths this script
+# rewrites would break the `git rm` of the twins; reject those specifically.
+untracked_in_scope="$(git ls-files --others --exclude-standard -- "$COMMANDS_DIR" "$PLUGIN_JSON")"
+if [[ -n "$untracked_in_scope" ]]; then
+  echo "release-plugin: untracked files under ${COMMANDS_DIR}/ or .claude-plugin/; commit or remove them first:" >&2
+  echo "$untracked_in_scope" >&2
   exit 1
 fi
 

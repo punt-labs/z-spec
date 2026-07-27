@@ -17,9 +17,19 @@ cd "$REPO_ROOT"
 # Pathspecs are repo-relative: git rejects absolute pathspecs on some versions.
 PLUGIN_JSON=".claude-plugin/plugin.json"
 
-# Preflight: abort if the repo has uncommitted changes.
+# Preflight: abort if the repo has uncommitted changes to tracked files.
 if [[ -n "$(git status --porcelain -uno)" ]]; then
   echo "restore-dev-plugin: repository has uncommitted changes; commit or stash first" >&2
+  exit 1
+fi
+
+# The check above (-uno) skips untracked files so local scratch does not block a
+# restore. But `git add commands/` below would sweep an untracked (non-ignored)
+# file under commands/ into the restore commit; reject those specifically.
+untracked_in_scope="$(git ls-files --others --exclude-standard -- commands "$PLUGIN_JSON")"
+if [[ -n "$untracked_in_scope" ]]; then
+  echo "restore-dev-plugin: untracked files under commands/ or .claude-plugin/; commit or remove them first:" >&2
+  echo "$untracked_in_scope" >&2
   exit 1
 fi
 
