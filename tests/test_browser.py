@@ -6,9 +6,7 @@ from pathlib import Path
 
 from punt_lux.protocol import (
     CollapsingHeaderElement,
-    ComboElement,
     Element,
-    GroupElement,
     SeparatorElement,
     TabBarElement,
     TextElement,
@@ -102,54 +100,37 @@ def _make_specs(n: int = 3) -> list[tuple[SpecModel, Path]]:
 # ---------------------------------------------------------------------------
 
 
-def test_scene_is_paged_group() -> None:
+def test_scene_is_tab_bar() -> None:
     coll = _make_collection(Path("/tmp"))
     scene = build_browser_scene(coll, _make_specs())
 
-    assert isinstance(scene, GroupElement)
-    assert scene.id == "browser"
-    assert scene.layout == "paged"
-    assert scene.page_source == "nav-select"
-    assert len(scene.pages) == 3
+    assert isinstance(scene, TabBarElement)
+    assert scene.id == "z-spec-browser-tabs"
+    assert len(scene.tabs) == 3
+    labels = [t.label for t in scene.tabs]
+    assert labels == ["1. Basic Types", "2. State Schemas", "3. Operations"]
+    assert [t.tab_id for t in scene.tabs] == ["lesson-0", "lesson-1", "lesson-2"]
 
 
-def test_children_has_combo() -> None:
+def test_lesson_tab_has_annotation() -> None:
     coll = _make_collection(Path("/tmp"))
     scene = build_browser_scene(coll, _make_specs())
 
-    # children = just the combo (display renders Prev/Next around it)
-    assert len(scene.children) == 1
-    combo = scene.children[0]
-    assert isinstance(combo, ComboElement)
-    assert combo.id == "nav-select"
-    assert len(combo.items) == 3
-    assert combo.selected == 0
-    assert "1. Basic Types" in combo.items[0]
-    assert "2. State Schemas" in combo.items[1]
-    assert "3. Operations" in combo.items[2]
+    first_child = scene.tabs[0].children[0]
+    assert isinstance(first_child, TextElement)
+    assert "basic types" in first_child.content
 
 
-def test_page_has_annotation() -> None:
+def test_lesson_tab_has_spec_tabs() -> None:
     coll = _make_collection(Path("/tmp"))
     scene = build_browser_scene(coll, _make_specs())
 
-    page0 = scene.pages[0]
-    annotation = page0[0]
-    assert isinstance(annotation, TextElement)
-    assert "basic types" in annotation.content
+    spec_tabs = scene.tabs[0].children[-1]
+    assert isinstance(spec_tabs, TabBarElement)
+    assert spec_tabs.tabs[0].label == "Spec"
 
 
-def test_page_has_spec_tabs() -> None:
-    coll = _make_collection(Path("/tmp"))
-    scene = build_browser_scene(coll, _make_specs())
-
-    page0 = scene.pages[0]
-    tabs = page0[-1]
-    assert isinstance(tabs, TabBarElement)
-    assert tabs.tabs[0]["label"] == "Spec"
-
-
-def test_page_without_annotation() -> None:
+def test_lesson_without_annotation() -> None:
     coll = Collection(
         title="Minimal",
         description="",
@@ -166,21 +147,23 @@ def test_page_without_annotation() -> None:
     )
     scene = build_browser_scene(coll, _make_specs(1))
 
-    page0 = scene.pages[0]
-    # No annotation — page should contain only the spec tabs (no TextElement annotation)
-    annotation_ids = [e.id for e in page0 if isinstance(e, TextElement)]
+    # No annotation — the lesson tab holds only the spec tabs.
+    annotation_ids = [
+        e.id for e in scene.tabs[0].children if isinstance(e, TextElement)
+    ]
     assert not any(aid.startswith("annotation-") for aid in annotation_ids)
 
 
-def test_each_page_has_unique_annotation_id() -> None:
+def test_each_lesson_has_unique_annotation_id() -> None:
     coll = _make_collection(Path("/tmp"))
     scene = build_browser_scene(coll, _make_specs())
 
-    ids: list[str] = []
-    for page in scene.pages:
-        for el in page:
-            if isinstance(el, TextElement) and el.id.startswith("annotation-"):
-                ids.append(el.id)
+    ids = [
+        el.id
+        for tab in scene.tabs
+        for el in tab.children
+        if isinstance(el, TextElement) and el.id.startswith("annotation-")
+    ]
     assert len(ids) == 3
     assert len(set(ids)) == 3  # all unique
 
@@ -195,30 +178,30 @@ def test_apply_highlights_opens_matching() -> None:
         CollapsingHeaderElement(
             id="sec-basic-types",
             label="Basic Types",
-            default_open=False,
+            open=False,
             children=[],
         ),
         CollapsingHeaderElement(
             id="sec-state",
             label="State",
-            default_open=False,
+            open=False,
             children=[],
         ),
         CollapsingHeaderElement(
             id="sec-ops",
             label="Operations",
-            default_open=False,
+            open=False,
             children=[],
         ),
     ]
 
     result = _apply_highlights(elements, ["Basic Types", "State"])
     assert isinstance(result[0], CollapsingHeaderElement)
-    assert result[0].default_open is True
+    assert result[0].open is True
     assert isinstance(result[1], CollapsingHeaderElement)
-    assert result[1].default_open is True
+    assert result[1].open is True
     assert isinstance(result[2], CollapsingHeaderElement)
-    assert result[2].default_open is False
+    assert result[2].open is False
 
 
 def test_apply_highlights_partial_match() -> None:
@@ -226,13 +209,13 @@ def test_apply_highlights_partial_match() -> None:
         CollapsingHeaderElement(
             id="sec-basic",
             label="Basic Types and Constants",
-            default_open=False,
+            open=False,
             children=[],
         ),
     ]
     result = _apply_highlights(elements, ["Basic"])
     assert isinstance(result[0], CollapsingHeaderElement)
-    assert result[0].default_open is True
+    assert result[0].open is True
 
 
 def test_apply_highlights_preserves_non_headers() -> None:
@@ -241,11 +224,11 @@ def test_apply_highlights_preserves_non_headers() -> None:
         CollapsingHeaderElement(
             id="sec-state",
             label="State",
-            default_open=False,
+            open=False,
             children=[],
         ),
     ]
     result = _apply_highlights(elements, ["State"])
     assert isinstance(result[0], SeparatorElement)
     assert isinstance(result[1], CollapsingHeaderElement)
-    assert result[1].default_open is True
+    assert result[1].open is True

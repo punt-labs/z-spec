@@ -197,7 +197,7 @@ JSON, so a plugin, an agent, and a human at a terminal all reach the same engine
 | `save_partition_report(file, report_json)` | Validate + persist an authored partition report |
 | `save_audit_report(file, report_json)` | Validate + persist an authored coverage-audit report |
 | `show_z_spec(file)` | Render the spec and all its reports in Lux |
-| `browse(manifest)` | Open a tutorial collection in the paged Lux browser |
+| `browse(manifest)` | Open a tutorial collection in the tabbed Lux browser |
 
 Every tool returns `{"ok": true, ...}` on success or `{"ok": false, "error": ...}`
 on failure — one convention across all ten. A [PostToolUse hook](hooks/hooks.json)
@@ -218,7 +218,7 @@ All reports are gitignored (generated artifacts). `show_z_spec` loads whichever 
 
 ### Tutorial Browser
 
-The `browse` tool provides a lesson-by-lesson tutorial experience. All lessons are loaded upfront and navigation is instant (client-side). Define a `manifest.toml` with ordered lessons:
+The `browse` tool provides a lesson-by-lesson tutorial experience. All lessons render upfront as tabs — one per lesson — in the Lux window (requires a running lux Hub, punt_lux 0.21+). Define a `manifest.toml` with ordered lessons:
 
 ```toml
 [collection]
@@ -237,7 +237,7 @@ annotation = "A **state schema** captures the data a system holds..."
 highlights = ["State"]
 ```
 
-The browser displays a nav bar (Prev/Next buttons + lesson selector), the lesson's didactic annotation, and the full spec tabs (Spec/Fuzz/ProB/Partition/Audit). Section headers matching `highlights` are auto-expanded.
+The browser displays one tab per lesson; selecting a lesson tab shows its didactic annotation and the full spec tabs (Spec/Fuzz/ProB/Partition/Audit). Section headers matching `highlights` are auto-expanded.
 
 ## What It Looks Like
 
