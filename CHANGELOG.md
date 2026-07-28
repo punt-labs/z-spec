@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Lux rendering now publishes to the punt_lux 0.21 Hub** --- z-spec pinned `punt-lux>=0.9.0` (resolving to 0.9.x) while the running lux daemon is 0.21.0. Across those versions lux completed a WebSocket-to-HTTP swap: `punt_lux.client.LuxClient`/`DisplayClient` are no longer package-root exports (the display socket is Hub-internal, one client — luxd), and the Hub is the scene authority. z-spec's `LuxClient(...).show(...)`-over-socket path therefore reached nothing the Hub tracked, so `show_z_spec` and `browse` returned `ok:true` but never landed a scene. The dependency is bumped to `punt-lux>=0.21,<0.22` and `LuxDisplay` now publishes each scene through `LuxRestClient.render(RenderRequest(...))` (REST `PUT /scenes/{id}`), the same path `lux show beads` uses; both tools now land Hub-tracked scenes (`GET /scenes` shows `z-spec` and `z-spec-browser` owned by the REST tier). The 0.21 element API changes are absorbed: `CollapsingHeaderElement.default_open` → `open`, `TabBarElement.tabs` takes `Tab(tab_id, label, children)` objects instead of dicts, `TableElement.flags` takes a `TableFlags` value object instead of `list[str]`. The tutorial browser and spec picker move off the removed paged `GroupElement` (`layout="paged"`/`pages`/`page_source`) to a `TabBarElement` with one tab per lesson/spec; `build_z_spec_scene` gains an `id_prefix` so the browser's embedded per-lesson scenes keep element ids unique, which the 0.21 Hub requires (it rejects a tree with a repeated element id). The dead menu/event machinery in `server.py` (the persistent `LuxClient`, `declare_menu_item`/`on_event` menu callbacks, and the eager-connect lifespan) is removed — that model does not exist for a 0.21 REST caller; a right-click menu affordance is deferred.
+
 ## [0.17.0] - 2026-07-26
 
 ### Added

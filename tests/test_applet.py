@@ -211,30 +211,30 @@ def test_build_spec_only_scene() -> None:
 
     # Should have one tab (Spec only)
     assert len(scene.tabs) == 1
-    assert scene.tabs[0]["label"] == "Spec"
+    assert scene.tabs[0].label == "Spec"
 
 
 def test_spec_tab_has_collapsing_headers() -> None:
     spec = _make_spec()
     scene = build_z_spec_scene(Path("test.tex"), spec)
 
-    spec_children = scene.tabs[0]["children"]
+    spec_children = scene.tabs[0].children
     headers = [e for e in spec_children if isinstance(e, CollapsingHeaderElement)]
 
     assert len(headers) == 3  # Basic Types, State, Operations
     types_header = next(h for h in headers if h.label == "Basic Types")
     state_header = next(h for h in headers if h.label == "State")
     ops_header = next(h for h in headers if h.label == "Operations")
-    assert types_header.default_open is True
-    assert state_header.default_open is True
-    assert ops_header.default_open is False
+    assert types_header.open is True
+    assert state_header.open is True
+    assert ops_header.open is False
 
 
 def test_spec_tab_renders_schema_boxes() -> None:
     spec = _make_spec()
     scene = build_z_spec_scene(Path("test.tex"), spec)
 
-    spec_children = scene.tabs[0]["children"]
+    spec_children = scene.tabs[0].children
     state_header = next(
         e
         for e in spec_children
@@ -257,10 +257,10 @@ def test_fuzz_tab_pass() -> None:
     spec = _make_spec()
     scene = build_z_spec_scene(Path("test.tex"), spec, fuzz=_make_fuzz_ok())
 
-    tab_labels = [t["label"] for t in scene.tabs]
+    tab_labels = [t.label for t in scene.tabs]
     assert "Fuzz" in tab_labels
 
-    fuzz_children = scene.tabs[1]["children"]
+    fuzz_children = scene.tabs[1].children
     result_text = next(e for e in fuzz_children if isinstance(e, TextElement))
     assert "PASS" in result_text.content
 
@@ -269,7 +269,7 @@ def test_fuzz_tab_errors() -> None:
     spec = _make_spec()
     scene = build_z_spec_scene(Path("test.tex"), spec, fuzz=_make_fuzz_errors())
 
-    fuzz_children = scene.tabs[1]["children"]
+    fuzz_children = scene.tabs[1].children
     result_text = next(e for e in fuzz_children if isinstance(e, TextElement))
     assert "FAIL" in result_text.content
 
@@ -289,7 +289,7 @@ def test_build_scene_with_report() -> None:
     scene = build_z_spec_scene(Path("test.tex"), spec, report)
 
     assert isinstance(scene, TabBarElement)
-    tab_labels = [t["label"] for t in scene.tabs]
+    tab_labels = [t.label for t in scene.tabs]
     assert tab_labels == ["Spec", "ProB"]
 
 
@@ -317,10 +317,10 @@ def test_build_scene_with_counter_example() -> None:
     )
     scene = build_z_spec_scene(Path("test.tex"), spec, report)
 
-    tab_labels = [t["label"] for t in scene.tabs]
+    tab_labels = [t.label for t in scene.tabs]
     assert tab_labels == ["Spec", "ProB", "Counter-Example"]
 
-    ce_children = scene.tabs[2]["children"]
+    ce_children = scene.tabs[2].children
     table = next(e for e in ce_children if isinstance(e, TableElement))
     assert table.rows[0][1] == "INITIALISATION"
     assert table.rows[1][1] == "Increment"
@@ -331,8 +331,8 @@ def test_prob_tab_has_metrics_and_checks() -> None:
     report = _make_report()
     scene = build_z_spec_scene(Path("test.tex"), spec, report)
 
-    prob_children = scene.tabs[1]["children"]
-    assert scene.tabs[1]["label"] == "ProB"
+    prob_children = scene.tabs[1].children
+    assert scene.tabs[1].label == "ProB"
 
     metrics = next(e for e in prob_children if isinstance(e, GroupElement))
     assert metrics.layout == "columns"
@@ -369,7 +369,7 @@ def test_counter_example_tab_has_violation_markdown() -> None:
     )
     scene = build_z_spec_scene(Path("test.tex"), spec, report)
 
-    ce_children = scene.tabs[2]["children"]
+    ce_children = scene.tabs[2].children
     violation = next(
         e
         for e in ce_children
@@ -387,7 +387,7 @@ def test_partition_tab_present() -> None:
     spec = _make_spec()
     scene = build_z_spec_scene(Path("test.tex"), spec, partition=_make_partition())
 
-    tab_labels = [t["label"] for t in scene.tabs]
+    tab_labels = [t.label for t in scene.tabs]
     assert "Partition" in tab_labels
 
 
@@ -395,8 +395,8 @@ def test_partition_tab_has_metrics() -> None:
     spec = _make_spec()
     scene = build_z_spec_scene(Path("test.tex"), spec, partition=_make_partition())
 
-    part_tab = next(t for t in scene.tabs if t["label"] == "Partition")
-    metrics = next(e for e in part_tab["children"] if isinstance(e, GroupElement))
+    part_tab = next(t for t in scene.tabs if t.label == "Partition")
+    metrics = next(e for e in part_tab.children if isinstance(e, GroupElement))
     metric_texts = [c.content for c in metrics.children if isinstance(c, TextElement)]
     assert any("3" in t for t in metric_texts)  # total partitions
     assert any("2" in t for t in metric_texts)  # accepted
@@ -406,12 +406,12 @@ def test_partition_tab_has_operation_table() -> None:
     spec = _make_spec()
     scene = build_z_spec_scene(Path("test.tex"), spec, partition=_make_partition())
 
-    part_tab = next(t for t in scene.tabs if t["label"] == "Partition")
+    part_tab = next(t for t in scene.tabs if t.label == "Partition")
     header = next(
-        e for e in part_tab["children"] if isinstance(e, CollapsingHeaderElement)
+        e for e in part_tab.children if isinstance(e, CollapsingHeaderElement)
     )
     assert "Increment" in header.label
-    assert header.default_open is True
+    assert header.open is True
 
     table = header.children[0]
     assert isinstance(table, TableElement)
@@ -429,7 +429,7 @@ def test_audit_tab_present() -> None:
     spec = _make_spec()
     scene = build_z_spec_scene(Path("test.tex"), spec, audit=_make_audit())
 
-    tab_labels = [t["label"] for t in scene.tabs]
+    tab_labels = [t.label for t in scene.tabs]
     assert "Audit" in tab_labels
 
 
@@ -437,8 +437,8 @@ def test_audit_tab_has_coverage_metrics() -> None:
     spec = _make_spec()
     scene = build_z_spec_scene(Path("test.tex"), spec, audit=_make_audit())
 
-    audit_tab = next(t for t in scene.tabs if t["label"] == "Audit")
-    metrics = next(e for e in audit_tab["children"] if isinstance(e, GroupElement))
+    audit_tab = next(t for t in scene.tabs if t.label == "Audit")
+    metrics = next(e for e in audit_tab.children if isinstance(e, GroupElement))
     metric_texts = [c.content for c in metrics.children if isinstance(c, TextElement)]
     assert any("2/3" in t for t in metric_texts)  # covered/total
     assert any("67%" in t for t in metric_texts)  # percentage
@@ -448,17 +448,17 @@ def test_audit_tab_has_uncovered_section() -> None:
     spec = _make_spec()
     scene = build_z_spec_scene(Path("test.tex"), spec, audit=_make_audit())
 
-    audit_tab = next(t for t in scene.tabs if t["label"] == "Audit")
+    audit_tab = next(t for t in scene.tabs if t.label == "Audit")
     uncovered_header = next(
         e
-        for e in audit_tab["children"]
+        for e in audit_tab.children
         if isinstance(e, CollapsingHeaderElement) and "Uncovered" in e.label
     )
-    assert uncovered_header.default_open is True
+    assert uncovered_header.open is True
     table = uncovered_header.children[0]
     assert isinstance(table, TableElement)
     assert len(table.rows) == 1
-    assert "x' = x + 1" in table.rows[0][0]
+    assert "x' = x + 1" in str(table.rows[0][0])
 
 
 # ---------------------------------------------------------------------------
@@ -477,5 +477,5 @@ def test_all_tabs_present() -> None:
         audit=_make_audit(),
     )
 
-    tab_labels = [t["label"] for t in scene.tabs]
+    tab_labels = [t.label for t in scene.tabs]
     assert tab_labels == ["Spec", "Fuzz", "ProB", "Partition", "Audit"]

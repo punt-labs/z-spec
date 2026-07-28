@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-from punt_zspec.server import _lifespan, mcp  # pyright: ignore[reportPrivateUsage]
+from punt_lux.rest_transport import HubUnavailableError
+
+from punt_zspec.server import mcp
 
 if TYPE_CHECKING:
     import pytest
@@ -21,64 +22,6 @@ def test_server_has_correct_name() -> None:
 
 # The full MCP tool set and its CLI counterpart are enforced by the
 # registry-driven parity guard in tests/commands/test_parity.py.
-
-
-# ---------------------------------------------------------------------------
-# Lifespan (eager Lux connect)
-# ---------------------------------------------------------------------------
-
-
-def _run_lifespan() -> None:
-    """Helper: enter and exit the lifespan context manager."""
-
-    async def _go() -> None:
-        async with _lifespan(MagicMock()):
-            pass
-
-    asyncio.run(_go())
-
-
-def test_lifespan_success() -> None:
-    """Lifespan calls _eager_lux_connect (-> _get_client) to eagerly connect."""
-    with patch("punt_zspec.server._get_client") as mock:
-        _run_lifespan()
-    mock.assert_called_once()
-
-
-def test_lifespan_connection_error() -> None:
-    """ConnectionError is caught at debug — server still starts."""
-    with patch(
-        "punt_zspec.server._get_client",
-        side_effect=ConnectionError("refused"),
-    ):
-        _run_lifespan()  # should not raise
-
-
-def test_lifespan_os_error() -> None:
-    """OSError is caught at debug — server still starts."""
-    with patch(
-        "punt_zspec.server._get_client",
-        side_effect=OSError("socket gone"),
-    ):
-        _run_lifespan()  # should not raise
-
-
-def test_lifespan_import_error() -> None:
-    """ImportError is caught at warning — server still starts."""
-    with patch(
-        "punt_zspec.server._get_client",
-        side_effect=ImportError("No module named 'punt_lux'"),
-    ):
-        _run_lifespan()  # should not raise
-
-
-def test_lifespan_unexpected_error() -> None:
-    """Unexpected exceptions are caught at warning — server still starts."""
-    with patch(
-        "punt_zspec.server._get_client",
-        side_effect=TypeError("bad arg"),
-    ):
-        _run_lifespan()  # should not raise
 
 
 # ---------------------------------------------------------------------------
@@ -198,7 +141,7 @@ x \leq 10
 """
     )
     mock_client = MagicMock()
-    with patch("punt_zspec.server._get_client", return_value=mock_client):
+    with patch("punt_zspec.display.LuxRestClient.connect", return_value=mock_client):
         result = json.loads(show_z_spec(str(tex)))
     assert result["ok"] is True
     assert result["scene_id"] == "z-spec"
@@ -220,8 +163,8 @@ x : \nat
 """
     )
     with patch(
-        "punt_zspec.server._get_client",
-        side_effect=ConnectionError("lux not running"),
+        "punt_zspec.display.LuxRestClient.connect",
+        side_effect=HubUnavailableError("lux not running"),
     ):
         result = json.loads(show_z_spec(str(tex)))
     assert result["ok"] is False
@@ -371,7 +314,7 @@ x : \nat
     )
 
     mock_client = MagicMock()
-    with patch("punt_zspec.server._get_client", return_value=mock_client):
+    with patch("punt_zspec.display.LuxRestClient.connect", return_value=mock_client):
         result = json.loads(browse(str(manifest)))
     assert result["ok"] is True
     assert result["total"] == 1
