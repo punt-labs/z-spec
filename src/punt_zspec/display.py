@@ -1,79 +1,76 @@
-"""LuxDisplay — the one module that renders opaque scenes through punt_lux."""
+"""LuxDisplay — the one module that publishes opaque scenes to the lux Hub."""
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Protocol, Self, final
+from typing import TYPE_CHECKING, Protocol, Self, cast, final
+
+from punt_lux.operations import OpError, RenderRequest, SceneShown
+from punt_lux.operations.models.render import FrameSpec
+from punt_lux.rest_client import LuxRestClient
+from punt_lux.rest_transport import HubUnavailableError
 
 from punt_zspec.commands.show import DisplayError
+
+if TYPE_CHECKING:
+    from punt_lux.protocol import Element
 
 logger = logging.getLogger(__name__)
 
 
-class ClientProvider(Protocol):
-    """Return a connected lux client, or raise on connection failure."""
+class HubRenderer(Protocol):
+    """Publish a whole scene to the lux Hub, returning a typed result."""
 
-    # Any (PY-TS-9): punt_lux.client.LuxClient ships no type stubs.
-    def __call__(self) -> Any: ...
+    def render(self, request: RenderRequest) -> SceneShown | OpError: ...
 
 
-class ClientReset(Protocol):
-    """Drop any cached client so the next provider call reconnects fresh."""
+class HubConnector(Protocol):
+    """Locate luxd and return a Hub renderer, raising when luxd is unreachable."""
 
-    def __call__(self) -> None: ...
+    def __call__(self) -> HubRenderer: ...
 
 
 @final
 class LuxDisplay:
-    """Render a scene on a lux client, reconnecting once on socket failure.
+    """Publish a scene to the 0.21 lux Hub over its REST surface.
 
-    With no provider, each render constructs and connects its own client — the
-    CLI path. The MCP server injects a provider/reset pair bound to its single
-    persistent menu client so the process keeps one connection.
+    Each render locates luxd's port and PUTs the scene to ``/scenes/{id}``; the
+    Hub becomes the scene's authority and replicates it to the display. In 0.21
+    the display socket is Hub-internal — a scene reaches the window only through
+    the Hub, never a direct socket send — so this is the sole publishing path.
     """
 
-    # ClientProvider | None (PY-TS-14): None = "build a fresh self-connecting
-    # client per render" — the CLI default, a real mode, not a missing value.
-    _provide: ClientProvider | None
-    # ClientReset | None (PY-TS-14): None = "nothing to reset" — a self-built
-    # client is discarded after each render, so there is no cache to drop.
-    _reset: ClientReset | None
-    __slots__ = ("_provide", "_reset")
+    _connect: HubConnector
+    __slots__ = ("_connect",)
 
-    def __new__(
-        cls,
-        provide: ClientProvider | None = None,
-        reset: ClientReset | None = None,
-    ) -> Self:
+    def __new__(cls, connect: HubConnector | None = None) -> Self:
+        # HubConnector | None (PY-TS-14): None = "use the real LuxRestClient
+        # connector" — the CLI/server default; a concrete mode, not a missing value.
         self = super().__new__(cls)
-        self._provide = provide
-        self._reset = reset
+        self._connect = connect if connect is not None else LuxDisplay._default_connect
         return self
 
-    def show(self, scene: object, *, frame_id: str, frame_title: str) -> None:
-        """Render ``scene``; reconnect once on failure, then raise DisplayError."""
-        try:  # PY-EH-5 exception: lux socket I/O is a genuine boundary
-            self._render(scene, frame_id=frame_id, frame_title=frame_title)
-        except (ConnectionError, OSError):
-            if self._reset is not None:
-                self._reset()
-            try:
-                self._render(scene, frame_id=frame_id, frame_title=frame_title)
-            except (ConnectionError, OSError) as exc:
-                logger.warning("Lux reconnect failed: %s", exc)
-                raise DisplayError(str(exc)) from exc
-
-    def _render(self, scene: object, *, frame_id: str, frame_title: str) -> None:
-        client = self._provide() if self._provide is not None else self._connect()
-        client.show(frame_id, [scene], frame_id=frame_id, frame_title=frame_title)
-
     @staticmethod
-    def _connect() -> Any:  # Any (PY-TS-9): untyped LuxClient
-        from punt_lux.client import LuxClient
+    def _default_connect() -> HubRenderer:
+        """Connect to luxd over REST, raising HubUnavailableError if it is down."""
+        return LuxRestClient.connect()
 
-        client = LuxClient(name="z-spec")
-        if not client.is_connected:
-            client.connect()
-        if not client.listener_active:
-            client.start_listener()
-        return client
+    def show(self, scene: object, *, frame_id: str, frame_title: str) -> None:
+        """Publish ``scene`` to the Hub; raise DisplayError if it cannot land."""
+        # cast (PY-TS-12): the injected builder always returns a punt_lux Element;
+        # the Display protocol keeps it opaque so callers stay punt_lux-free.
+        element = cast("Element", scene)
+        request = RenderRequest(
+            scene_id=frame_id,
+            elements=[element.to_dict()],
+            title=frame_title,
+            frame=FrameSpec(frame_id=frame_id, frame_title=frame_title),
+        )
+        try:  # PY-EH-5 exception: locating and reaching luxd is an I/O boundary
+            result = self._connect().render(request)
+        except HubUnavailableError as exc:
+            logger.warning("Lux Hub unavailable: %s", exc)
+            raise DisplayError(str(exc)) from exc
+        if isinstance(result, OpError):
+            logger.warning("Lux Hub rejected scene %s: %s", frame_id, result.reason)
+            raise DisplayError(result.reason)
