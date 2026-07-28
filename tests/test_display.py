@@ -72,6 +72,25 @@ def test_show_raises_display_error_when_hub_unavailable() -> None:
         display.show(_scene(), frame_id="z-spec", frame_title="t")
 
 
+def test_show_raises_display_error_on_transport_error() -> None:
+    # A transport failure mid-render (ConnectionError is an OSError subclass)
+    # is a "could not reach the Hub" condition and must become DisplayError so
+    # the MCP tools return {ok:false} rather than crashing.
+    display = LuxDisplay(connect=_raising_connector(ConnectionError("reset")))
+
+    with pytest.raises(DisplayError, match="reset"):
+        display.show(_scene(), frame_id="z-spec", frame_title="t")
+
+
+def test_show_does_not_mask_a_malformed_request() -> None:
+    # A non-I/O error (e.g. a validation error from a request we built wrong)
+    # is our bug — it must propagate, not be masked as DisplayError.
+    display = LuxDisplay(connect=_raising_connector(ValueError("bad request")))
+
+    with pytest.raises(ValueError, match="bad request"):
+        display.show(_scene(), frame_id="z-spec", frame_title="t")
+
+
 def test_show_raises_display_error_on_hub_rejection() -> None:
     display = LuxDisplay(connect=_op_error_connector("bad scene"))
 

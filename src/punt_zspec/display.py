@@ -68,8 +68,8 @@ class LuxDisplay:
         )
         try:  # PY-EH-5 exception: locating and reaching luxd is an I/O boundary
             result = self._connect().render(request)
-        except HubUnavailableError as exc:
-            logger.warning("Lux Hub unavailable: %s", exc)
+        except (HubUnavailableError, OSError) as exc:
+            logger.warning("Lux Hub unreachable: %s", exc)
             raise DisplayError(str(exc)) from exc
         if isinstance(result, OpError):
             logger.warning("Lux Hub rejected scene %s: %s", frame_id, result.reason)
