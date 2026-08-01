@@ -66,9 +66,11 @@ LuxRestClient.for_identity(ClientIdentity(
 ))
 ```
 
-Verified present in punt_lux 0.22.1:
-`LuxRestClient.for_identity(identity: ClientIdentity, *, timeout: float = 2.0) -> Self`
-and `ClientIdentity` fields `(kind, name, repo, agent, lease_ttl)`.
+Verified present in **released** punt_lux 0.22.1 (the version vox ships on):
+`LuxRestClient.for_identity`, `listener`, and `register_callback` are all present,
+and `ClientIdentity` carries `(kind, name, repo, agent, lease_ttl)`. The menu,
+identity, and render mechanics all work at the pinned version. (`raise_frame` is
+the one exception — next-release only; see 2.4.)
 
 - The **name is the menu disambiguator luxd shows** (voxd names itself `voxd`,
   `lux_clients.py:28`). z-spec folds `repo-basename` and `#pid` into the name so
@@ -127,34 +129,55 @@ A click must produce a visible response in **100-200ms** (operator-ruled,
 lux-side absolute). The Browse scene renders 153 elements; a full re-render on
 every click misses that budget on the cold path.
 
-**The click handler routes through one internal method, `_raise_scene(scene_id)`.**
-Every click calls it, and it is the only place the raise behavior lives — so the
-whole strategy changes in one function, not across the callback code:
+**`raise_frame` does NOT exist in released punt_lux 0.22.1.** Verified against
+vox's released-0.22.1 install: `hasattr(LuxRestClient, "raise_frame")` is
+`False`. It ships in the **next release (0.23)**. A z-spec build pinned
+`>=0.22.1,<0.23` that calls `LuxRestClient.raise_frame` raises `AttributeError`.
+(An earlier draft reported it present; that check ran against the `../lux` repo's
+venv, which is an unreleased branch build carrying a stale `0.22.1` version
+string — a false positive. See 2.5.)
 
-- **Today** `_raise_scene` does the minimal-placeholder-then-full-scene sequence:
-  push a minimal frame instantly (title + "loading" text) under `scene_id`, then
-  render the full scene into the same `scene_id` behind it. The lux agent measured
-  this raise-first approach at **63ms median** — comfortably inside the 100-200ms
-  budget.
-- **Later** `_raise_scene` collapses to a single `LuxRestClient.raise_frame(scene_id)`
-  call. `raise_frame(frame_id) -> FrameRaise | OpError` exists in the lux repo's
-  0.22.1 working tree and, per the lux agent, ships in a forthcoming punt-lux
-  release. At that pin bump the method body becomes one line; nothing else moves.
+**The click handler routes through one internal method, `_raise_scene(scene_id)`.**
+Every click calls it, and it is the only place the raise behavior lives. This is
+a **hard guard against an unreleased API**, not merely a latency optimization —
+the callback never names `raise_frame`, so the unreleased method can never leak
+into a shipped z-spec:
+
+- **For the entire `>=0.22.1,<0.23` pin lifetime** `_raise_scene` does the
+  minimal-placeholder-then-full-scene sequence for **every** click, cold and warm
+  alike: push a minimal frame instantly (title + "loading" text) under
+  `scene_id`, then render the full scene into the same `scene_id` behind it.
+  Calling `raise_frame` at this pin would `AttributeError`, so the placeholder
+  path is the **shipped behavior**, not a stopgap. The lux agent measured this
+  raise-first approach at **63ms median** — inside the 100-200ms budget.
+- **Only when the pin bumps to the 0.23 release that carries `raise_frame`** does
+  `_raise_scene` collapse to a single `LuxRestClient.raise_frame(scene_id)` call.
+  That is a one-line change to the method body, gated on the release existing;
+  nothing else moves.
 
 Isolating the behavior in `_raise_scene` is the decision: the callback always
-calls `_raise_scene(scene_id)`, unaware of which strategy is inside. The
-end-to-end latency (the 63ms figure re-measured in z-spec's own tool surface)
-and, later, luxd honoring `raise_frame` are live-verify items (6.2) — a method's
-presence in the client does not prove luxd raises the frame.
+calls `_raise_scene(scene_id)`, unaware of which implementation is inside. The
+placeholder-path latency (the 63ms figure re-measured in z-spec's own tool
+surface) is the live-verify item that matters for the whole pin lifetime (6.2) —
+`raise_frame` cannot be verified until 0.23 ships.
 
 ### 2.5 Cutover: pin punt-lux `>=0.21,<0.22` → `>=0.22.1,<0.23`
 
-`src/punt_zspec/../pyproject.toml:26` currently pins `punt-lux>=0.21,<0.22`. Bump
-to `punt-lux>=0.22.1,<0.23`. Everything the interactive half needs is present in
-0.22.1 (verified against the lux repo venv): `for_identity`, `listener`,
-`register_callback`, `raise_frame`. vox is already on 0.22.1. No lux-side change
-blocks the work; the `on_connect` pattern is forward-compatible with lux's
-listener-leg enforcement.
+`pyproject.toml:26` currently pins `punt-lux>=0.21,<0.22`. Bump to
+`punt-lux>=0.22.1,<0.23`. Everything the interactive half needs is present in
+**released 0.22.1** (verified against vox's released-0.22.1 install):
+`for_identity`, `listener`, `register_callback`, `render`. vox already ships on
+released 0.22.1. `raise_frame` is the **only** exception — next-release (0.23),
+absent at this pin, and reached solely through `_raise_scene` (2.4) so its
+absence never surfaces. No lux-side change blocks the work; the `on_connect`
+pattern is forward-compatible with lux's listener-leg enforcement.
+
+**Verify punt-lux APIs against a released install, never against the `../lux`
+repo venv.** That venv is a branch build (`feat/session-mcp-serve`, installed by
+lux's `make restart`) whose version string was never bumped past `0.22.1`, so it
+reports `0.22.1` while carrying unreleased methods. Checking `raise_frame` there
+returned a false positive. Ground API claims in a released install (e.g. what vox
+pins) or ask the lux agent.
 
 ## 3. Cardinality model
 
@@ -277,8 +300,9 @@ async def on_callback(callback_id):
         PickerCommand(build=picker_build, display=self._display).run(cwd)
 
 def _raise_scene(scene_id):
-    # today: push a minimal placeholder frame under scene_id (63ms median).
-    # later: one line — self._client.raise_frame(scene_id). One swap point (2.4).
+    # 0.22.1 pin: push a minimal placeholder frame under scene_id (63ms median).
+    # raise_frame is 0.23-only — do NOT call it here; it AttributeErrors at 0.22.1.
+    # 0.23 pin: this body becomes one line — self._client.raise_frame(scene_id).
     ...
 ```
 
@@ -362,8 +386,9 @@ assembled with `composition.py`.
 
 ### 7.2 Confirm (b): render/RenderRequest API unchanged 0.21 → 0.22.1
 
-**Yes, unchanged — the pin bump does not disturb the shipped rendering.** Verified
-by inspecting both installed versions (z-spec venv 0.21.0; lux repo venv 0.22.1):
+**Yes, unchanged — the pin bump does not disturb the shipped rendering.** `render`
+is a core API present in released 0.22.1. Verified against z-spec's 0.21.0 venv
+and **vox's released-0.22.1 install** (not the `../lux` branch venv):
 
 - `LuxRestClient.render(self, request: RenderRequest) -> SceneShown | OpError` —
   **identical** signature in both.
@@ -395,14 +420,17 @@ They are the same menu work; one implementation mission closes both.
 
 ## 9. Top implementation risks
 
-1. **Re-measuring the raise latency in z-spec's own tool surface.** The strategy
-   is decided (2.4): the click handler calls `_raise_scene(scene_id)`, which today
-   does the minimal-placeholder-then-full sequence and later collapses to one
-   `raise_frame` call. The lux agent measured 63ms median for the raise-first
-   approach, but that was in luxd's own context; z-spec's listener runs in the
-   FastMCP event loop, so implementation must re-measure end to end (6.2) against
-   the 100-200ms budget with the 153-element Browse scene. If z-spec's number
-   drifts above budget, the fix is inside `_raise_scene` alone.
+1. **The placeholder-first path must hold the budget for the whole 0.22.1 pin
+   lifetime.** `raise_frame` is next-release (0.23), so `_raise_scene` uses the
+   minimal-placeholder-then-full sequence for **every** click across the entire
+   `>=0.22.1,<0.23` pin — this is the shipped behavior, not a temporary stopgap
+   (2.4). The lux agent measured 63ms median for the raise-first approach, but
+   that was in luxd's own context; z-spec's listener runs in the FastMCP event
+   loop, so implementation must re-measure end to end (6.2) against the 100-200ms
+   budget with the 153-element Browse scene. If z-spec's number drifts above
+   budget, the fix is inside `_raise_scene` alone. The one-line swap to
+   `raise_frame` is gated on the 0.23 release existing — do not write that call at
+   the 0.22.1 pin (it `AttributeError`s).
 
 2. **The new `PickerCommand` orchestration.** The Browse callback's content is
    repo-specific and has **no existing command or MCP tool** — `build_spec_picker`
