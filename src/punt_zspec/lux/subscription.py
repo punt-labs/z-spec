@@ -198,10 +198,10 @@ class ZSpecSubscription:
     async def _raise_scene(self, entry: ZSpecMenuEntry) -> None:
         """Push a minimal placeholder under ``scene_id`` for an instant response.
 
-        Isolated so the future ``raise_frame`` swap is one line: at the
-        ``>=0.22.1,<0.23`` pin this is the placeholder-then-full sequence for every
-        click (``raise_frame`` is 0.23-only and never named here). The push is a
-        blocking render, so it runs off-thread.
+        The raise behavior lives only here, so a future single-call Hub raise (a
+        next-release punt_lux API, absent at the ``>=0.22.1,<0.23`` pin) is a
+        one-line swap. At this pin every click does the placeholder-then-full
+        sequence (ADR §2.4); the push is a blocking render, so it runs off-thread.
         """
         try:
             await asyncio.to_thread(
