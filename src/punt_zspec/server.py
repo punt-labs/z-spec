@@ -3,17 +3,37 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from mcp.server.fastmcp import FastMCP
 
 from punt_zspec import __version__
+from punt_zspec.lux import ZSpecLuxSession
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
     from punt_zspec.types import Collection, SpecModel, SpecReports
 
 logger = logging.getLogger(__name__)
+
+
+# One per MCP server process: the persistent app-identity lux client, the display
+# every render tool shares, and the menu listener. Constructed lazily-connecting,
+# so a down luxd never blocks import or the check/test/animate tool surface.
+_SESSION = ZSpecLuxSession()
+
+
+@asynccontextmanager
+async def _lifespan(_server: FastMCP) -> AsyncIterator[None]:
+    """Start the menu listener on entry and drain it on shutdown (best-effort)."""
+    await _SESSION.start()
+    try:
+        yield
+    finally:
+        await _SESSION.stop()
 
 
 mcp = FastMCP(
@@ -22,6 +42,7 @@ mcp = FastMCP(
         "Z specification toolkit. Use these tools to type-check Z specs "
         "with fuzz, model-check with probcli, and display specs in lux."
     ),
+    lifespan=_lifespan,
 )
 if hasattr(mcp, "_mcp_server") and hasattr(mcp._mcp_server, "version"):  # pyright: ignore[reportPrivateUsage]
     mcp._mcp_server.version = __version__  # pyright: ignore[reportPrivateUsage]
@@ -144,7 +165,6 @@ def show_z_spec(file: str) -> str:
     """
     from punt_zspec.applet import build_z_spec_scene
     from punt_zspec.commands.show import ShowCommand
-    from punt_zspec.display import LuxDisplay
 
     def build(spec: Path, model: SpecModel, reports: SpecReports) -> object:
         return build_z_spec_scene(
@@ -156,7 +176,7 @@ def show_z_spec(file: str) -> str:
             audit=reports.audit,
         )
 
-    return ShowCommand(build=build, display=LuxDisplay()).run(Path(file)).to_json()
+    return ShowCommand(build=build, display=_SESSION.display).run(Path(file)).to_json()
 
 
 @mcp.tool()
@@ -207,13 +227,14 @@ def browse(manifest: str) -> str:
     """
     from punt_zspec.browser import build_browser_scene
     from punt_zspec.commands.browse import BrowseCommand
-    from punt_zspec.display import LuxDisplay
 
     def build(collection: Collection, specs: list[tuple[SpecModel, Path]]) -> object:
         return build_browser_scene(collection, specs)
 
     return (
-        BrowseCommand(build=build, display=LuxDisplay()).run(Path(manifest)).to_json()
+        BrowseCommand(build=build, display=_SESSION.display)
+        .run(Path(manifest))
+        .to_json()
     )
 
 
@@ -233,13 +254,14 @@ def pick(directory: str = ".") -> str:
     """
     from punt_zspec.browser import build_spec_picker
     from punt_zspec.commands.picker import PickerCommand
-    from punt_zspec.display import LuxDisplay
 
     def build(specs: list[tuple[Path, SpecModel]]) -> object:
         return build_spec_picker(specs)
 
     return (
-        PickerCommand(build=build, display=LuxDisplay()).run(Path(directory)).to_json()
+        PickerCommand(build=build, display=_SESSION.display)
+        .run(Path(directory))
+        .to_json()
     )
 
 

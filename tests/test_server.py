@@ -141,7 +141,9 @@ x \leq 10
 """
     )
     mock_client = MagicMock()
-    with patch("punt_zspec.display.LuxRestClient.connect", return_value=mock_client):
+    with patch(
+        "punt_zspec.lux.clients.LuxRestClient.for_identity", return_value=mock_client
+    ):
         result = json.loads(show_z_spec(str(tex)))
     assert result["ok"] is True
     assert result["scene_id"] == "z-spec"
@@ -163,7 +165,7 @@ x : \nat
 """
     )
     with patch(
-        "punt_zspec.display.LuxRestClient.connect",
+        "punt_zspec.lux.clients.LuxRestClient.for_identity",
         side_effect=HubUnavailableError("lux not running"),
     ):
         result = json.loads(show_z_spec(str(tex)))
@@ -314,7 +316,9 @@ x : \nat
     )
 
     mock_client = MagicMock()
-    with patch("punt_zspec.display.LuxRestClient.connect", return_value=mock_client):
+    with patch(
+        "punt_zspec.lux.clients.LuxRestClient.for_identity", return_value=mock_client
+    ):
         result = json.loads(browse(str(manifest)))
     assert result["ok"] is True
     assert result["total"] == 1
