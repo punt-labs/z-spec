@@ -93,10 +93,10 @@
   "src/punt_zspec/commands/browse.py": {
     "method_ratio": 1.0,
     "encapsulation_ratio": 1.0,
-    "avg_params": 1.6,
+    "avg_params": 1.8,
     "max_complexity": 6.0,
     "avg_complexity": 2.0,
-    "module_size": 84.0,
+    "module_size": 90.0,
     "classes_per_module": 2.0,
     "class_to_func_ratio": 1.0,
     "init_violations": 0.0,

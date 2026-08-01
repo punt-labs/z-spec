@@ -64,8 +64,15 @@ class BrowseCommand:
         self._parse_spec = parse_spec
         return self
 
-    def run(self, manifest: Path) -> CommandResult[BrowseResult]:
-        """Render the collection, or return a typed failure."""
+    def run(
+        self, manifest: Path, *, frame_id: str = "z-spec-browser"
+    ) -> CommandResult[BrowseResult]:
+        """Render the collection into ``frame_id``, or return a typed failure.
+
+        ``frame_id`` is the Hub scene id, so a raise-first caller renders into
+        the same id it raised: the ``browse`` tool keeps the default and the
+        Tutorial callback passes ``z-spec-tutorial`` (ADR §5.2).
+        """
         if not manifest.is_file():
             return CommandResult[BrowseResult].failed(
                 CommandError(
