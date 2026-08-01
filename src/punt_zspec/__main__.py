@@ -263,6 +263,34 @@ def browse(
 
 
 @app.command()
+def pick(
+    directory: Annotated[
+        Path,
+        typer.Argument(
+            help="Directory to search for .tex Z specs",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ] = Path(),
+) -> None:
+    """Discover a directory's Z specs and display them in a picker."""
+    from punt_zspec.browser import build_spec_picker
+    from punt_zspec.commands.picker import PickerCommand
+    from punt_zspec.display import LuxDisplay
+
+    def build(specs: list[tuple[Path, SpecModel]]) -> object:
+        return build_spec_picker(specs)
+
+    result = PickerCommand(build=build, display=LuxDisplay()).run(directory)
+    err = result.error
+    if err is not None:
+        typer.echo(f"error: {err.message}", err=True)
+        raise typer.Exit(1)
+    typer.echo(result.to_json())
+
+
+@app.command()
 def doctor() -> None:
     """Check Z specification environment health."""
     from punt_zspec.commands.doctor import DoctorCommand

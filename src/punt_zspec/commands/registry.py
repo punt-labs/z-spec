@@ -12,6 +12,7 @@ from punt_zspec.commands.check import CheckCommand
 from punt_zspec.commands.doctor import DoctorCommand
 from punt_zspec.commands.model_check import ModelCheckCommand
 from punt_zspec.commands.partition import PartitionCommand
+from punt_zspec.commands.picker import PickerCommand
 from punt_zspec.commands.report import ReportCommand
 from punt_zspec.commands.show import ShowCommand
 from punt_zspec.commands.test import TestCommand
@@ -44,4 +45,5 @@ CAPABILITIES: tuple[Capability, ...] = (
     Capability("audit", AuditCommand, "audit", "save_audit_report"),
     Capability("show", ShowCommand, "show", "show_z_spec"),
     Capability("browse", BrowseCommand, "browse", "browse"),
+    Capability("pick", PickerCommand, "pick", "pick"),
 )

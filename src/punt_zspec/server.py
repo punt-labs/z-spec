@@ -218,6 +218,32 @@ def browse(manifest: str) -> str:
 
 
 @mcp.tool()
+def pick(directory: str = ".") -> str:
+    """Discover a directory's Z specs and display them in a tabbed picker.
+
+    Globs ``directory`` for ``.tex`` specs (skipping templates and LaTeX
+    includes that carry no Z blocks) and renders one tab per spec. This is the
+    same command the Browse right-click menu entry runs.
+
+    Args:
+        directory: Directory to search for .tex Z specs. Defaults to the cwd.
+
+    Returns:
+        JSON with ok (bool), total specs, and scene_id on success, or error.
+    """
+    from punt_zspec.browser import build_spec_picker
+    from punt_zspec.commands.picker import PickerCommand
+    from punt_zspec.display import LuxDisplay
+
+    def build(specs: list[tuple[Path, SpecModel]]) -> object:
+        return build_spec_picker(specs)
+
+    return (
+        PickerCommand(build=build, display=LuxDisplay()).run(Path(directory)).to_json()
+    )
+
+
+@mcp.tool()
 def save_audit_report(file: str, report_json: str) -> str:
     """Validate and save an audit report for a Z specification.
 
