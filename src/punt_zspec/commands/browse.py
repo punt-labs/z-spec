@@ -97,9 +97,7 @@ class BrowseCommand:
                 CommandError(CommandFailure.manifest_invalid, str(exc))
             )
         try:  # PY-EH-5 exception: lux render is an I/O boundary
-            self._display.show(
-                scene, frame_id="z-spec-browser", frame_title=collection.title
-            )
+            self._display.show(scene, frame_id=frame_id, frame_title=collection.title)
         except DisplayError as exc:
             return CommandResult[BrowseResult].failed(
                 CommandError(CommandFailure.display_failed, str(exc))
