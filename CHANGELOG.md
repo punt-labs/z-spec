@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Interactive lux right-click menu (Tutorial + Browse) and the `pick` tool/verb** --- the z-spec MCP server is now a normal-path lux client: the FastMCP lifespan owns one persistent `LuxRestClient` under a per-session **app** identity (`z-spec · <repo> · #<pid>`, 30s lease) plus a listener leg, and registers two right-click menu entries per session. **Tutorial** (`z-spec Tutorial · <repo> · #<pid>`) opens the shipped `tutorials/intro` collection; **Browse** (`z-spec Browse · <repo> · #<pid>`) renders the `.tex` Z specs discovered in the session's working directory. Both labels carry the tool axis *and* the session axis, so two z-spec sessions never cross wires. A click renders through the same command a menu tool would run — no duplicated render logic — and each callback raises a placeholder then renders the full scene into **one** Hub scene id (`raise-id == render-id`), so the placeholder is replaced rather than stranded. Menu registration re-runs from `on_connect` after every handshake (register-fresh), so a luxd restart heals the menu without restarting the server. The listener is strictly best-effort relative to the tool surface: a down luxd at startup is non-fatal (the check/test/animate tools keep working) and every blocking REST call — `register_callback`, the placeholder push, and `command.run` — is off-loaded via `asyncio.to_thread`, so a render never starves the event loop. The Browse content is exposed on both surfaces per CLI parity: a new `pick` MCP tool and `z-spec pick [DIRECTORY]` CLI verb discover a directory's Z specs (skipping `templates/preamble.tex` and LaTeX includes with no Z blocks) and render them in a tabbed picker. `show_z_spec`, `browse`, and `pick` now render through the one server-owned app-identity client instead of a throwaway cli-identity client per call.
+
+### Changed
+
+- **`punt-lux` pinned to `>=0.22.1,<0.23`** --- released 0.22.1 restores the `for_identity` / `listener` / `register_callback` API the persistent-listener menu path needs (removed for the 0.21 REST-only client). `render` and `RenderRequest` are unchanged from 0.21, so the shipped rendering half is untouched by the bump.
+
 ## [0.17.1] - 2026-07-27
 
 ### Fixed

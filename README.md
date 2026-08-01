@@ -169,6 +169,7 @@ z-spec partition examples/auth.tex          # Validate + persist an authored par
 z-spec audit examples/auth.tex              # Validate + persist an authored coverage-audit report (stdin, or --report FILE)
 z-spec show examples/auth.tex               # Render the spec and its reports in Lux
 z-spec browse tutorial/manifest.toml        # Open a tutorial collection in Lux
+z-spec pick examples                        # Discover a directory's .tex specs and render a picker
 z-spec report examples/auth.tex             # Load an existing report
 z-spec doctor                               # Check tool availability
 z-spec mcp                                  # Start MCP server (stdio)
@@ -183,7 +184,7 @@ any agent driving the CLI.
 
 ### MCP Tools
 
-The MCP server (`zspec`) provides 10 tools. Each mirrors a CLI verb and returns
+The MCP server (`zspec`) provides 11 tools. Each mirrors a CLI verb and returns
 JSON, so a plugin, an agent, and a human at a terminal all reach the same engine:
 
 | Tool | Description |
@@ -198,10 +199,22 @@ JSON, so a plugin, an agent, and a human at a terminal all reach the same engine
 | `save_audit_report(file, report_json)` | Validate + persist an authored coverage-audit report |
 | `show_z_spec(file)` | Render the spec and all its reports in Lux |
 | `browse(manifest)` | Open a tutorial collection in the tabbed Lux browser |
+| `pick(directory)` | Discover a directory's `.tex` specs and render a tabbed picker |
 
 Every tool returns `{"ok": true, ...}` on success or `{"ok": false, "error": ...}`
-on failure — one convention across all ten. A [PostToolUse hook](hooks/hooks.json)
+on failure — one convention across all eleven. A [PostToolUse hook](hooks/hooks.json)
 renders each result as a concise panel rather than raw JSON in the conversation.
+
+### Interactive Lux menu
+
+When the MCP server runs alongside a lux Hub (punt_lux 0.22.1+), each session
+registers two right-click menu entries in the lux window: **Tutorial** (opens the
+shipped `tutorials/intro` collection) and **Browse** (renders the `.tex` specs in
+the session's working directory — the same content as the `pick` tool). Both
+labels carry the repo and pid (`z-spec Tutorial · <repo> · #<pid>`), so two
+z-spec sessions open in different repos never cross wires. The menu is
+best-effort: a down Hub at startup is non-fatal and the type-checking tools keep
+working regardless.
 
 ### Reports
 
