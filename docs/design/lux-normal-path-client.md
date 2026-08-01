@@ -35,9 +35,10 @@ does not re-derive the architecture — that is converged with the lux agent
 (claude:tty4). It grounds each decision in the reference code and z-spec's
 actual `server.py`, and surfaces the implementation risks.
 
-The reference implementation is vox's music player, a package under
-`../vox/src/punt_vox/voxd/music_player/`. Read it in the order the lux agent
-gave (claude:tty4, 2026-08-01):
+The reference implementation is vox's music player — repo `punt-labs/vox`,
+package `src/punt_vox/voxd/music_player/` (locally `../vox/...` in the
+sibling-repo workspace). Read it in the order the lux agent gave (claude:tty4,
+2026-08-01):
 
 1. `lux_clients.py` — the one long-lived `LuxRestClient` and the `on_connect`
    pattern, built from one explicit app identity.
@@ -49,8 +50,9 @@ gave (claude:tty4, 2026-08-01):
 
 `lux_subscription.py` (the receive leg: `on_connect`, `on_callback`, the guarded
 `run` loop) and `composition.py` (the wiring) show the two legs assembled. The
-library contract is `../lux/docs/library.md`, section **"Listening: a persistent
-hub client"** (lines 39-95).
+library contract is repo `punt-labs/lux`, `docs/library.md` (locally
+`../lux/docs/library.md`), section **"Listening: a persistent hub client"**
+(lines 39-95).
 
 ## 2. Decision
 
@@ -304,18 +306,31 @@ A click arrives as `on_callback(callback_id)` and routes through the one raise
 method, then to **the same command objects the MCP tools call** — no duplicated
 render logic. Every blocking step (the raise, the full render inside
 `command.run`) is handed to a worker thread so the callback returns to the event
-loop promptly:
+loop promptly.
+
+**The raise `scene_id` and the command's render `frame_id` must be the same id,
+and each menu callback owns a distinct one.** `LuxDisplay.show` uses `frame_id`
+as the Hub `scene_id` (`display.py:64,67`), so a placeholder raised on one id
+while the command renders into another leaves the placeholder on a scene the
+command never fills — and the final scene never gets raised. Today
+`BrowseCommand` hardcodes `frame_id="z-spec-browser"` (`browse.py:94`); the
+implementation must make the command's target `frame_id` a **parameter** so each
+caller renders into its own scene: the MCP `browse` tool keeps `"z-spec-browser"`,
+the Tutorial callback renders **and** raises `"z-spec-tutorial"`, and the Browse
+callback renders **and** raises `"z-spec-picker"`. Distinct ids also stop a
+Tutorial click and an MCP `browse()` call from clobbering each other's scene.
 
 ```text
 async def on_callback(callback_id):
     if callback_id == "z-spec-tutorial":
         await self._raise_scene("z-spec-tutorial")   # instant visible response (2.4)
         cmd = BrowseCommand(build=browser_build, display=self._display)
-        await asyncio.to_thread(cmd.run, tutorial_manifest)   # blocking render off-loop
+        # render into the SAME id the raise targets (parameterized frame_id):
+        await asyncio.to_thread(cmd.run, tutorial_manifest, frame_id="z-spec-tutorial")
     elif callback_id == "z-spec-browse":
         await self._raise_scene("z-spec-picker")
         cmd = PickerCommand(build=picker_build, display=self._display)
-        await asyncio.to_thread(cmd.run, cwd)
+        await asyncio.to_thread(cmd.run, cwd, frame_id="z-spec-picker")
 
 async def _raise_scene(scene_id):
     # 0.22.1 pin: push a minimal placeholder frame under scene_id (63ms median),
