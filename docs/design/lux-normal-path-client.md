@@ -193,6 +193,12 @@ N Claude Code sessions
   identity (4.1).
 - `lease_ttl=30`: a dead session's 2 entries are swept ~30s after its last
   heartbeat.
+- **Idle sessions keep their entries.** z-spec's tool surface is idle for long
+  stretches — unlike voxd, it pushes no periodic renders. The lease does not lapse
+  anyway: the held-open listen leg **renews the lease on every WebSocket contact**
+  (`library.md:45`), so the persistent listener's own keepalive traffic keeps a
+  quiet session's two entries alive. The 30s sweep fires only when the session is
+  actually **dead** (the socket is gone), not merely quiet.
 - Each Browse entry renders **that session's** working-directory specs, so the
   2N entries are not 2N views of one dataset — the N Browse entries are N
   different repos' specs. This is exactly why both label axes are required (2.2).
@@ -276,33 +282,47 @@ async def lifespan(server):
 
 `on_connect` (fired after every handshake) registers both entries best-effort:
 
+Both `register_callback` and `render` are **synchronous blocking REST calls**, so
+`on_connect` and `on_callback` must offload them to a worker thread with
+`asyncio.to_thread` — never run them inline on the FastMCP event loop (see 5.3).
+
 ```text
 async def on_connect():
-    await menu.register("z-spec-tutorial", f"z-spec Tutorial · {repo} · #{pid}")
-    await menu.register("z-spec-browse",   f"z-spec Browse · {repo} · #{pid}")
+    # register_callback is a blocking REST call — offload it (voxd lux_menu.py:54-57).
+    await asyncio.to_thread(client.register_callback,
+                            "z-spec-tutorial", f"z-spec Tutorial · {repo} · #{pid}")
+    await asyncio.to_thread(client.register_callback,
+                            "z-spec-browse",   f"z-spec Browse · {repo} · #{pid}")
 ```
 
-mirroring voxd's guarded `LuxMenuRegistrar.register` (`lux_menu.py:44-69`), which
-swallows a down/refusing luxd into a log line so a missing entry never crashes
-the receive leg.
+mirroring voxd's guarded `LuxMenuRegistrar.register`, which offloads
+`register_callback` via `asyncio.to_thread` (`lux_menu.py:54-57`) and swallows a
+down/refusing luxd into a log line so a missing entry never crashes the receive
+leg.
 
 A click arrives as `on_callback(callback_id)` and routes through the one raise
 method, then to **the same command objects the MCP tools call** — no duplicated
-render logic:
+render logic. Every blocking step (the raise, the full render inside
+`command.run`) is handed to a worker thread so the callback returns to the event
+loop promptly:
 
 ```text
 async def on_callback(callback_id):
     if callback_id == "z-spec-tutorial":
-        self._raise_scene("z-spec-tutorial")   # instant visible response (2.4)
-        BrowseCommand(build=browser_build, display=self._display).run(tutorial_manifest)
+        await self._raise_scene("z-spec-tutorial")   # instant visible response (2.4)
+        cmd = BrowseCommand(build=browser_build, display=self._display)
+        await asyncio.to_thread(cmd.run, tutorial_manifest)   # blocking render off-loop
     elif callback_id == "z-spec-browse":
-        self._raise_scene("z-spec-picker")
-        PickerCommand(build=picker_build, display=self._display).run(cwd)
+        await self._raise_scene("z-spec-picker")
+        cmd = PickerCommand(build=picker_build, display=self._display)
+        await asyncio.to_thread(cmd.run, cwd)
 
-def _raise_scene(scene_id):
-    # 0.22.1 pin: push a minimal placeholder frame under scene_id (63ms median).
+async def _raise_scene(scene_id):
+    # 0.22.1 pin: push a minimal placeholder frame under scene_id (63ms median),
+    # off-loop — the placeholder push is itself a blocking render:
+    #   await asyncio.to_thread(self._display.show, placeholder, frame_id=scene_id, ...)
     # raise_frame is 0.23-only — do NOT call it here; it AttributeErrors at 0.22.1.
-    # 0.23 pin: this body becomes one line — self._client.raise_frame(scene_id).
+    # 0.23 pin: this body becomes one to_thread call around client.raise_frame(scene_id).
     ...
 ```
 
@@ -322,6 +342,40 @@ the callback construct the command with the server-owned `Display`. This keeps
 the humble-object boundary — the command holds all logic; the tool and the
 callback are thin entry points.
 
+### 5.3 Thread boundary for the blocking REST render
+
+`Display.show` → `LuxRestClient.render` (`display.py:70`) is a **synchronous,
+blocking REST round-trip**. `on_callback` runs on the **same asyncio event loop**
+`FastMCP.run(transport="stdio")` uses to serve `check` / `test` / `animate`.
+Rendering the 153-element Browse scene **inline** in `on_callback` would block
+that loop for the whole round-trip and starve every in-flight tool call.
+
+**Decision (leader ruling): offload the blocking command run to a worker thread
+at the callback boundary** — `await asyncio.to_thread(command.run, ...)` — and
+likewise `await asyncio.to_thread(client.register_callback, ...)` in `on_connect`
+and the placeholder push in `_raise_scene`. The callback awaits the thread and
+yields the loop; it never runs REST inline. Rationale:
+
+1. **It mirrors what FastMCP already does for the tools.** `show_z_spec` and
+   `browse` are plain synchronous `def` tools (`server.py:133`, `server.py:196`);
+   the MCP runtime offloads each to a worker thread, which is why the tools do not
+   starve the loop today. The callback is a second entry point into the same
+   blocking commands and must do the same offload the runtime does for the tools.
+2. **z-spec's renders are click-triggered and user-paced**, so voxd's
+   `SceneMailbox` latest-wins coalescing (the alternative, option a) is unneeded
+   machinery — there is no stream of state changes to collapse. Note it as the
+   upgrade path only if coalescing is ever required.
+3. **It keeps the shipped synchronous `Display` / command layer untouched.**
+   Making `Display`, `ShowCommand`, `BrowseCommand`, `PickerCommand`, and the MCP
+   tools async (option c) would ripple through the shipped render path for no
+   benefit. The thread boundary lives only at the callback, where the async
+   listener meets the sync command.
+
+voxd is the precedent: it never renders inline — `LuxScenePublisher._publish`
+does `await asyncio.to_thread(client.render, request)`
+(`lux_scene_publisher.py:78`) and `LuxMenuRegistrar` offloads `register_callback`
+the same way (`lux_menu.py:54-57`).
+
 ## 6. Test / verify plan
 
 ### 6.1 Unit tests (Humble-Object, no live Hub)
@@ -334,6 +388,11 @@ or network — construct with a fake `Display` and assert on result fields.
   command against the shipped manifest; `on_callback("z-spec-browse")` runs the
   Picker command against the injected cwd; an unknown id is a no-op. Mirrors
   voxd's `on_callback` guard (`lux_subscription.py:181-189`).
+- **Callback does not block the loop (5.3 regression guard).** A fake `Display`
+  whose `show` blocks on a latch (an `asyncio.Event` the test controls). Assert
+  `on_callback` returns to the event loop **before** the latch releases — proving
+  the blocking render is off-loaded via `asyncio.to_thread`, not awaited inline.
+  Without this test the loop-starvation regression is invisible.
 - **`on_connect` registers both.** A fake registrar records `(callback_id, label)`
   pairs. Assert `on_connect` registers exactly `z-spec-tutorial` and
   `z-spec-browse` with two-axis labels, and that a raising `register` does not
@@ -438,14 +497,22 @@ They are the same menu work; one implementation mission closes both.
    (discover cwd `.tex` → `build_spec_picker` → display) following the
    `ShowCommand`/`BrowseCommand` pattern, plus decide whether it is also exposed
    as an MCP tool or only reachable via the callback. This is the one net-new unit
-   of logic; everything else re-uses shipped commands.
+   of logic; everything else re-uses shipped commands. Two impl traps:
+   - **Tuple order differs.** `build_spec_picker` takes `list[tuple[Path,
+     SpecModel]]` (`browser.py:132`), but `BrowseCommand`/`build_browser_scene`
+     use `(SpecModel, Path)` (`commands/browse.py:27`). `PickerCommand` must pass
+     `(path, model)`, not `(model, path)`.
+   - **Discovery must filter non-spec `.tex`.** A cwd `**/*.tex` glob picks up
+     `templates/preamble.tex` and any LaTeX include that is not a Z spec; these
+     fail `parse_spec`. Discovery must skip the preamble/template files (and any
+     `.tex` that does not parse) rather than error the whole picker.
 
 3. **FastMCP lifespan owning a long-lived socket in a stdio server.** The listener
    task lives in the MCP server's event loop for the whole session. It must:
-   never block the stdio message loop (it is a concurrent task, not inline);
-   tolerate a down luxd at startup (guarded retry loop, like voxd's
-   `lux_subscription.py:97-118`); and shut down cleanly when the session ends
-   (cancel + drain in the lifespan `finally`). A leaked task or a blocking connect
-   at startup would degrade the MCP server the session depends on for
-   type-checking — the listener must be strictly best-effort relative to the
-   tool surface.
+   never block the loop with an inline REST call (every render/register is
+   off-loaded via `asyncio.to_thread` per 5.3); tolerate a down luxd at startup
+   (guarded retry loop, like voxd's `lux_subscription.py:97-118`); and shut down
+   cleanly when the session ends (cancel + drain in the lifespan `finally`). A
+   leaked task, a blocking connect at startup, or an inline render would degrade
+   the MCP server the session depends on for type-checking — the listener must be
+   strictly best-effort relative to the tool surface.
