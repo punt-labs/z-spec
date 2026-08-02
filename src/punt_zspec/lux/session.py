@@ -107,26 +107,50 @@ class ZSpecLuxSession:
     async def start(self) -> None:
         """Spawn the listener task on the MCP server's event loop (best-effort).
 
-        Idempotent: a second ``start()`` without an intervening ``stop()`` would
-        orphan the first task (``stop()`` only cancels the most recent), so a
-        live task short-circuits the spawn. The FastMCP lifespan calls this once;
-        the guard defends a double-entry test harness or reconnect path.
+        Idempotent while the leg is *live*: a second ``start()`` would orphan
+        the running task (``stop()`` only cancels the most recent), so a live
+        task short-circuits the spawn. A *finished* task is not that case — it
+        is a dead receive leg, and refusing there would leave the menu down for
+        the life of the process, so a finished task is replaced.
         """
-        if self._task is not None:
+        task = self._task
+        if task is not None and not task.done():
             logger.warning("z-spec listener already started; ignoring re-start")
             return
+        if task is not None:
+            self._report_exit(task)
         self._task = asyncio.create_task(self._subscription.run())
 
     async def stop(self) -> None:
         """Stop the receive leg and drain the task cleanly on shutdown."""
         self._subscription.stop()
         task = self._task
+        self._task = None
         if task is None:
+            return
+        if task.done():
+            # Nothing left to cancel, but the exception of a leg that died on
+            # its own is still ours to consume: awaiting it here would raise it
+            # out of the lifespan's shutdown instead.
+            self._report_exit(task)
             return
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
-        self._task = None
+
+    @staticmethod
+    def _report_exit(task: asyncio.Task[None]) -> None:
+        """Log why a finished listener task ended, consuming its exception.
+
+        ``run()`` guards its own loop, so an exception here escaped that guard
+        and would otherwise surface only as asyncio's "exception was never
+        retrieved" at garbage-collection time, detached from the restart.
+        """
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            logger.warning("z-spec listener had died (%r); starting a new one", exc)
 
     @staticmethod
     def _default_tutorial_manifest() -> Path:

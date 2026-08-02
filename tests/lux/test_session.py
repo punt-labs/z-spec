@@ -13,6 +13,7 @@ from punt_zspec.lux import session as session_mod
 from punt_zspec.lux.clients import ZSpecLuxClients
 from punt_zspec.lux.identity import ZSpecLuxIdentity
 from punt_zspec.lux.session import ZSpecLuxSession
+from punt_zspec.lux.subscription import ZSpecSubscription
 
 if TYPE_CHECKING:
     from pytest import LogCaptureFixture, MonkeyPatch
@@ -79,6 +80,60 @@ def test_second_start_does_not_spawn_a_second_task(
     asyncio.run(scenario())
 
     assert "already started" in caplog.text
+
+
+def _task_of(session: ZSpecLuxSession) -> asyncio.Task[None] | None:
+    """Return the session's listener task — the only handle on the receive leg."""
+    return session._task  # pyright: ignore[reportPrivateUsage]
+
+
+def test_start_replaces_a_listener_task_that_has_died(
+    tmp_path: Path, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
+) -> None:
+    async def die(_self: ZSpecSubscription) -> None:
+        raise RuntimeError("the receive leg blew up")
+
+    monkeypatch.setattr(ZSpecSubscription, "run", die)
+
+    async def scenario() -> tuple[bool, bool]:
+        session = _session(tmp_path)
+        await session.start()
+        await asyncio.sleep(0.01)  # let the task run and raise
+        first = _task_of(session)
+        assert first is not None
+        # A task that ended still sits in _task. Guarding only on "is not None"
+        # would refuse every later start(), leaving the menu down for the life
+        # of the process — a finished task must be replaced, not honoured.
+        with caplog.at_level(logging.WARNING, logger=session_mod.__name__):
+            await session.start()
+        second = _task_of(session)
+        await session.stop()
+        return first.done(), first is not second
+
+    died, replaced = asyncio.run(scenario())
+
+    assert (died, replaced) == (True, True)
+    assert "had died" in caplog.text
+    assert "already started" not in caplog.text
+
+
+def test_stop_drains_a_listener_that_died_on_its_own(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    async def die(_self: ZSpecSubscription) -> None:
+        raise RuntimeError("the receive leg blew up")
+
+    monkeypatch.setattr(ZSpecSubscription, "run", die)
+
+    async def scenario() -> None:
+        session = _session(tmp_path)
+        await session.start()
+        await asyncio.sleep(0.01)
+        # Awaiting an already-failed task re-raises its exception; shutdown must
+        # consume it, not carry a dead listener's fault out of the lifespan.
+        await session.stop()
+
+    asyncio.run(scenario())
 
 
 def test_default_manifest_prefers_plugin_root(
