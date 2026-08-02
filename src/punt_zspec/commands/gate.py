@@ -16,14 +16,13 @@ if TYPE_CHECKING:
 __all__ = ["EnablementGate"]
 
 # The refusal every gated tool answers with. It names the enable command,
-# because the model reading the result is the one who must offer the fix.
+# because the model reading the result is the one who must offer the fix. The
+# message carries only that; the panel channel budgets 80 columns for
+# "<tool>: error — <message>", and the remaining detail lives in the hint.
 _DECLINED = CommandError(
     kind=CommandFailure.not_enabled,
-    message=(
-        "z-spec is not enabled in this repository. Run `z-spec enable` (or "
-        "/z-spec:enable), then commit .punt-labs/z-spec/enabled."
-    ),
-    hint="Run z-spec enable in this repository.",
+    message="z-spec is not enabled here. Run `z-spec enable` or /z-spec:enable.",
+    hint="Then commit .punt-labs/z-spec/enabled so the repo stays on.",
 )
 
 
