@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from punt_zspec.commands.disable import DisableCommand
 from punt_zspec.commands.enable import EnableCommand
-from punt_zspec.commands.gate import EnablementGate
+from punt_zspec.gate import EnablementGate
 
 
 def _ok() -> str:
@@ -32,8 +33,6 @@ def test_a_repo_with_the_marker_is_open(tmp_path: Path) -> None:
 
 
 def test_disabling_shuts_the_gate_again(tmp_path: Path) -> None:
-    from punt_zspec.commands.disable import DisableCommand
-
     root = _bare_repo(tmp_path)
     gate = EnablementGate(root)
     EnableCommand().run(root)

@@ -194,19 +194,6 @@
     "public_attr_violations": 0.0,
     "future_annotations": 1.0
   },
-  "src/punt_zspec/commands/gate.py": {
-    "method_ratio": 1.0,
-    "encapsulation_ratio": 1.0,
-    "avg_params": 0.4,
-    "max_complexity": 2.0,
-    "avg_complexity": 1.2,
-    "module_size": 60.0,
-    "classes_per_module": 1.0,
-    "class_to_func_ratio": 1.0,
-    "init_violations": 0.0,
-    "public_attr_violations": 0.0,
-    "future_annotations": 1.0
-  },
   "src/punt_zspec/commands/model_check.py": {
     "method_ratio": 1.0,
     "encapsulation_ratio": 1.0,
@@ -346,6 +333,19 @@
     "module_size": 45.0,
     "classes_per_module": 0.0,
     "class_to_func_ratio": 0.0,
+    "init_violations": 0.0,
+    "public_attr_violations": 0.0,
+    "future_annotations": 1.0
+  },
+  "src/punt_zspec/gate.py": {
+    "method_ratio": 1.0,
+    "encapsulation_ratio": 1.0,
+    "avg_params": 0.4,
+    "max_complexity": 2.0,
+    "avg_complexity": 1.2,
+    "module_size": 60.0,
+    "classes_per_module": 1.0,
+    "class_to_func_ratio": 1.0,
     "init_violations": 0.0,
     "public_attr_violations": 0.0,
     "future_annotations": 1.0

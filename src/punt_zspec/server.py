@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Literal
 from mcp.server.fastmcp import FastMCP
 
 from punt_zspec import __version__
-from punt_zspec.commands.gate import EnablementGate
+from punt_zspec.gate import EnablementGate
 from punt_zspec.lux import ZSpecLuxSession
 
 if TYPE_CHECKING:
