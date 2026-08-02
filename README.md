@@ -172,8 +172,20 @@ z-spec browse tutorial/manifest.toml        # Open a tutorial collection in Lux
 z-spec pick examples                        # Discover a directory's .tex specs and render a picker
 z-spec report examples/auth.tex             # Load an existing report
 z-spec doctor                               # Check tool availability
+z-spec enable                               # Turn z-spec on in this repo (writes the marker)
+z-spec disable                              # Turn it off; the deposited guide stays, dormant
 z-spec mcp                                  # Start MCP server (stdio)
 ```
+
+`enable` and `disable` control whether z-spec's Claude Code surface is active in
+a repo. `enable` deposits `.punt-labs/z-spec/CLAUDE.md`, writes the
+`.punt-labs/z-spec/enabled` marker, and adds one `@`-import line to the repo's
+`CLAUDE.md`; `disable` removes the import and the marker and leaves the rest
+dormant. **Commit the marker** — enablement is per-repo policy, not a per-user
+preference, so it travels with the repo and is reviewable in a PR. Only the MCP
+server is gated: in an unmarked repo its tools decline and it registers no Lux
+menu entries, while the `z-spec` CLI keeps working everywhere, because running a
+command in a terminal is a deliberate act.
 
 The `partition` and `audit` verbs read the report JSON an agent (or a human)
 has authored — from stdin by default, or from a file with `--report FILE`
@@ -184,7 +196,7 @@ any agent driving the CLI.
 
 ### MCP Tools
 
-The MCP server (`zspec`) provides 11 tools. Each mirrors a CLI verb and returns
+The MCP server (`zspec`) provides 12 tools. Each mirrors a CLI verb and returns
 JSON, so a plugin, an agent, and a human at a terminal all reach the same engine:
 
 | Tool | Description |
@@ -200,9 +212,13 @@ JSON, so a plugin, an agent, and a human at a terminal all reach the same engine
 | `show_z_spec(file)` | Render the spec and all its reports in Lux |
 | `browse(manifest)` | Open a tutorial collection in the tabbed Lux browser |
 | `pick(directory)` | Discover a directory's `.tex` specs and render a tabbed picker |
+| `enablement(action, directory)` | Turn z-spec on or off in a repo — the MCP face of `enable`/`disable` |
 
 Every tool returns `{"ok": true, ...}` on success or `{"ok": false, "error": ...}`
-on failure — one convention across all eleven. A [PostToolUse hook](hooks/hooks.json)
+on failure, with an optional `hint` carrying the remediation when there is one —
+one convention across all twelve. `enablement` is the single tool that answers in
+a repo with no marker, since the door cannot sit behind the lock it opens; every
+other tool declines there. A [PostToolUse hook](hooks/hooks.json)
 renders each result as a concise panel rather than raw JSON in the conversation.
 
 ### Interactive Lux menu
