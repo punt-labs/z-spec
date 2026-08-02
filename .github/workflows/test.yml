@@ -56,13 +56,17 @@ jobs:
           python-version: "3.13"
       - run: uv sync --frozen --all-extras
 
+      # fuzz is autoconf'd: ./configure generates the Makefile from Makefile.in,
+      # and the binary lands at src/fuzz, not the tree root.
       - name: Build fuzz from source
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential
           git clone --depth 1 https://github.com/Spivoxity/fuzz.git "${RUNNER_TEMP}/fuzz"
-          make -C "${RUNNER_TEMP}/fuzz"
-          echo "${RUNNER_TEMP}/fuzz" >> "${GITHUB_PATH}"
+          cd "${RUNNER_TEMP}/fuzz"
+          ./configure
+          make
+          echo "${RUNNER_TEMP}/fuzz/src" >> "${GITHUB_PATH}"
 
       - name: Install probcli
         run: |
@@ -75,7 +79,6 @@ jobs:
 
       - name: Verify both binaries resolve
         run: |
-          fuzz -v < /dev/null || true
           command -v fuzz
           "${RUNNER_TEMP}/ProB/probcli" -version
 
