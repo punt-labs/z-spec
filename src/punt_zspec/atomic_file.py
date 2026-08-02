@@ -48,13 +48,16 @@ class AtomicFile:
 
     def __new__(cls, path: Path) -> Self:
         self = super().__new__(cls)
-        self._path = path
-        self._lock_path = path.parent / f".{path.name}.punt-import.lock"
+        # Resolved once because the lock name derives from it: a symlinked
+        # CLAUDE.md is one real file under two names, and a name-keyed lock
+        # hands two tools reaching that one file two different locks.
+        self._path = path.resolve()
+        self._lock_path = self._path.parent / f".{self._path.name}.punt-import.lock"
         return self
 
     @property
     def path(self) -> Path:
-        """Return the host file this instance mutates."""
+        """Return the real host file this instance mutates, symlinks resolved."""
         return self._path
 
     @contextmanager
@@ -94,10 +97,11 @@ class AtomicFile:
 
         Writes a temp file in the target's own directory, ``fsync``s it, then
         renames it over the target — an interrupted write leaves the original
-        untouched. A symlinked path is resolved so the rename updates the real
-        file and preserves the link; an existing file's mode is preserved.
+        untouched. The target was resolved at construction, so the rename
+        updates the real file and leaves a symlink pointing at it intact; an
+        existing file's mode is preserved.
         """
-        target = self._path.resolve() if self._path.is_symlink() else self._path
+        target = self._path
         target.parent.mkdir(parents=True, exist_ok=True)
         mode = (
             stat.S_IMODE(target.stat().st_mode) if target.is_file() else _NEW_FILE_MODE

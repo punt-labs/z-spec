@@ -45,11 +45,45 @@ def test_the_lock_names_the_sibling_not_the_target(tmp_path: Path) -> None:
     with AtomicFile(path).locked():
         pass
 
-    assert (tmp_path / ".CLAUDE.md.punt-import.lock").is_file()
+    assert (tmp_path.resolve() / ".CLAUDE.md.punt-import.lock").is_file()
     assert not path.exists()
 
 
-def test_path_is_the_host_it_was_given(tmp_path: Path) -> None:
-    path = tmp_path / "CLAUDE.md"
+def test_two_names_for_one_file_take_one_lock(tmp_path: Path) -> None:
+    # A symlinked CLAUDE.md is one real file under two names. A lock keyed on
+    # the name given would serialize each tool only against itself, leaving the
+    # cross-tool lost update the sibling lock exists to prevent.
+    real = tmp_path / "shared" / "CLAUDE.md"
+    real.parent.mkdir()
+    real.write_text("# Project\n")
+    link = tmp_path / "CLAUDE.md"
+    link.symlink_to(real)
 
-    assert AtomicFile(path).path == path
+    with AtomicFile(link).locked():
+        pass
+
+    assert (real.parent / ".CLAUDE.md.punt-import.lock").is_file()
+    assert not (tmp_path / ".CLAUDE.md.punt-import.lock").exists()
+
+
+def test_write_through_a_symlink_keeps_the_link(tmp_path: Path) -> None:
+    real = tmp_path / "shared" / "CLAUDE.md"
+    real.parent.mkdir()
+    real.write_text("# Project\n")
+    link = tmp_path / "CLAUDE.md"
+    link.symlink_to(real)
+
+    AtomicFile(link).write("# Replaced\n")
+
+    assert link.is_symlink()
+    assert real.read_text() == "# Replaced\n"
+
+
+def test_path_is_the_real_file_behind_the_name(tmp_path: Path) -> None:
+    real = tmp_path / "shared" / "CLAUDE.md"
+    real.parent.mkdir()
+    real.touch()
+    link = tmp_path / "CLAUDE.md"
+    link.symlink_to(real)
+
+    assert AtomicFile(link).path == real
