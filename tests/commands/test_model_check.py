@@ -75,7 +75,10 @@ def test_model_check_binary_missing_returns_wire_failure(spec: Path) -> None:
     error = result.error
     assert error is not None
     assert error.kind is CommandFailure.binary_missing
-    assert result.to_json() == '{"ok": false, "error": "probcli not found"}'
+    assert result.to_json() == (
+        '{"ok": false, "error": "probcli not found", '
+        '"hint": "Set $PROBCLI or add probcli to PATH."}'
+    )
 
 
 def test_model_check_spec_not_found_returns_failure(tmp_path: Path) -> None:

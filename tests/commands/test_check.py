@@ -77,7 +77,10 @@ def test_check_binary_missing_returns_mcp_wire_failure(spec: Path) -> None:
     error = result.error
     assert error is not None
     assert error.kind is CommandFailure.binary_missing
-    assert result.to_json() == '{"ok": false, "error": "fuzz not found"}'
+    assert result.to_json() == (
+        '{"ok": false, "error": "fuzz not found", '
+        '"hint": "Set $FUZZ or add fuzz to PATH."}'
+    )
 
 
 def test_check_spec_not_found_returns_failure(tmp_path: Path) -> None:

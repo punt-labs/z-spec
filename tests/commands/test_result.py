@@ -78,7 +78,18 @@ def test_command_error_dict_is_the_mcp_wire_shape() -> None:
         hint="Set $FUZZ or add fuzz to PATH.",
     )
 
-    assert error.to_dict() == {"ok": False, "error": "fuzz not found"}
+    assert error.to_dict() == {
+        "ok": False,
+        "error": "fuzz not found",
+        "hint": "Set $FUZZ or add fuzz to PATH.",
+    }
+
+
+def test_command_error_dict_omits_an_absent_hint() -> None:
+    """A hintless failure carries no empty key onto the wire."""
+    error = CommandError(CommandFailure.spec_not_found, "no such spec")
+
+    assert error.to_dict() == {"ok": False, "error": "no such spec"}
 
 
 def test_command_failure_values_are_stable() -> None:
