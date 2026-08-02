@@ -10,9 +10,12 @@ the JSON-RPC handshake, and asserts the tool list matches the registry.
 from __future__ import annotations
 
 import json
+import queue
 import shutil
 import subprocess
-from typing import IO, Any, final
+import threading
+import time
+from typing import IO, Any, NoReturn, Self, final
 
 import pytest
 
@@ -22,6 +25,58 @@ pytestmark = pytest.mark.e2e
 
 _PROTOCOL_VERSION = "2024-11-05"
 _TIMEOUT = 60.0
+# How long one request waits for its reply. A server that starts but never
+# answers — an import that hangs, a lifespan that deadlocks — must fail this
+# test in seconds with a diagnostic, not stall the job until Actions kills it.
+_REQUEST_TIMEOUT = 30.0
+
+
+@final
+class _PipeReader:
+    """Drain one of the child's pipes on a daemon thread.
+
+    Both pipes need a reader, for different reasons. stdout is the JSON-RPC
+    stream, and reading it through a queue is what gives :meth:`next_line` a
+    deadline that a blocking ``readline`` cannot have. stderr is the server's
+    log: unread, a chatty server fills the pipe buffer and blocks on its own
+    logging. Every line drained is kept, so a failure can quote what the
+    server said before it stopped answering.
+    """
+
+    _pipe: IO[str]
+    _lines: queue.Queue[str | None]
+    _seen: list[str]
+    __slots__ = ("_lines", "_pipe", "_seen")
+
+    def __new__(cls, pipe: IO[str]) -> Self:
+        self = super().__new__(cls)
+        self._pipe = pipe
+        self._lines = queue.Queue()
+        self._seen = []
+        threading.Thread(target=self._drain, daemon=True).start()
+        return self
+
+    def next_line(self, timeout: float) -> str | None:
+        """Return the next line, or ``None`` once the pipe closes.
+
+        ``None`` is the documented end-of-stream value — a distinct outcome
+        from ``TimeoutError``, which says the pipe is still open and silent.
+        """
+        try:
+            return self._lines.get(timeout=timeout)
+        except queue.Empty:
+            msg = f"no output for {timeout:.1f}s"
+            raise TimeoutError(msg) from None
+
+    def text(self) -> str:
+        """Return every line drained so far — the child's own diagnostics."""
+        return "".join(self._seen)
+
+    def _drain(self) -> None:
+        for line in self._pipe:
+            self._seen.append(line)
+            self._lines.put(line)
+        self._lines.put(None)
 
 
 @final
@@ -30,13 +85,20 @@ class StdioClient:
 
     _next_id: int
     _proc: subprocess.Popen[str]
+    _out: _PipeReader
+    _err: _PipeReader
 
-    __slots__ = ("_next_id", "_proc")
+    __slots__ = ("_err", "_next_id", "_out", "_proc")
 
-    def __new__(cls, proc: subprocess.Popen[str]) -> StdioClient:
+    def __new__(cls, proc: subprocess.Popen[str]) -> Self:
+        stdout, stderr = proc.stdout, proc.stderr
+        assert stdout is not None
+        assert stderr is not None
         self = super().__new__(cls)
         self._proc = proc
         self._next_id = 0
+        self._out = _PipeReader(stdout)
+        self._err = _PipeReader(stderr)
         return self
 
     @property
@@ -44,12 +106,6 @@ class StdioClient:
         stdin = self._proc.stdin
         assert stdin is not None
         return stdin
-
-    @property
-    def _stdout(self) -> IO[str]:
-        stdout = self._proc.stdout
-        assert stdout is not None
-        return stdout
 
     def notify(self, method: str) -> None:
         """Send a notification — a request with no id and no reply."""
@@ -73,8 +129,19 @@ class StdioClient:
         self._stdin.flush()
 
     def _await(self, request_id: int) -> Any:
-        """Read lines until the response carrying ``request_id`` arrives."""
-        for line in self._stdout:
+        """Read lines until the response carrying ``request_id`` arrives.
+
+        Bounded by ``_REQUEST_TIMEOUT`` in total, not per line, so a server
+        that dribbles notifications forever fails as surely as a silent one.
+        """
+        deadline = time.monotonic() + _REQUEST_TIMEOUT
+        while (remaining := deadline - time.monotonic()) > 0:
+            try:
+                line = self._out.next_line(remaining)
+            except TimeoutError:
+                break
+            if line is None:
+                self._fail(f"server closed stdout before answering id={request_id}")
             text = line.strip()
             if not text:
                 continue
@@ -82,9 +149,13 @@ class StdioClient:
             if message.get("id") != request_id:
                 continue  # a notification or an unrelated response
             if "error" in message:
-                raise AssertionError(f"server returned an error: {message['error']}")
+                self._fail(f"server returned an error: {message['error']}")
             return message["result"]
-        raise AssertionError(f"server closed stdout before answering id={request_id}")
+        self._fail(f"no reply to id={request_id} within {_REQUEST_TIMEOUT:.0f}s")
+
+    def _fail(self, reason: str) -> NoReturn:
+        """Raise with the server's stderr attached — the only diagnostic there is."""
+        raise AssertionError(f"{reason}\n--- server stderr ---\n{self._err.text()}")
 
 
 def _spawn() -> subprocess.Popen[str]:
