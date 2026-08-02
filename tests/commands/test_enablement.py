@@ -61,6 +61,27 @@ def test_enable_redeposits_an_edited_guide(tmp_path: Path) -> None:
     assert guide.read_text() != "stale\n"
 
 
+def test_a_failed_redeposit_leaves_the_existing_guide_whole(tmp_path: Path) -> None:
+    # Re-enable is the upgrade path, so the deposit runs against an existing
+    # guide. A truncate-then-write dying midway would leave half a guide behind
+    # a marker that still reads enabled; the atomic rename must leave the old
+    # bytes in place instead.
+    root = _repo(tmp_path)
+    enablement = RepoEnablement.for_repo(root)
+    enablement.enable()
+    guide = root / ".punt-labs" / "z-spec" / "CLAUDE.md"
+    deposited = guide.read_text(encoding="utf-8")
+    guide.parent.chmod(0o500)  # no new file in the directory: staging fails
+
+    try:
+        with pytest.raises(OSError):
+            enablement.enable()
+    finally:
+        guide.parent.chmod(0o700)
+
+    assert guide.read_text(encoding="utf-8") == deposited
+
+
 def test_enable_leaves_the_user_s_prose_untouched(tmp_path: Path) -> None:
     root = _repo(tmp_path)
 

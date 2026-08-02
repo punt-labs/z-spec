@@ -23,6 +23,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Self, final
 
+from punt_zspec.atomic_file import AtomicFile
 from punt_zspec.claude_md import ClaudeMdImport
 from punt_zspec.commands.result import CommandError, CommandFailure, CommandResult
 from punt_zspec.types import EnablementAction, EnablementReport
@@ -89,23 +90,29 @@ class DepositedGuide:
     version always produces the same file.
     """
 
-    _path: Path
-    __slots__ = ("_path",)
+    _host: AtomicFile
+    __slots__ = ("_host",)
 
     def __new__(cls, path: Path) -> Self:
         self = super().__new__(cls)
-        self._path = path
+        self._host = AtomicFile(path)
         return self
 
     @property
     def path(self) -> Path:
         """Return the deposited guide's path."""
-        return self._path
+        return self._host.path
 
     def deposit(self) -> None:
-        """Write the shipped guide over whatever is there."""
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(self.content(), encoding="utf-8")
+        """Write the shipped guide over whatever is there, atomically.
+
+        ``enable`` is idempotent and is the upgrade path, so this runs against
+        an existing guide: a truncate-then-write interrupted midway would leave
+        half a guide behind a marker that still reads enabled, while the atomic
+        rename leaves the old bytes. No lock — the content is static, so
+        parallel runs write identical bytes and lose no read-modify-write.
+        """
+        self._host.write(self.content())
 
     @staticmethod
     def content() -> str:
