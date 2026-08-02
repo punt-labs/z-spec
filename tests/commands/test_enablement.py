@@ -11,6 +11,8 @@ from punt_zspec.commands.enablement import (
     DepositedGuide,
     RepoEnablement,
 )
+from punt_zspec.commands.result import CommandFailure
+from punt_zspec.types import EnablementAction
 
 
 def _repo(tmp_path: Path) -> Path:
@@ -155,6 +157,31 @@ def test_for_directory_rejects_a_non_repo(tmp_path: Path) -> None:
     # repo; a tmp_path is not, since TMPDIR lives inside this checkout.
     with pytest.raises(ValueError, match="not inside a git repository"):
         RepoEnablement.for_directory(Path(tmp_path.anchor))
+
+
+def test_enable_reports_a_repo_that_refuses_the_write(tmp_path: Path) -> None:
+    # A `.punt-labs` that is a regular file cannot hold the subtree. The verb
+    # answers with a CommandResult like every other command, not a traceback.
+    root = _repo(tmp_path)
+    (root / ".punt-labs").write_text("not a directory\n")
+
+    result = RepoEnablement.apply(EnablementAction.enable, root)
+
+    assert not result.is_ok
+    error = result.error
+    assert error is not None
+    assert error.kind is CommandFailure.enablement_failed
+    assert "Failed to enable z-spec" in error.message
+
+
+def test_disable_reports_a_repo_that_refuses_the_write(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    (root / ".punt-labs").write_text("not a directory\n")
+
+    result = RepoEnablement.apply(EnablementAction.disable, root)
+
+    assert not result.is_ok
+    assert "Failed to disable z-spec" in str(result.to_json())
 
 
 def test_the_guide_ships_inside_the_package(tmp_path: Path) -> None:

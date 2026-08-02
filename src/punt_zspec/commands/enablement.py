@@ -209,7 +209,21 @@ class RepoEnablement:
                     hint="Run it from inside the repository you want to change.",
                 )
             )
-        return CommandResult.ok(enablement.perform(action))
+        try:  # PY-EH-5 exception: the repo working tree is an I/O boundary
+            report = enablement.perform(action)
+        except OSError as exc:
+            # A read-only CLAUDE.md, a `.punt-labs` that is a regular file, an
+            # undeletable marker, or a wheel shipped without the guide asset —
+            # each is the user's repo refusing the write, not a z-spec bug, so
+            # it renders as a failure both surfaces already know how to print.
+            return CommandResult[EnablementReport].failed(
+                CommandError(
+                    kind=CommandFailure.enablement_failed,
+                    message=f"Failed to {action} z-spec: {exc}",
+                    hint="Check the repository is writable, then run it again.",
+                )
+            )
+        return CommandResult.ok(report)
 
     def perform(self, action: EnablementAction) -> EnablementReport:
         """Reach the state *action* names, then report what is on disk."""

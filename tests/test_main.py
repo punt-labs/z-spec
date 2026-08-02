@@ -204,6 +204,18 @@ def test_disable_reports_the_off_state(repo: Path) -> None:
     assert (repo / ".punt-labs" / "z-spec" / "CLAUDE.md").is_file()
 
 
+def test_enable_on_a_repo_that_refuses_the_write_is_a_clean_error(repo: Path) -> None:
+    # `.punt-labs` as a regular file is the cheapest way to make every write
+    # enable performs fail. The CLI must print the failure, not a traceback.
+    (repo / ".punt-labs").write_text("not a directory\n", encoding="utf-8")
+
+    result = _RUNNER.invoke(app, ["enable", str(repo)])
+
+    assert result.exit_code == 1
+    assert "error: Failed to enable z-spec" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
 def test_enable_outside_a_repository_is_a_clean_error(tmp_path: Path) -> None:
     result = _RUNNER.invoke(app, ["enable", tmp_path.anchor])
 

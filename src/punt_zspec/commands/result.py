@@ -29,6 +29,7 @@ class CommandFailure(StrEnum):
     display_failed = "display_failed"  # lux surface unreachable
     not_a_repository = "not_a_repository"  # enable/disable outside a git repo
     not_enabled = "not_enabled"  # no .punt-labs/z-spec/enabled marker here
+    enablement_failed = "enablement_failed"  # the repo would not take the write
 
 
 @final
