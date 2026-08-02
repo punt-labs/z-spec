@@ -173,7 +173,7 @@ class ZSpecLuxSession:
             return
         exc = task.exception()
         if exc is not None:
-            logger.warning("z-spec listener had died (%r); starting a new one", exc)
+            logger.warning("the z-spec listener died: %r", exc)
 
     @staticmethod
     def _default_tutorial_manifest() -> Path:

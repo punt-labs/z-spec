@@ -152,7 +152,7 @@ def test_start_replaces_a_listener_task_that_has_died(
     died, replaced = asyncio.run(scenario())
 
     assert (died, replaced) == (True, True)
-    assert "had died" in caplog.text
+    assert "listener died" in caplog.text
     assert "already started" not in caplog.text
 
 
