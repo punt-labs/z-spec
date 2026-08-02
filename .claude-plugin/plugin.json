@@ -19,7 +19,8 @@
         "mcp"
       ],
       "env": {
-        "ZSPEC_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}"
+        "ZSPEC_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}",
+        "CLAUDE_PROJECT_DIR": "${CLAUDE_PROJECT_DIR}"
       }
     }
   }

@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
+import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from punt_lux.rest_transport import HubUnavailableError
 
+from punt_zspec.commands.enablement import RepoEnablement
+from punt_zspec.gate import EnablementGate
 from punt_zspec.server import mcp
 
 if TYPE_CHECKING:
@@ -382,11 +386,44 @@ def test_enablement_tool_outside_a_repository_returns_an_error(tmp_path: Path) -
 # ---------------------------------------------------------------------------
 
 
-def _bare_repo(tmp_path: Path) -> Path:
+def _bare_repo(root: Path) -> Path:
     """Return a repo root with no marker: z-spec is not enabled there."""
-    (tmp_path / ".git").mkdir()
-    (tmp_path / "CLAUDE.md").write_text("# Project\n", encoding="utf-8")
-    return tmp_path
+    root.mkdir(parents=True, exist_ok=True)
+    (root / ".git").mkdir()
+    (root / "CLAUDE.md").write_text("# Project\n", encoding="utf-8")
+    return root
+
+
+def _enabled_repo(root: Path) -> Path:
+    """Return a repo root carrying the marker, as every plugin checkout does."""
+    RepoEnablement.for_repo(_bare_repo(root)).enable()
+    return root
+
+
+def _launched_as_the_plugin(project: Path, checkout: Path, call: str) -> Any:
+    """Evaluate ``server.<call>`` in a process started the way plugin.json does.
+
+    ``uv run --directory ${CLAUDE_PLUGIN_ROOT}`` chdirs before exec, so the
+    server's cwd is the plugin checkout and only ``CLAUDE_PROJECT_DIR`` names
+    the user's repo. A subprocess is the only honest way to stage that: the
+    gate and the tool defaults are wired at import, and what these tests exist
+    to prove is that they are wired to the project and not to the cwd.
+    """
+    env = {
+        **os.environ,
+        "CLAUDE_PROJECT_DIR": str(project),
+        "ZSPEC_PLUGIN_ROOT": str(checkout),
+    }
+    proc = subprocess.run(
+        [sys.executable, "-c", f"import punt_zspec.server as s; print(s.{call})"],
+        cwd=checkout,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return json.loads(proc.stdout)
 
 
 async def _drive_lifespan() -> None:
@@ -396,62 +433,54 @@ async def _drive_lifespan() -> None:
         pass
 
 
-def test_a_gated_tool_declines_where_the_marker_is_absent(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_a_gated_tool_declines_where_the_project_has_no_marker(
+    tmp_path: Path,
 ) -> None:
-    from punt_zspec.server import check
+    # The shipped plugin checkout carries z-spec's own committed marker (§2.7),
+    # so a gate reading the cwd reads permanently open — a no-op for every user.
+    checkout = _enabled_repo(tmp_path / "plugin")
+    project = _bare_repo(tmp_path / "project")
 
-    monkeypatch.chdir(_bare_repo(tmp_path))
+    result = _launched_as_the_plugin(project, checkout, 'check("spec.tex")')
 
-    result = json.loads(check("spec.tex"))
     assert result["ok"] is False
     assert "z-spec enable" in result["error"]
+    # §2.3 no auto-enable: declining never turns z-spec on.
+    assert not (project / ".punt-labs").exists()
 
 
-def test_declining_does_not_write_the_marker(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # §2.3 no auto-enable: first use never turns z-spec on.
-    from punt_zspec.server import doctor
+def test_a_gated_tool_answers_on_the_project_s_own_marker(tmp_path: Path) -> None:
+    checkout = _bare_repo(tmp_path / "plugin")
+    project = _enabled_repo(tmp_path / "project")
 
-    root = _bare_repo(tmp_path)
-    monkeypatch.chdir(root)
+    result = _launched_as_the_plugin(project, checkout, 'check("spec.tex")')
 
-    doctor()
-    assert not (root / ".punt-labs").exists()
-
-
-def test_a_gated_tool_answers_once_the_marker_exists(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from punt_zspec.server import check, enablement
-
-    monkeypatch.chdir(_bare_repo(tmp_path))
-    enablement("enable")
-
-    result = json.loads(check("spec.tex"))
     assert result["ok"] is False
     assert "Spec file not found" in result["error"]
 
 
-def test_the_enablement_tool_is_not_gated(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_the_enablement_tool_defaults_to_the_project_not_the_checkout(
+    tmp_path: Path,
 ) -> None:
-    # The door cannot be behind the lock it opens.
-    from punt_zspec.server import enablement
+    # Also the proof that the door is not behind the lock it opens: the project
+    # has no marker, so the gate is shut, and the tool still answers.
+    checkout = _bare_repo(tmp_path / "plugin")
+    project = _bare_repo(tmp_path / "project")
 
-    root = _bare_repo(tmp_path)
-    monkeypatch.chdir(root)
+    result = _launched_as_the_plugin(project, checkout, 'enablement("enable")')
 
-    result = json.loads(enablement("enable"))
     assert result["ok"] is True
-    assert (root / ".punt-labs" / "z-spec" / "enabled").is_file()
+    assert (project / ".punt-labs" / "z-spec" / "enabled").is_file()
+    assert not (checkout / ".punt-labs").exists()
+    assert (checkout / "CLAUDE.md").read_text(encoding="utf-8") == "# Project\n"
 
 
 def test_the_lifespan_registers_no_menu_where_the_marker_is_absent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.chdir(_bare_repo(tmp_path))
+    monkeypatch.setattr(
+        "punt_zspec.server._GATE", EnablementGate(_bare_repo(tmp_path / "project"))
+    )
     session = MagicMock()
     session.start = AsyncMock()
     session.stop = AsyncMock()
@@ -466,10 +495,9 @@ def test_the_lifespan_registers_no_menu_where_the_marker_is_absent(
 def test_the_lifespan_registers_the_menu_where_the_marker_is_present(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from punt_zspec.server import enablement
-
-    monkeypatch.chdir(_bare_repo(tmp_path))
-    enablement("enable")
+    monkeypatch.setattr(
+        "punt_zspec.server._GATE", EnablementGate(_enabled_repo(tmp_path / "project"))
+    )
     session = MagicMock()
     session.start = AsyncMock()
     session.stop = AsyncMock()

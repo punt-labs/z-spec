@@ -13,6 +13,7 @@ from punt_zspec import __version__
 from punt_zspec.commands.enablement import RepoEnablement
 from punt_zspec.gate import EnablementGate
 from punt_zspec.lux import ZSpecLuxSession
+from punt_zspec.lux.project import ProjectRoot
 from punt_zspec.types import EnablementAction
 
 if TYPE_CHECKING:
@@ -32,10 +33,21 @@ __all__ = ["lifespan", "mcp"]
 # so a down luxd never blocks import or the check/test/animate tool surface.
 _SESSION = ZSpecLuxSession()
 
-# The one gate (punt-kit tool-enable-disable.md §2.3). ``Path()`` is the
-# process cwd — the repo Claude Code launched the server in — resolved afresh
-# on each read, so no state outlives an ``enable`` run.
-_GATE = EnablementGate(Path())
+# The repo the user has open. Never ``Path.cwd()``: plugin.json runs the server
+# as ``uv run --directory ${CLAUDE_PLUGIN_ROOT}``, and uv chdirs before exec, so
+# for every plugin user the cwd is the z-spec checkout. It is fixed for the life
+# of the process, so one resolution serves the session.
+_PROJECT_ROOT = ProjectRoot.resolve().path
+
+# What the directory-taking tools default to. A ``"."`` default meant the cwd,
+# which is that same checkout: ``/z-spec:enable`` deposited the guide, wrote the
+# marker, and edited CLAUDE.md inside z-spec's own repo and reported success
+# while the user's repo went untouched.
+_PROJECT_DIR = str(_PROJECT_ROOT)
+
+# The one gate (punt-kit tool-enable-disable.md §2.3). The marker under the
+# project root is re-read on every call, so no state outlives an ``enable`` run.
+_GATE = EnablementGate(_PROJECT_ROOT)
 
 
 @asynccontextmanager
@@ -271,7 +283,7 @@ def browse(manifest: str) -> str:
 
 @mcp.tool()
 @_GATE.guard
-def pick(directory: str = ".") -> str:
+def pick(directory: str = _PROJECT_DIR) -> str:
     """Discover a directory's Z specs and display them in a tabbed picker.
 
     Globs ``directory`` for ``.tex`` specs (skipping templates and LaTeX
@@ -279,7 +291,8 @@ def pick(directory: str = ".") -> str:
     same command the Browse right-click menu entry runs.
 
     Args:
-        directory: Directory to search for .tex Z specs. Defaults to the cwd.
+        directory: Directory to search for .tex Z specs. Defaults to the
+            project root, the same directory the Browse menu entry targets.
 
     Returns:
         JSON with ok (bool), total specs, and scene_id on success, or error.
@@ -296,7 +309,9 @@ def pick(directory: str = ".") -> str:
 
 
 @mcp.tool()
-def enablement(action: Literal["enable", "disable"], directory: str = ".") -> str:
+def enablement(
+    action: Literal["enable", "disable"], directory: str = _PROJECT_DIR
+) -> str:
     """Turn z-spec on or off in this repository.
 
     Enabling deposits `.punt-labs/z-spec/CLAUDE.md`, writes the
@@ -307,7 +322,8 @@ def enablement(action: Literal["enable", "disable"], directory: str = ".") -> st
 
     Args:
         action: "enable" or "disable".
-        directory: Directory inside the repository. Defaults to the cwd.
+        directory: Directory inside the repository to act on. Defaults to the
+            project root Claude Code has open.
 
     Returns:
         JSON with ok (bool), action, enabled (bool), and the marker, guide,
