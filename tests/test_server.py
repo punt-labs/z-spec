@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from punt_lux.rest_transport import HubUnavailableError
 
 from punt_zspec.server import mcp
-from punt_zspec.types import EnablementAction
 
 if TYPE_CHECKING:
     import pytest
@@ -342,7 +342,7 @@ def test_enablement_tool_takes_a_verb_not_a_boolean(tmp_path: Path) -> None:
     # y|n vocabulary must not reappear as an enabled: bool parameter.
     from punt_zspec.server import enablement
 
-    result = json.loads(enablement(EnablementAction.enable, str(_repo(tmp_path))))
+    result = json.loads(enablement("enable", str(_repo(tmp_path))))
     assert result["ok"] is True
     assert result["action"] == "enable"
     assert result["enabled"] is True
@@ -352,7 +352,7 @@ def test_enablement_tool_writes_the_same_marker_as_the_cli(tmp_path: Path) -> No
     from punt_zspec.server import enablement
 
     root = _repo(tmp_path)
-    enablement(EnablementAction.enable, str(root))
+    enablement("enable", str(root))
 
     assert (root / ".punt-labs" / "z-spec" / "enabled").is_file()
     assert "@.punt-labs/z-spec/CLAUDE.md" in (root / "CLAUDE.md").read_text()
@@ -362,9 +362,9 @@ def test_enablement_tool_disables(tmp_path: Path) -> None:
     from punt_zspec.server import enablement
 
     root = _repo(tmp_path)
-    enablement(EnablementAction.enable, str(root))
+    enablement("enable", str(root))
 
-    result = json.loads(enablement(EnablementAction.disable, str(root)))
+    result = json.loads(enablement("disable", str(root)))
     assert result["enabled"] is False
     assert not (root / ".punt-labs" / "z-spec" / "enabled").exists()
 
@@ -372,6 +372,110 @@ def test_enablement_tool_disables(tmp_path: Path) -> None:
 def test_enablement_tool_outside_a_repository_returns_an_error(tmp_path: Path) -> None:
     from punt_zspec.server import enablement
 
-    result = json.loads(enablement(EnablementAction.enable, tmp_path.anchor))
+    result = json.loads(enablement("enable", tmp_path.anchor))
     assert result["ok"] is False
     assert "not inside a git repository" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# the gate — the MCP surface answers only where the marker is present
+# ---------------------------------------------------------------------------
+
+
+def _bare_repo(tmp_path: Path) -> Path:
+    """Return a repo root with no marker: z-spec is not enabled there."""
+    (tmp_path / ".git").mkdir()
+    (tmp_path / "CLAUDE.md").write_text("# Project\n", encoding="utf-8")
+    return tmp_path
+
+
+async def _drive_lifespan() -> None:
+    from punt_zspec.server import lifespan
+
+    async with lifespan(mcp):
+        pass
+
+
+def test_a_gated_tool_declines_where_the_marker_is_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from punt_zspec.server import check
+
+    monkeypatch.chdir(_bare_repo(tmp_path))
+
+    result = json.loads(check("spec.tex"))
+    assert result["ok"] is False
+    assert "z-spec enable" in result["error"]
+
+
+def test_declining_does_not_write_the_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # §2.3 no auto-enable: first use never turns z-spec on.
+    from punt_zspec.server import doctor
+
+    root = _bare_repo(tmp_path)
+    monkeypatch.chdir(root)
+
+    doctor()
+    assert not (root / ".punt-labs").exists()
+
+
+def test_a_gated_tool_answers_once_the_marker_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from punt_zspec.server import check, enablement
+
+    monkeypatch.chdir(_bare_repo(tmp_path))
+    enablement("enable")
+
+    result = json.loads(check("spec.tex"))
+    assert result["ok"] is False
+    assert "Spec file not found" in result["error"]
+
+
+def test_the_enablement_tool_is_not_gated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The door cannot be behind the lock it opens.
+    from punt_zspec.server import enablement
+
+    root = _bare_repo(tmp_path)
+    monkeypatch.chdir(root)
+
+    result = json.loads(enablement("enable"))
+    assert result["ok"] is True
+    assert (root / ".punt-labs" / "z-spec" / "enabled").is_file()
+
+
+def test_the_lifespan_registers_no_menu_where_the_marker_is_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(_bare_repo(tmp_path))
+    session = MagicMock()
+    session.start = AsyncMock()
+    session.stop = AsyncMock()
+    monkeypatch.setattr("punt_zspec.server._SESSION", session)
+
+    asyncio.run(_drive_lifespan())
+
+    session.start.assert_not_called()
+    session.stop.assert_not_called()
+
+
+def test_the_lifespan_registers_the_menu_where_the_marker_is_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from punt_zspec.server import enablement
+
+    monkeypatch.chdir(_bare_repo(tmp_path))
+    enablement("enable")
+    session = MagicMock()
+    session.start = AsyncMock()
+    session.stop = AsyncMock()
+    monkeypatch.setattr("punt_zspec.server._SESSION", session)
+
+    asyncio.run(_drive_lifespan())
+
+    session.start.assert_awaited_once()
+    session.stop.assert_awaited_once()

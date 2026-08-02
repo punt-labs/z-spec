@@ -5,13 +5,13 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from mcp.server.fastmcp import FastMCP
 
 from punt_zspec import __version__
+from punt_zspec.commands.gate import EnablementGate
 from punt_zspec.lux import ZSpecLuxSession
-from punt_zspec.types import EnablementAction
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -20,16 +20,35 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# The module's one public name: every tool is reached through the server, and
+# the lifespan is FastMCP's to call (PL-CU-3).
+__all__ = ["lifespan", "mcp"]
+
 
 # One per MCP server process: the persistent app-identity lux client, the display
 # every render tool shares, and the menu listener. Constructed lazily-connecting,
 # so a down luxd never blocks import or the check/test/animate tool surface.
 _SESSION = ZSpecLuxSession()
 
+# The one gate (punt-kit tool-enable-disable.md §2.3). ``Path()`` is the
+# process cwd — the repo Claude Code launched the server in — resolved afresh
+# on each read, so no state outlives an ``enable`` run.
+_GATE = EnablementGate(Path())
+
 
 @asynccontextmanager
-async def _lifespan(_server: FastMCP) -> AsyncIterator[None]:
-    """Start the menu listener on entry and drain it on shutdown (best-effort)."""
+async def lifespan(_server: FastMCP) -> AsyncIterator[None]:
+    """Start the menu listener on entry and drain it on shutdown (best-effort).
+
+    In a repo with no marker the listener never starts, so z-spec contributes
+    no entries to the shared lux menu. The plugin loads in every Claude Code
+    session against one daemon serving one window; without this, every session
+    would register its entries in every repo.
+    """
+    if not _GATE.is_open():
+        logger.info("z-spec is not enabled here — lux menu registration skipped")
+        yield
+        return
     await _SESSION.start()
     try:
         yield
@@ -43,7 +62,7 @@ mcp = FastMCP(
         "Z specification toolkit. Use these tools to type-check Z specs "
         "with fuzz, model-check with probcli, and display specs in lux."
     ),
-    lifespan=_lifespan,
+    lifespan=lifespan,
 )
 if hasattr(mcp, "_mcp_server") and hasattr(mcp._mcp_server, "version"):  # pyright: ignore[reportPrivateUsage]
     mcp._mcp_server.version = __version__  # pyright: ignore[reportPrivateUsage]
@@ -55,6 +74,7 @@ if hasattr(mcp, "_mcp_server") and hasattr(mcp._mcp_server, "version"):  # pyrig
 
 
 @mcp.tool()
+@_GATE.guard
 def check(file: str) -> str:
     """Type-check a Z specification with fuzz.
 
@@ -71,6 +91,7 @@ def check(file: str) -> str:
 
 
 @mcp.tool()
+@_GATE.guard
 def test(
     file: str,
     setsize: int = 2,
@@ -96,6 +117,7 @@ def test(
 
 
 @mcp.tool()
+@_GATE.guard
 def animate(file: str, steps: int = 20, setsize: int = 2) -> str:
     """Animate a Z specification with probcli.
 
@@ -115,6 +137,7 @@ def animate(file: str, steps: int = 20, setsize: int = 2) -> str:
 
 
 @mcp.tool()
+@_GATE.guard
 def model_check(
     file: str,
     setsize: int = 2,
@@ -140,6 +163,7 @@ def model_check(
 
 
 @mcp.tool()
+@_GATE.guard
 def doctor() -> str:
     """Report Z-toolkit environment health.
 
@@ -152,6 +176,7 @@ def doctor() -> str:
 
 
 @mcp.tool()
+@_GATE.guard
 def show_z_spec(file: str) -> str:
     """Parse a Z spec and display it in lux.
 
@@ -181,6 +206,7 @@ def show_z_spec(file: str) -> str:
 
 
 @mcp.tool()
+@_GATE.guard
 def get_report(file: str) -> str:
     """Load an existing ProB report for a Z specification.
 
@@ -196,6 +222,7 @@ def get_report(file: str) -> str:
 
 
 @mcp.tool()
+@_GATE.guard
 def save_partition_report(file: str, report_json: str) -> str:
     """Validate and save a partition report for a Z specification.
 
@@ -214,6 +241,7 @@ def save_partition_report(file: str, report_json: str) -> str:
 
 
 @mcp.tool()
+@_GATE.guard
 def browse(manifest: str) -> str:
     """Open a Z spec collection in the tutorial browser.
 
@@ -240,6 +268,7 @@ def browse(manifest: str) -> str:
 
 
 @mcp.tool()
+@_GATE.guard
 def pick(directory: str = ".") -> str:
     """Discover a directory's Z specs and display them in a tabbed picker.
 
@@ -265,7 +294,7 @@ def pick(directory: str = ".") -> str:
 
 
 @mcp.tool()
-def enablement(action: EnablementAction, directory: str = ".") -> str:
+def enablement(action: Literal["enable", "disable"], directory: str = ".") -> str:
     """Turn z-spec on or off in this repository.
 
     Enabling deposits `.punt-labs/z-spec/CLAUDE.md`, writes the
@@ -285,11 +314,12 @@ def enablement(action: EnablementAction, directory: str = ".") -> str:
     from punt_zspec.commands.disable import DisableCommand
     from punt_zspec.commands.enable import EnableCommand
 
-    command = EnableCommand() if action is EnablementAction.enable else DisableCommand()
+    command = EnableCommand() if action == "enable" else DisableCommand()
     return command.run(Path(directory)).to_json()
 
 
 @mcp.tool()
+@_GATE.guard
 def save_audit_report(file: str, report_json: str) -> str:
     """Validate and save an audit report for a Z specification.
 
