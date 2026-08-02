@@ -30,9 +30,11 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from pathlib import Path
 
+    from punt_zspec.commands.result import CommandError
     from punt_zspec.lux.command_ports import (
         ClickCommand,
         ClickCommandFactory,
+        ClickOutcome,
         MenuRegistrar,
     )
     from punt_zspec.lux.ports import HubListener, ListenerFactory
@@ -87,18 +89,26 @@ class ZSpecMenuEntry:
         """Return whether a click's ``callback_id`` selects this entry."""
         return self.callback_id == callback_id
 
-    def run(self, display: Display) -> None:
-        """Run this entry's command on ``display`` — blocking; call off-thread.
+    def run(self, display: Display) -> ClickOutcome:
+        """Run this entry's command on ``display`` and return its outcome.
 
-        A best-effort click: the command captures a down display as a typed
-        failure rather than raising, so the discarded result never escapes here.
+        Blocking — call off-thread. The command captures a down display as a
+        typed failure rather than raising; the caller reads the returned outcome
+        to heal a placeholder a failed render would otherwise strand.
         """
-        self.factory(display).run(self.target, frame_id=self.scene_id)
+        return self.factory(display).run(self.target, frame_id=self.scene_id)
 
     def placeholder(self) -> TextElement:
         """Return the minimal loading scene raised before the full render."""
         return TextElement(
             id=f"{self.scene_id}-loading", content=f"Loading {self.scene_title}…"
+        )
+
+    def error_scene(self, error: CommandError) -> TextElement:
+        """Return the scene that replaces the placeholder when the render fails."""
+        return TextElement(
+            id=f"{self.scene_id}-error",
+            content=f"{self.scene_title} failed: {error.message}",
         )
 
 
@@ -135,14 +145,18 @@ class ZSpecSubscription:
 
         A down luxd is retried with a warning so the menu appears the moment luxd
         starts; any other fault is logged and retried, so the leg never dies
-        silently. Cancellation on shutdown propagates cleanly out.
+        silently. A listener that returns normally without a stop request (a
+        reconnect-exhausted punt_lux that returns rather than raises) is logged
+        and reconnected too, never a silent death. Cancellation on shutdown
+        propagates cleanly out.
         """
         attempt = 0
-        while not self._stopped:
+        # ``_stopped`` flips via ``stop()`` from another thread mid-``listen``; a
+        # method guard keeps mypy from narrowing it to a constant across the await.
+        while not self._is_stopped():
             attempt += 1
             try:
                 await self._connect_and_listen()
-                return
             except HubUnavailableError:
                 logger.warning(
                     "luxd down; retrying z-spec menu leg in %.1fs (attempt %d)",
@@ -153,6 +167,16 @@ class ZSpecSubscription:
             except Exception:
                 logger.exception(
                     "[lux] z-spec menu leg failed; restarting in %.1fs (attempt %d)",
+                    _RETRY_SECONDS,
+                    attempt,
+                )
+                await asyncio.sleep(_RETRY_SECONDS)
+            else:
+                if self._is_stopped():
+                    return
+                logger.warning(
+                    "[lux] z-spec listener returned without stop; "
+                    "reconnecting in %.1fs (attempt %d)",
                     _RETRY_SECONDS,
                     attempt,
                 )
@@ -191,9 +215,33 @@ class ZSpecSubscription:
         logger.debug("no z-spec menu entry for callback %r", callback_id)
 
     async def _dispatch(self, entry: ZSpecMenuEntry) -> None:
-        """Raise the placeholder, then run the full render — both off the loop."""
+        """Raise the placeholder, render off-loop, and heal a stranded scene.
+
+        A failed render (empty cwd, unreadable spec, down luxd) returns a typed
+        failure rather than raising; without inspecting it the placeholder reads
+        "Loading…" forever. On failure the error is logged and the placeholder
+        is replaced with the failure text so the user sees why (ADR §5.2).
+        """
         await self._raise_scene(entry)
-        await asyncio.to_thread(entry.run, self._display)
+        outcome = await asyncio.to_thread(entry.run, self._display)
+        error = outcome.error
+        if error is not None:
+            logger.warning(
+                "[lux] %s click failed: %s", entry.callback_id, error.message
+            )
+            await self._render_error(entry, error)
+
+    async def _render_error(self, entry: ZSpecMenuEntry, error: CommandError) -> None:
+        """Replace the stranded placeholder with the failure text (off-thread)."""
+        try:
+            await asyncio.to_thread(
+                self._display.show,
+                entry.error_scene(error),
+                frame_id=entry.scene_id,
+                frame_title=entry.scene_title,
+            )
+        except DisplayError as exc:
+            logger.warning("could not render error scene %s: %s", entry.scene_id, exc)
 
     async def _raise_scene(self, entry: ZSpecMenuEntry) -> None:
         """Push a minimal placeholder under ``scene_id`` for an instant response.
@@ -212,6 +260,15 @@ class ZSpecSubscription:
             )
         except DisplayError as exc:
             logger.warning("could not raise placeholder %s: %s", entry.scene_id, exc)
+
+    def _is_stopped(self) -> bool:
+        """Whether ``stop()`` was requested.
+
+        A method, not a bare ``self._stopped`` read, so the run-loop guard does
+        not let the type checker narrow ``_stopped`` to a constant across the
+        ``listen`` await that another thread's ``stop()`` can flip.
+        """
+        return self._stopped
 
     def stop(self) -> None:
         """Ask the receive leg to finish after its current connection closes."""

@@ -40,7 +40,7 @@ def _fake_parse(path: Path) -> SpecModel:
 def _recording_build(
     captured: list[list[tuple[Path, SpecModel]]],
 ) -> PickerSceneBuilder:
-    def build(specs: list[tuple[Path, SpecModel]]) -> object:
+    def build(specs: list[tuple[Path, SpecModel]], _root: Path) -> object:
         captured.append(specs)
         return _SCENE
 

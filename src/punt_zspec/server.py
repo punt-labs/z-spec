@@ -255,11 +255,9 @@ def pick(directory: str = ".") -> str:
     from punt_zspec.browser import build_spec_picker
     from punt_zspec.commands.picker import PickerCommand
 
-    def build(specs: list[tuple[Path, SpecModel]]) -> object:
-        return build_spec_picker(specs)
-
+    # build_spec_picker matches PickerSceneBuilder(specs, root) — pass it directly.
     return (
-        PickerCommand(build=build, display=_SESSION.display)
+        PickerCommand(build=build_spec_picker, display=_SESSION.display)
         .run(Path(directory))
         .to_json()
     )

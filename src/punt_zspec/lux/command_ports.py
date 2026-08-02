@@ -2,7 +2,8 @@
 
 ``MenuRegistrar`` is the failure-tolerant ``register_callback`` the subscription
 drives from ``on_connect``. ``ClickCommand`` is the one method a menu click runs —
-``BrowseCommand``/``PickerCommand`` satisfy it structurally — and
+``BrowseCommand``/``PickerCommand`` satisfy it structurally — returning a
+``ClickOutcome`` the subscription inspects to heal a stranded placeholder.
 ``ClickCommandFactory`` binds one to the server-owned ``Display``. Protocols
 (PY-TS-6) so the subscription routes clicks with fakes in tests.
 """
@@ -15,9 +16,10 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
+    from punt_zspec.commands.result import CommandError
     from punt_zspec.commands.show import Display
 
-__all__ = ["ClickCommand", "ClickCommandFactory", "MenuRegistrar"]
+__all__ = ["ClickCommand", "ClickCommandFactory", "ClickOutcome", "MenuRegistrar"]
 
 
 @runtime_checkable
@@ -30,12 +32,24 @@ class MenuRegistrar(Protocol):
 
 
 @runtime_checkable
+class ClickOutcome(Protocol):
+    """The result a click render reports — read to heal a stranded scene.
+
+    ``CommandResult`` satisfies this structurally; the subscription reads
+    ``error`` to replace a placeholder a failed render would otherwise strand.
+    """
+
+    @property
+    def error(self) -> CommandError | None:  # PY-TS-14 OK: None documents success
+        """The failure that stranded the placeholder, or ``None`` on success."""
+        ...
+
+
+@runtime_checkable
 class ClickCommand(Protocol):
     """One render a menu click runs — a second caller of a shipped command."""
 
-    # object return (PY-TS-14): the command's typed CommandResult, forwarded
-    # uninspected — a click is best-effort, so the subscription discards it.
-    def run(self, target: Path, /, *, frame_id: str) -> object:
+    def run(self, target: Path, /, *, frame_id: str) -> ClickOutcome:
         """Render ``target`` into ``frame_id`` (the raised Hub scene id)."""
         ...
 

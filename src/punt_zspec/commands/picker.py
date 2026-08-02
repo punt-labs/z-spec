@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, Self, final
@@ -11,12 +12,20 @@ from punt_zspec.commands.show import Display, DisplayError, SpecParser
 from punt_zspec.parser import parse_spec
 from punt_zspec.types import SpecModel
 
+logger = logging.getLogger(__name__)
+
 
 class PickerSceneBuilder(Protocol):
-    """Build an opaque lux scene from the discovered (path, model) specs."""
+    """Build an opaque lux scene from the discovered (path, model) specs.
+
+    ``root`` is the discovery directory the specs were globbed from; the builder
+    labels each tab by its spec's path relative to ``root``.
+    """
 
     # object return (PY-TS-14): a lux element; the command forwards it uninspected.
-    def __call__(self, specs: list[tuple[Path, SpecModel]], /) -> object: ...
+    def __call__(
+        self, specs: list[tuple[Path, SpecModel]], root: Path, /
+    ) -> object: ...
 
 
 @final
@@ -80,7 +89,12 @@ class PickerCommand:
                     CommandFailure.spec_not_found, f"No Z specs found in {directory}"
                 )
             )
-        scene = self._build(specs)
+        try:  # PY-EH-5 exception: report load / scene build is an I/O boundary
+            scene = self._build(specs, directory)
+        except (FileNotFoundError, ValueError) as exc:
+            return CommandResult[PickerResult].failed(
+                CommandError(CommandFailure.spec_unreadable, str(exc))
+            )
         try:  # PY-EH-5 exception: lux render is an I/O boundary
             self._display.show(
                 scene, frame_id=frame_id, frame_title=f"Z Specs: {directory.name}"
@@ -106,7 +120,8 @@ class PickerCommand:
                 continue
             try:  # PY-EH-5 exception: parse/read is an I/O boundary; skip a bad .tex
                 model = self._parse(tex)
-            except (FileNotFoundError, OSError, UnicodeDecodeError, ValueError):
+            except (FileNotFoundError, OSError, UnicodeDecodeError, ValueError) as exc:
+                logger.debug("skipping unparsable .tex in picker: %s (%s)", tex, exc)
                 continue
             if model.blocks:
                 specs.append((tex, model))

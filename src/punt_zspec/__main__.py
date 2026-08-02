@@ -279,10 +279,8 @@ def pick(
     from punt_zspec.commands.picker import PickerCommand
     from punt_zspec.display import LuxDisplay
 
-    def build(specs: list[tuple[Path, SpecModel]]) -> object:
-        return build_spec_picker(specs)
-
-    result = PickerCommand(build=build, display=LuxDisplay()).run(directory)
+    # build_spec_picker matches PickerSceneBuilder(specs, root) — pass it directly.
+    result = PickerCommand(build=build_spec_picker, display=LuxDisplay()).run(directory)
     err = result.error
     if err is not None:
         typer.echo(f"error: {err.message}", err=True)

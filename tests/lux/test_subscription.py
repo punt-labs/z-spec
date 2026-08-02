@@ -7,39 +7,54 @@ the receive leg. Async tests run on a throwaway loop via ``asyncio.run``.
 from __future__ import annotations
 
 import asyncio
+import logging
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from punt_zspec.commands.picker import PickerResult
+from punt_zspec.commands.result import CommandError, CommandFailure, CommandResult
 from punt_zspec.commands.show import DisplayError
 from punt_zspec.lux.subscription import ZSpecMenuEntry, ZSpecSubscription
 
 if TYPE_CHECKING:
+    import pytest
     from punt_lux import CallbackHandler, EventHandler
     from punt_lux.hub_client import ConnectHandler
 
     from punt_zspec.commands.show import Display
-    from punt_zspec.lux.command_ports import ClickCommand, ClickCommandFactory
+    from punt_zspec.lux.command_ports import (
+        ClickCommand,
+        ClickCommandFactory,
+        ClickOutcome,
+    )
     from punt_zspec.lux.ports import HubListener
 
 _MANIFEST = Path("tutorials/intro/manifest.toml")
 _CWD = Path("/work/repo")
 
+# A real CommandResult (PickerResult satisfies JsonObject) stands in for a
+# successful click outcome; ClickOutcome is satisfied structurally via ``error``.
+_OK: ClickOutcome = CommandResult.ok(PickerResult(total=1, scene_id="z-spec-picker"))
+
 
 class _RecordingCommand:
-    """A ClickCommand that records the (target, frame_id) it was run with."""
+    """A ClickCommand that records its (target, frame_id) and returns an outcome."""
 
-    def __init__(self, log: list[tuple[Path, str]]) -> None:
+    def __init__(self, log: list[tuple[Path, str]], outcome: ClickOutcome) -> None:
         self._log = log
+        self._outcome = outcome
 
-    def run(self, target: Path, /, *, frame_id: str) -> object:
+    def run(self, target: Path, /, *, frame_id: str) -> ClickOutcome:
         self._log.append((target, frame_id))
-        return object()
+        return self._outcome
 
 
-def _recording_factory(log: list[tuple[Path, str]]) -> ClickCommandFactory:
+def _recording_factory(
+    log: list[tuple[Path, str]], outcome: ClickOutcome = _OK
+) -> ClickCommandFactory:
     def make(_display: Display) -> ClickCommand:
-        return _RecordingCommand(log)
+        return _RecordingCommand(log, outcome)
 
     return make
 
@@ -227,6 +242,48 @@ def test_a_down_display_does_not_crash_a_click() -> None:
     brw = asyncio.run(scenario())
 
     assert brw == [(_CWD, "z-spec-picker")]
+
+
+def test_a_failing_click_logs_and_replaces_the_placeholder(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A failed render must warn and swap the stranded "Loading…" placeholder.
+
+    Empty cwd → PickerCommand returns spec_not_found; without inspecting the
+    outcome the placeholder reads "Loading…" forever with no diagnostic. The
+    dispatch logs the failure and re-renders the scene with the error text.
+    """
+    error = CommandError(
+        CommandFailure.spec_not_found, "No Z specs found in /work/repo"
+    )
+    failing: ClickOutcome = CommandResult[PickerResult].failed(error)
+
+    async def scenario() -> list[tuple[str, str]]:
+        display = _RecordingDisplay()
+        entry = ZSpecMenuEntry(
+            callback_id="z-spec-browse",
+            label="z-spec Browse · repo · #1",
+            scene_id="z-spec-picker",
+            scene_title="Z Specs",
+            factory=_recording_factory([], failing),
+            target=_CWD,
+        )
+        sub = ZSpecSubscription(
+            entries=(entry,),
+            menu=_RecordingMenu(),
+            listen=_unused_listen,
+            display=display,
+        )
+        with caplog.at_level(logging.WARNING):
+            await sub.on_callback("z-spec-browse")
+        return display.shows
+
+    shows = asyncio.run(scenario())
+
+    # The placeholder raise and the error re-render both land on the one scene.
+    assert shows == [("z-spec-picker", "Z Specs"), ("z-spec-picker", "Z Specs")]
+    assert "z-spec-browse click failed" in caplog.text
+    assert "No Z specs found in /work/repo" in caplog.text
 
 
 def test_stop_is_safe_before_any_connection() -> None:
