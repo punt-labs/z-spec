@@ -48,3 +48,25 @@ def test_disable_reports_the_off_state() -> None:
 
     assert wire["action"] == "disable"
     assert wire["enabled"] is False
+
+
+def test_render_names_the_state_and_the_three_paths() -> None:
+    text = _report(EnablementAction.enable, enabled=True).render()
+
+    assert text.startswith(f"z-spec enabled in {Path('/repo')}")
+    assert "  marker: " in text
+    assert "  guide:  " in text
+    assert "  import: @.punt-labs/z-spec/CLAUDE.md" in text
+
+
+def test_render_asks_for_the_marker_to_be_committed_when_on() -> None:
+    text = _report(EnablementAction.enable, enabled=True).render()
+
+    assert text.endswith("Commit the marker so enablement travels with the repo.")
+
+
+def test_render_asks_for_the_removal_to_be_committed_when_off() -> None:
+    text = _report(EnablementAction.disable, enabled=False).render()
+
+    assert text.startswith("z-spec disabled in")
+    assert text.endswith("Commit its removal so the repo stays off for everyone.")

@@ -88,4 +88,9 @@ htmlcov/
 # self-manage via their own .gitignore.
 .punt-labs/local/
 
+# The mandated sibling lock every punt CLI takes before mutating a shared host
+# file (tool-enable-disable.md §2.4). It is per-machine runtime state, and it
+# persists by design — unlinking a lock file races the next writer.
+.*.punt-import.lock
+
 uv.toml

@@ -44,3 +44,22 @@ class EnablementReport:
             "guide": str(self.guide),
             "import_line": self.import_line,
         }
+
+    def render(self) -> str:
+        """Return the human-readable block the CLI prints.
+
+        The report owns both its forms, so the terminal and the wire cannot
+        drift. Neither surface runs git, hence the closing reminder: what
+        enablement produced is a working-tree change the user still commits.
+        """
+        return "\n".join(
+            (
+                f"z-spec {'enabled' if self.enabled else 'disabled'} in {self.root}",
+                f"  marker: {self.marker}",
+                f"  guide:  {self.guide}",
+                f"  import: {self.import_line}",
+                "Commit the marker so enablement travels with the repo."
+                if self.enabled
+                else "Commit its removal so the repo stays off for everyone.",
+            )
+        )

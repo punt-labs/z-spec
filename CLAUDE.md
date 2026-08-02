@@ -399,3 +399,4 @@ Local semantic search. Slash commands: `/find`, `/ingest`, `/remember`,
 `/explain`, `/source`, `/quarry`. The working directory is auto-indexed at
 session start; the `z-specification` collection is the Z reference library
 described above.
+@.punt-labs/z-spec/CLAUDE.md
