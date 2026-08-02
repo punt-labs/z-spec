@@ -122,23 +122,22 @@ def test_lesson_tab_has_annotation() -> None:
     assert "basic types" in first_child.content
 
 
-def test_spec_picker_labels_relative_to_root_for_absolute_dir() -> None:
-    """build_spec_picker must not crash on an absolute dir outside the cwd.
+def test_spec_picker_labels_tabs_by_filename_stem() -> None:
+    """build_spec_picker labels each tab by the spec's filename stem.
 
-    Discovery globs absolute paths whenever the search directory is absolute
-    (Claude Code passes absolute paths by convention). Labelling against the
-    discovery root — not the process cwd — keeps relative_to valid by
-    construction; the old cwd labelling raised ValueError for any root the
-    process was not launched from.
+    A stem (``a``, ``b``) reads cleanly in a narrow tab strip and never raises —
+    discovery globs absolute paths whenever the search directory is absolute
+    (Claude Code passes absolute paths by convention), so a ``relative_to(cwd)``
+    label would crash for any root the process was not launched from.
     """
     root = Path("/z-spec-fixtures/specs")  # absolute, outside the test cwd
     spec = _make_spec()
     scene = build_spec_picker(
-        [(root / "a.tex", spec), (root / "nested" / "b.tex", spec)], root
+        [(root / "a.tex", spec), (root / "nested" / "b.tex", spec)]
     )
 
     assert isinstance(scene, TabBarElement)
-    assert [t.label for t in scene.tabs] == ["a.tex", "nested/b.tex"]
+    assert [t.label for t in scene.tabs] == ["a", "b"]
 
 
 def test_lesson_tab_has_spec_tabs() -> None:

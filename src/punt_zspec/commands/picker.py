@@ -18,14 +18,11 @@ logger = logging.getLogger(__name__)
 class PickerSceneBuilder(Protocol):
     """Build an opaque lux scene from the discovered (path, model) specs.
 
-    ``root`` is the discovery directory the specs were globbed from; the builder
-    labels each tab by its spec's path relative to ``root``.
+    The builder labels each tab by its spec's filename stem.
     """
 
     # object return (PY-TS-14): a lux element; the command forwards it uninspected.
-    def __call__(
-        self, specs: list[tuple[Path, SpecModel]], root: Path, /
-    ) -> object: ...
+    def __call__(self, specs: list[tuple[Path, SpecModel]], /) -> object: ...
 
 
 @final
@@ -90,7 +87,7 @@ class PickerCommand:
                 )
             )
         try:  # PY-EH-5 exception: report load / scene build is an I/O boundary
-            scene = self._build(specs, directory)
+            scene = self._build(specs)
         except (FileNotFoundError, OSError, UnicodeDecodeError, ValueError) as exc:
             return CommandResult[PickerResult].failed(
                 CommandError(CommandFailure.spec_unreadable, str(exc))
@@ -110,13 +107,16 @@ class PickerCommand:
 
         ``build_spec_picker`` takes ``(Path, SpecModel)`` tuples — the opposite
         order to ``BrowseCommand``'s ``(SpecModel, Path)``. A cwd ``**/*.tex``
-        glob also picks up ``templates/preamble.tex`` and LaTeX includes carrying
-        no Z blocks; both are skipped so one stray include never fails the whole
-        picker. Specs are ordered by path for stable tabs.
+        glob otherwise picks up junk: files under hidden dirs (``.tmp/``,
+        ``.venv/``, ``.git/``, ``.pytest_cache/`` — scratch and tooling, not the
+        user's specs), ``templates/preamble.tex``, and LaTeX includes carrying no
+        Z blocks. All three are skipped so the picker lists only real specs and
+        one stray file never fails the whole picker. Ordered by path for stable
+        tabs.
         """
         specs: list[tuple[Path, SpecModel]] = []
         for tex in sorted(directory.rglob("*.tex")):
-            if self._is_template(tex):
+            if self._is_template(tex) or self._is_hidden(tex, directory):
                 continue
             try:  # PY-EH-5 exception: parse/read is an I/O boundary; skip a bad .tex
                 model = self._parse(tex)
@@ -142,3 +142,16 @@ class PickerCommand:
     def _is_template(tex: Path) -> bool:
         """Return whether ``tex`` is a preamble/template rather than a Z spec."""
         return tex.name == "preamble.tex" or "templates" in tex.parts
+
+    @staticmethod
+    def _is_hidden(tex: Path, directory: Path) -> bool:
+        """Return whether ``tex`` sits under a hidden dir below ``directory``.
+
+        A recursive glob otherwise surfaces scratch and tooling files — under
+        ``.tmp/``, ``.venv/``, ``.git/``, ``.pytest_cache/`` — as if they were
+        the user's specs. Only ancestor dirs below ``directory`` are checked, so
+        explicitly picking a hidden directory still lists its specs.
+        """
+        return any(
+            part.startswith(".") for part in tex.relative_to(directory).parent.parts
+        )

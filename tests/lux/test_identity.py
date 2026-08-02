@@ -51,7 +51,11 @@ def test_client_identity_is_a_30s_app_lease() -> None:
     assert client_identity.lease_ttl == 30.0
 
 
-def test_for_session_uses_this_pid_and_the_z_spec_repo() -> None:
+def test_for_session_uses_this_pid_and_the_z_spec_repo(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+
     identity = ZSpecLuxIdentity.for_session()
 
     assert identity.app_name.startswith("z-spec / ")
@@ -61,6 +65,7 @@ def test_for_session_uses_this_pid_and_the_z_spec_repo() -> None:
 def test_for_session_resolves_the_enclosing_git_repo(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
     (tmp_path / ".git").mkdir()
     nested = tmp_path / "src" / "pkg"
     nested.mkdir(parents=True)
@@ -68,5 +73,22 @@ def test_for_session_resolves_the_enclosing_git_repo(
 
     identity = ZSpecLuxIdentity.for_session()
 
-    # Walks up from the cwd to the nearest .git and names the session for it.
+    # With no project-dir env, the repo walk falls back to the cwd: up from the
+    # cwd to the nearest .git, naming the session for it.
     assert identity.app_name == f"z-spec / {tmp_path.name} / #{os.getpid()}"
+
+
+def test_for_session_prefers_project_dir_env_over_cwd(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    # The plugin-launched server's cwd is the plugin checkout; CLAUDE_PROJECT_DIR
+    # names the user's project. The repo walk must start from the env, not cwd,
+    # or every session's label reads the plugin repo instead of the open project.
+    project = tmp_path / "user-project"
+    (project / ".git").mkdir(parents=True)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+    monkeypatch.chdir(tmp_path)
+
+    identity = ZSpecLuxIdentity.for_session()
+
+    assert identity.app_name == f"z-spec / {project.name} / #{os.getpid()}"

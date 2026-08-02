@@ -12,6 +12,8 @@ from typing import Self, final
 
 from punt_lux import ClientIdentity
 
+from punt_zspec.lux.project import ProjectRoot
+
 __all__ = ["ZSpecLuxIdentity"]
 
 _LEASE_TTL_SECONDS = 30.0
@@ -39,8 +41,13 @@ class ZSpecLuxIdentity:
 
     @classmethod
     def for_session(cls) -> Self:
-        """Resolve the identity from the git repo basename and this process pid."""
-        return cls(cls._resolve_repo(Path.cwd()), os.getpid())
+        """Resolve the identity from the git repo basename and this process pid.
+
+        The repo walk starts from the user's project root, not ``Path.cwd()``:
+        the plugin-launched server's cwd is the plugin checkout (pinned by
+        ``--directory``), so cwd would name z-spec's own repo for every session.
+        """
+        return cls(cls._resolve_repo(ProjectRoot.resolve().path), os.getpid())
 
     @staticmethod
     def _resolve_repo(start: Path) -> str:

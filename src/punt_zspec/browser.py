@@ -130,19 +130,19 @@ def build_browser_scene(
 
 def build_spec_picker(
     specs: list[tuple[Path, SpecModel]],
-    root: Path,
 ) -> TabBarElement:
     """Build a tabbed picker for discovered Z specs — one tab per spec.
 
-    Tabs list specs by path relative to ``root`` (the discovery directory each
-    ``tex_path`` was globbed from, so ``relative_to`` is valid by construction);
-    labelling against the cwd instead raises ``ValueError`` outside it.
+    Tabs are labelled by the spec's filename stem (``search-panel``), which reads
+    cleanly in a narrow tab strip; a full path would truncate to nothing. Using
+    the stem also can never raise, unlike ``relative_to`` against a mismatched
+    root.
     """
     from punt_zspec.report import load_audit, load_fuzz, load_partition, load_report
 
     tabs: list[Tab] = []
     for idx, (tex_path, spec) in enumerate(specs):
-        label = str(tex_path.relative_to(root))
+        label = tex_path.stem
         spec_tabs = build_z_spec_scene(
             tex_path,
             spec,

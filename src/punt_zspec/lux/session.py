@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Self, final
 from punt_zspec.display import LuxDisplay
 from punt_zspec.lux.clients import ZSpecLuxClients
 from punt_zspec.lux.menu import ZSpecMenuRegistrar
+from punt_zspec.lux.project import ProjectRoot
 from punt_zspec.lux.subscription import (
     ZSpecClickCommands,
     ZSpecMenuEntry,
@@ -53,10 +54,13 @@ class ZSpecLuxSession:
         cwd: Path | None = None,
         tutorial_manifest: Path | None = None,
     ) -> Self:
-        # None defaults (PY-TS-14): the real per-session app identity, the actual
-        # cwd, and the shipped manifest; tests inject fixed ones.
+        # None defaults (PY-TS-14): the real per-session app identity, the user's
+        # project root, and the shipped manifest; tests inject fixed ones. The
+        # Browse target is the project root, not ``Path.cwd()``: the plugin-launched
+        # server's cwd is the plugin checkout (pinned by ``--directory``), so cwd
+        # would browse z-spec's own specs instead of the user's.
         lux = clients if clients is not None else ZSpecLuxClients()
-        directory = cwd if cwd is not None else Path.cwd()
+        directory = cwd if cwd is not None else ProjectRoot.resolve().path
         manifest = (
             tutorial_manifest
             if tutorial_manifest is not None

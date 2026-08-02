@@ -42,7 +42,7 @@ def _fake_parse(path: Path) -> SpecModel:
 def _recording_build(
     captured: list[list[tuple[Path, SpecModel]]],
 ) -> PickerSceneBuilder:
-    def build(specs: list[tuple[Path, SpecModel]], _root: Path) -> object:
+    def build(specs: list[tuple[Path, SpecModel]]) -> object:
         captured.append(specs)
         return _SCENE
 
@@ -216,7 +216,7 @@ def test_picker_file_argument_is_not_found(tmp_path: Path) -> None:
 def test_picker_build_raises_is_spec_unreadable(tmp_path: Path, exc: Exception) -> None:
     _write(tmp_path / "a.tex", "SPEC a")
 
-    def _raising_build(_specs: list[tuple[Path, SpecModel]], _root: Path) -> object:
+    def _raising_build(_specs: list[tuple[Path, SpecModel]]) -> object:
         raise exc
 
     cmd = PickerCommand(
