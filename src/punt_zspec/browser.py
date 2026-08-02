@@ -68,12 +68,12 @@ def _highlighted_spec_tabs(
 
 def _build_lesson_page(
     lesson: Lesson,
-    spec: SpecModel,
-    tex_path: Path,
+    spec_and_path: tuple[SpecModel, Path],
 ) -> list[Element]:
     """Build one lesson's content: annotation text followed by the spec tabs."""
     from punt_zspec.report import load_audit, load_fuzz, load_partition, load_report
 
+    spec, tex_path = spec_and_path
     elements: list[Element] = []
 
     annotation = lesson.annotation.strip()
@@ -118,10 +118,10 @@ def build_browser_scene(
         display-side, needing no round-trip to z-spec.
     """
     tabs: list[Tab] = []
-    for idx, (lesson, (spec, tex_path)) in enumerate(
+    for idx, (lesson, spec_and_path) in enumerate(
         zip(collection.lessons, specs, strict=True)
     ):
-        page = _build_lesson_page(lesson, spec, tex_path)
+        page = _build_lesson_page(lesson, spec_and_path)
         label = f"{idx + 1}. {lesson.title}"
         tabs.append(Tab(f"lesson-{lesson.order}", label, tuple(page)))
 
@@ -133,16 +133,16 @@ def build_spec_picker(
 ) -> TabBarElement:
     """Build a tabbed picker for discovered Z specs — one tab per spec.
 
-    Each tab shows the spec's tab view (Spec/Fuzz/ProB/etc.); the display
-    switches specs by its active tab, listing them by filename.
+    Tabs are labelled by the spec's filename stem (``search-panel``), which reads
+    cleanly in a narrow tab strip; a full path would truncate to nothing. Using
+    the stem also can never raise, unlike ``relative_to`` against a mismatched
+    root.
     """
     from punt_zspec.report import load_audit, load_fuzz, load_partition, load_report
 
     tabs: list[Tab] = []
     for idx, (tex_path, spec) in enumerate(specs):
-        label = str(
-            tex_path.relative_to(Path.cwd()) if tex_path.is_absolute() else tex_path
-        )
+        label = tex_path.stem
         spec_tabs = build_z_spec_scene(
             tex_path,
             spec,

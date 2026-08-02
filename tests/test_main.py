@@ -160,3 +160,65 @@ def test_browse_invalid_manifest_is_clean_error(
     assert result.exit_code == 1
     assert "error:" in result.stderr
     assert "Traceback" not in result.stderr
+
+
+# ---------------------------------------------------------------------------
+# enable / disable
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def repo(tmp_path: Path) -> Path:
+    """Return a bare repository root with a user-owned CLAUDE.md."""
+    (tmp_path / ".git").mkdir()
+    (tmp_path / "CLAUDE.md").write_text("# Project\n", encoding="utf-8")
+    return tmp_path
+
+
+def test_enable_prints_the_three_paths_and_the_commit_reminder(repo: Path) -> None:
+    result = _RUNNER.invoke(app, ["enable", str(repo)])
+
+    assert result.exit_code == 0
+    assert "z-spec enabled in" in result.stdout
+    assert "@.punt-labs/z-spec/CLAUDE.md" in result.stdout
+    assert "Commit the marker" in result.stdout
+    assert (repo / ".punt-labs" / "z-spec" / "enabled").is_file()
+
+
+def test_enable_is_idempotent_from_the_cli(repo: Path) -> None:
+    _RUNNER.invoke(app, ["enable", str(repo)])
+    result = _RUNNER.invoke(app, ["enable", str(repo)])
+
+    assert result.exit_code == 0
+    assert (repo / "CLAUDE.md").read_text().count("@.punt-labs/z-spec/CLAUDE.md") == 1
+
+
+def test_disable_reports_the_off_state(repo: Path) -> None:
+    _RUNNER.invoke(app, ["enable", str(repo)])
+
+    result = _RUNNER.invoke(app, ["disable", str(repo)])
+
+    assert result.exit_code == 0
+    assert "z-spec disabled in" in result.stdout
+    assert not (repo / ".punt-labs" / "z-spec" / "enabled").exists()
+    assert (repo / ".punt-labs" / "z-spec" / "CLAUDE.md").is_file()
+
+
+def test_enable_on_a_repo_that_refuses_the_write_is_a_clean_error(repo: Path) -> None:
+    # `.punt-labs` as a regular file is the cheapest way to make every write
+    # enable performs fail. The CLI must print the failure, not a traceback.
+    (repo / ".punt-labs").write_text("not a directory\n", encoding="utf-8")
+
+    result = _RUNNER.invoke(app, ["enable", str(repo)])
+
+    assert result.exit_code == 1
+    assert "error: Failed to enable z-spec" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_enable_outside_a_repository_is_a_clean_error(tmp_path: Path) -> None:
+    result = _RUNNER.invoke(app, ["enable", tmp_path.anchor])
+
+    assert result.exit_code == 1
+    assert "error: not inside a git repository" in result.stderr
+    assert "Traceback" not in result.stderr

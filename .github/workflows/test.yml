@@ -1,0 +1,104 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Tier 1 + 4: unit tests and CLI/MCP surface parity. No external binaries, so
+  # this job stays green even when an upstream tool download is unavailable.
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --frozen --all-extras
+      - run: make test-py
+
+  # Tier 5 (partial): drives the INSTALLED wheel — the z-spec binary as a
+  # subprocess and the MCP server over stdio. This is the tier that catches
+  # packaging faults (a data file missing from the wheel, an entry point that
+  # does not resolve), which no in-process test can see.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --frozen --all-extras
+      - run: make install
+      - run: make test-e2e
+
+  # Tiers 2 + 3: the Z spec corpus, type-checked with fuzz and model-checked
+  # with probcli. Both are external binaries: fuzz builds from source, probcli
+  # ships as a Linux archive. A failure here is a real gate failure — the specs
+  # this repo publishes are its documentation of the notation.
+  specs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --frozen --all-extras
+
+      # fuzz is autoconf'd: ./configure generates the Makefile from Makefile.in,
+      # and the binary lands at src/fuzz, not the tree root.
+      - name: Build fuzz from source
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+          git clone --depth 1 https://github.com/Spivoxity/fuzz.git "${RUNNER_TEMP}/fuzz"
+          cd "${RUNNER_TEMP}/fuzz"
+          ./configure
+          make
+          # `make install` is not optional: fuzz reads its prelude from
+          # $libdir/fuzzlib at run time, so the binary alone exits with
+          # "can't read prelude file". This also lands fuzz on PATH.
+          sudo make install
+
+      # The ProB release tarball carries probcli; pinned rather than "latest" so
+      # a spec gate failure means the specs changed, not the tool. The archive
+      # layout is not contracted, so locate the binary instead of assuming a
+      # path, and fail loudly if it is absent. PROBCLI/PROB_HOME go to the env
+      # because the Makefile declares `PROBCLI ?=`.
+      - name: Install probcli
+        env:
+          PROB_VERSION: "1.15.1"
+        run: |
+          mkdir -p "${RUNNER_TEMP}/ProB"
+          curl -fL -o "${RUNNER_TEMP}/prob.tar.gz" \
+            "https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/${PROB_VERSION}/ProB.linux64.tar.gz"
+          tar -xzf "${RUNNER_TEMP}/prob.tar.gz" -C "${RUNNER_TEMP}/ProB"
+          PROBCLI="$(find "${RUNNER_TEMP}/ProB" -type f -name probcli | head -n 1)"
+          if [ -z "${PROBCLI}" ]; then
+            echo "FATAL: no probcli in the ProB ${PROB_VERSION} archive" >&2
+            find "${RUNNER_TEMP}/ProB" -maxdepth 2 >&2
+            exit 1
+          fi
+          chmod +x "${PROBCLI}"
+          echo "PROBCLI=${PROBCLI}" >> "${GITHUB_ENV}"
+          echo "PROB_HOME=$(dirname "${PROBCLI}")" >> "${GITHUB_ENV}"
+
+      - name: Verify both binaries resolve
+        run: |
+          command -v fuzz
+          "${PROBCLI}" -version
+
+      # type-z-* (fuzz) then test-z-* (probcli) over every examples/*.tex.
+      - run: make type
+      - run: make test

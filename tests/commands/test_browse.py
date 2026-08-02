@@ -88,6 +88,29 @@ def test_browse_renders_and_returns_ok(tmp_path: Path) -> None:
     assert calls == [(_SCENE, "z-spec-browser", "Test Collection")]
 
 
+def test_browse_frame_id_override(tmp_path: Path) -> None:
+    """A non-default frame_id must reach the display (raise-id == render-id).
+
+    The default path alone cannot catch a hardcoded frame_id, since the default
+    equals the literal; the Tutorial callback passes z-spec-tutorial, so the
+    render must land there and not on the browse tool's z-spec-browser scene.
+    """
+    (tmp_path / "01.tex").write_text("dummy", encoding="utf-8")
+    manifest = _manifest(tmp_path)
+    calls: list[tuple[object, str, str]] = []
+    cmd = BrowseCommand(
+        build=_build_scene,
+        display=_recording_display(calls),
+        parse_manifest=lambda _p: _collection(tmp_path),
+        parse_spec=_model,
+    )
+
+    result = cmd.run(manifest, frame_id="z-spec-tutorial")
+
+    assert result.is_ok
+    assert calls == [(_SCENE, "z-spec-tutorial", "Test Collection")]
+
+
 def test_browse_ok_wire_format(tmp_path: Path) -> None:
     (tmp_path / "01.tex").write_text("dummy", encoding="utf-8")
     manifest = _manifest(tmp_path)

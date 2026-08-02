@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .audit import AuditConfidence, AuditConstraint, AuditReport, AuditSuggestion
+from .enablement import EnablementAction, EnablementReport
 from .fuzz import FuzzError, FuzzResult
 from .partition import (
     OperationPartitions,
@@ -32,6 +33,8 @@ __all__ = [
     "CheckStatus",
     "Collection",
     "CounterExample",
+    "EnablementAction",
+    "EnablementReport",
     "FuzzError",
     "FuzzResult",
     "Lesson",

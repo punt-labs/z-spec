@@ -27,6 +27,9 @@ class CommandFailure(StrEnum):
     spec_unreadable = "spec_unreadable"  # parse/read failed after the file exists
     manifest_invalid = "manifest_invalid"  # manifest.toml malformed
     display_failed = "display_failed"  # lux surface unreachable
+    not_a_repository = "not_a_repository"  # enable/disable outside a git repo
+    not_enabled = "not_enabled"  # no .punt-labs/z-spec/enabled marker here
+    enablement_failed = "enablement_failed"  # the repo would not take the write
 
 
 @final
@@ -36,10 +39,17 @@ class CommandError:
 
     kind: CommandFailure
     message: str  # MCP-facing short text — matches current server.py strings
-    hint: str = ""  # CLI-facing remediation suffix (e.g. "Set $FUZZ ...")
+    hint: str = ""  # remediation suffix (e.g. "Set $FUZZ ...")
 
     def to_dict(self) -> dict[str, Any]:  # PY-TS-14 OK: JSON wire boundary
-        return {"ok": False, "error": self.message}
+        # The hint rides the wire too. A declining gate puts the actionable
+        # half of its answer there ("commit the marker so the repo stays on"),
+        # and the MCP surface is where that decline is now most often read —
+        # dropping it left the caller with a refusal and no remedy.
+        failure: dict[str, Any] = {"ok": False, "error": self.message}
+        if self.hint:
+            failure["hint"] = self.hint
+        return failure
 
 
 @final
