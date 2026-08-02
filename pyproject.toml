@@ -23,7 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "mcp>=1.0.0",
-    "punt-lux>=0.21,<0.22",
+    "punt-lux>=0.22.1,<0.23",
     "typer>=0.24.1",
 ]
 
@@ -119,8 +119,14 @@ reportMissingTypeStubs = "warning"
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-addopts = "-ra -q"
+# Tier 5 (e2e) is opt-in: it drives the INSTALLED z-spec binary, so a plain
+# `pytest` run in a working tree would test whatever wheel happens to be
+# installed rather than the code under edit. Run it with `make test-e2e`.
+addopts = "-ra -q -m 'not e2e'"
 testpaths = ["tests"]
+markers = [
+    "e2e: drives the installed z-spec CLI and MCP server as subprocesses",
+]
 
 [tool.coverage.run]
 source = ["src"]

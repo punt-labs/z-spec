@@ -12,7 +12,8 @@ import typer
 from punt_zspec import __version__
 
 if TYPE_CHECKING:
-    from punt_zspec.types import Collection, SpecModel, SpecReports
+    from punt_zspec.commands.result import CommandResult
+    from punt_zspec.types import Collection, EnablementReport, SpecModel, SpecReports
 
 app = typer.Typer(
     name="z-spec",
@@ -263,6 +264,32 @@ def browse(
 
 
 @app.command()
+def pick(
+    directory: Annotated[
+        Path,
+        typer.Argument(
+            help="Directory to search for .tex Z specs",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ] = Path(),
+) -> None:
+    """Discover a directory's Z specs and display them in a picker."""
+    from punt_zspec.browser import build_spec_picker
+    from punt_zspec.commands.picker import PickerCommand
+    from punt_zspec.display import LuxDisplay
+
+    # build_spec_picker matches PickerSceneBuilder(specs, root) — pass it directly.
+    result = PickerCommand(build=build_spec_picker, display=LuxDisplay()).run(directory)
+    err = result.error
+    if err is not None:
+        typer.echo(f"error: {err.message}", err=True)
+        raise typer.Exit(1)
+    typer.echo(result.to_json())
+
+
+@app.command()
 def doctor() -> None:
     """Check Z specification environment health."""
     from punt_zspec.commands.doctor import DoctorCommand
@@ -276,6 +303,47 @@ def doctor() -> None:
 
     if not health.healthy:
         raise typer.Exit(1)
+
+
+_DIR_ARG = typer.Argument(
+    help="Directory inside the repository to change",
+    exists=True,
+    file_okay=False,
+    dir_okay=True,
+)
+
+
+def _echo_enablement(result: CommandResult[EnablementReport]) -> None:
+    """Print an enablement outcome, or exit 1 with the failure on stderr.
+
+    Shared by both verbs so either renders identically (§2.14); the report
+    owns the wording.
+    """
+    err = result.error
+    if err is not None:
+        typer.echo(f"error: {err.message}. {err.hint}", err=True)
+        raise typer.Exit(1)
+    typer.echo(result.unwrap().render())
+
+
+@app.command()
+def enable(
+    directory: Annotated[Path, _DIR_ARG] = Path(),
+) -> None:
+    """Turn z-spec on in this repository."""
+    from punt_zspec.commands.enable import EnableCommand
+
+    _echo_enablement(EnableCommand().run(directory))
+
+
+@app.command()
+def disable(
+    directory: Annotated[Path, _DIR_ARG] = Path(),
+) -> None:
+    """Turn z-spec off in this repository, leaving its files dormant."""
+    from punt_zspec.commands.disable import DisableCommand
+
+    _echo_enablement(DisableCommand().run(directory))
 
 
 @app.command()

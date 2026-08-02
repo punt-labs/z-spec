@@ -56,8 +56,15 @@ fi
 # never --arg: an --arg value lands in jq's argv and a payload past ARG_MAX
 # would fail the whole hook exec, delivering neither the panel line nor the
 # context. Read from a pipe and no size limit applies.
+#
+# The panel channel is 80 columns, so the summary is truncated to fit here —
+# once, for every caller — rather than at each of the dozen call sites. A path
+# or an error message is the usual overflow; the untruncated text always
+# reaches the model in additionalContext, which is the channel that carries
+# detail.
 emit() {
   local summary="$1" ctx="$2"
+  (( ${#summary} > 80 )) && summary="${summary:0:77}..."
   jq -n --arg summary "$summary" --rawfile ctx <(printf '%s' "$ctx") '{
     hookSpecificOutput: {
       hookEventName: "PostToolUse",
@@ -137,6 +144,24 @@ case "$TOOL_NAME" in
     title=$(printf '%s' "$RESULT" | jq -r '.title // "collection"' 2>/dev/null)
     total=$(printf '%s' "$RESULT" | jq -r '.total // 0' 2>/dev/null)
     emit "browse: ${title} — ${total} lesson(s)" "$RESULT"
+    ;;
+  pick)
+    # PickerResult.to_dict(): {ok, total, scene_id}.
+    total=$(printf '%s' "$RESULT" | jq -r '.total // 0' 2>/dev/null)
+    scene=$(printf '%s' "$RESULT" | jq -r '.scene_id // "picker"' 2>/dev/null)
+    emit "pick: ${total} spec(s) — ${scene}" "$RESULT"
+    ;;
+  enablement)
+    # EnablementReport.to_dict(): {ok, action, enabled, root, marker, guide,
+    # import_line}. The panel reports the state reached, not the verb asked
+    # for — disable on an already-off repo is a no-op and says so.
+    root=$(printf '%s' "$RESULT" | jq -r '.root? // "?"' 2>/dev/null)
+    state=$(printf '%s' "$RESULT" \
+      | jq -r 'if (.enabled? // false) then "enabled" else "disabled" end' 2>/dev/null)
+    # The jq defaults cannot rescue a payload jq refuses to PARSE — that fails
+    # the whole program and yields nothing. Say "?" rather than assert a state
+    # the payload never carried.
+    emit "z-spec ${state:-?} in ${root:-?}" "$RESULT"
     ;;
   save_partition_report)
     # SavedReport.to_dict(): {ok, path}.

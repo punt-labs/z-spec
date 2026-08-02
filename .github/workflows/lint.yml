@@ -1,0 +1,82 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # fetch-depth: 0 is load-bearing for the ratchets: the OO, coupling, and
+      # suppression checks all resolve a merge-base and read the base-commit
+      # baseline blob; a shallow clone has neither the base commit nor HEAD~1.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --frozen --all-extras
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy src/ tests/
+      - run: uv run pyright src/ tests/
+      - run: shellcheck -x scripts/*.sh install.sh
+      # Every prod slash command has a generated -dev twin; drift means the dev
+      # plugin and the shipped plugin disagree.
+      - run: make check-dev-commands
+      # OO ratchet on a PR: compare code-at-HEAD against the baseline at the
+      # merge-base. --require-base AND the explicit fetch are both mandatory —
+      # with either missing, an unresolvable base would fail open and let a
+      # regression pass.
+      #
+      # A mechanical version bump (release/* and post-release/* PRs) changes
+      # only the version string, which improves no OO metric, so check-oo's
+      # "at least one metric improved" gate structurally fails it. For those
+      # head branches we pass --allow-no-improvement, which waives ONLY the
+      # must-improve requirement — a regression is still rejected and baseline
+      # completeness is still enforced. This is safe even though
+      # github.head_ref is attacker-controlled on fork PRs: the flag removes
+      # only the must-improve nicety, and check-coupling / check-suppressions
+      # (regression-only gates) run unconditionally below. head_ref reaches the
+      # shell via the HEAD_REF env var and is matched with `case`, never
+      # interpolated into the command, to avoid script injection.
+      - name: Ratchets (PR — merge-base compare)
+        if: github.event_name == 'pull_request'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin "${BASE_REF}"
+          BASE="$(git merge-base "origin/${BASE_REF}" HEAD)"
+          if [ -z "${BASE}" ]; then
+            echo "FATAL: cannot resolve merge-base with origin/${BASE_REF}" >&2
+            exit 1
+          fi
+          OO_ARGS="--base-ref ${BASE} --require-base"
+          case "${HEAD_REF}" in
+            release/*|post-release/*)
+              OO_ARGS="${OO_ARGS} --allow-no-improvement" ;;
+          esac
+          make check-oo OO_BASE="${OO_ARGS}"
+          make check-coupling COUPLING_BASE="--base-ref ${BASE} --require-base"
+          make check-suppressions SUPPRESSION_BASE="--base-ref ${BASE} --require-base"
+      # OO ratchet on main after a merge: HEAD~1 is the squash's merge-base, so
+      # the ratchet re-runs on merged reality — the tripwire that catches a red
+      # main from a bad squash or a direct push. This step is REGRESSION-ONLY:
+      # must-improve is already enforced on the PR, so re-requiring it here
+      # would turn main red after every metric-neutral squash.
+      - name: Ratchets (main — post-merge tripwire)
+        if: github.event_name == 'push'
+        run: |
+          make check-oo OO_BASE="--base-ref HEAD~1 --require-base --allow-no-improvement"
+          make check-coupling COUPLING_BASE="--base-ref HEAD~1 --require-base"
+          make check-suppressions SUPPRESSION_BASE="--base-ref HEAD~1 --require-base"
