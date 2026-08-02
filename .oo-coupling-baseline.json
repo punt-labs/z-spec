@@ -231,7 +231,7 @@
     "avg_lcom": 0.0
   },
   "src/punt_zspec/server.py": {
-    "efferent_coupling": 2.0,
+    "efferent_coupling": 4.0,
     "public_names": 2.0,
     "circular_imports": 0.0,
     "max_lcom": 0.0,

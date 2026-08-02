@@ -10,8 +10,10 @@ from typing import TYPE_CHECKING, Literal
 from mcp.server.fastmcp import FastMCP
 
 from punt_zspec import __version__
+from punt_zspec.commands.enablement import RepoEnablement
 from punt_zspec.gate import EnablementGate
 from punt_zspec.lux import ZSpecLuxSession
+from punt_zspec.types import EnablementAction
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -311,11 +313,7 @@ def enablement(action: Literal["enable", "disable"], directory: str = ".") -> st
         JSON with ok (bool), action, enabled (bool), and the marker, guide,
         and import_line paths, or error.
     """
-    from punt_zspec.commands.disable import DisableCommand
-    from punt_zspec.commands.enable import EnableCommand
-
-    command = EnableCommand() if action == "enable" else DisableCommand()
-    return command.run(Path(directory)).to_json()
+    return RepoEnablement.apply(EnablementAction(action), Path(directory)).to_json()
 
 
 @mcp.tool()
