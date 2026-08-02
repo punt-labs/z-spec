@@ -6,6 +6,12 @@ both menu entries, so a >30s luxd outage that lapses the lease heals the instant
 the listener rejoins (register-fresh). A click arrives as ``on_callback`` and
 routes to the same command a menu tool would run — no duplicated render logic.
 
+Both of those consult ``is_enabled`` first. The repo's ``enabled`` marker is the
+menu's authority exactly as it is the tool surface's, and it is re-read at each
+of them rather than read once, because the marker outlives neither the process
+nor the connection: a ``disable`` (or a branch checkout) between two handshakes
+must leave the shared window with no z-spec entries and no live click.
+
 Nothing renders inline on the FastMCP event loop: the placeholder raise and the
 full ``command.run`` both go through :func:`asyncio.to_thread`, so a blocking REST
 round-trip never starves the loop that serves check/test/animate (ADR §5.3).
@@ -27,7 +33,7 @@ from punt_zspec.commands.picker import PickerCommand
 from punt_zspec.commands.show import Display, DisplayError
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
     from pathlib import Path
 
     from punt_zspec.commands.result import CommandError
@@ -120,9 +126,18 @@ class ZSpecSubscription:
     _menu: MenuRegistrar
     _listen: ListenerFactory
     _display: Display
+    _is_enabled: Callable[[], bool]
     _listener: HubListener | None
     _stopped: bool
-    __slots__ = ("_display", "_entries", "_listen", "_listener", "_menu", "_stopped")
+    __slots__ = (
+        "_display",
+        "_entries",
+        "_is_enabled",
+        "_listen",
+        "_listener",
+        "_menu",
+        "_stopped",
+    )
 
     def __new__(
         cls,
@@ -130,12 +145,14 @@ class ZSpecSubscription:
         menu: MenuRegistrar,
         listen: ListenerFactory,
         display: Display,
+        is_enabled: Callable[[], bool],
     ) -> Self:
         self = super().__new__(cls)
         self._entries = entries
         self._menu = menu
         self._listen = listen
         self._display = display
+        self._is_enabled = is_enabled
         self._listener = None  # None until first connect / after stop
         self._stopped = False
         return self
@@ -205,7 +222,15 @@ class ZSpecSubscription:
         await listener.listen()
 
     async def on_connect(self) -> None:
-        """Re-register both menu entries after every handshake (register-fresh)."""
+        """Re-register both menu entries after every handshake, where z-spec is on.
+
+        The marker decides per handshake. A repo turned off while the server ran
+        must not have its entries put back on the shared window by the next
+        reconnect, and one turned on gets them at the connect that follows.
+        """
+        if not self._is_enabled():
+            logger.info("z-spec is not enabled here — registering no menu entries")
+            return
         for entry in self._entries:
             await self._menu.register(entry.callback_id, entry.label)
 
@@ -214,12 +239,31 @@ class ZSpecSubscription:
         logger.debug("ignoring unexpected z-spec event on %s: %r", topic, dict(payload))
 
     async def on_callback(self, callback_id: str) -> None:
-        """Route a menu click to its entry: raise instantly, then render off-loop."""
-        for entry in self._entries:
-            if entry.matches(callback_id):
-                await self._dispatch(entry)
-                return
-        logger.debug("no z-spec menu entry for callback %r", callback_id)
+        """Route a menu click to its entry: raise instantly, then render off-loop.
+
+        The marker is re-read per click rather than trusted from registration
+        time. An entry the shared window still shows after a ``disable`` — the
+        lux lease outlives the marker — must dispatch nothing at all.
+        """
+        entry = self._entry_for(callback_id)
+        if entry is None:
+            logger.debug("no z-spec menu entry for callback %r", callback_id)
+            return
+        if not self._is_enabled():
+            logger.info(
+                "z-spec is not enabled here — ignoring the %r click", callback_id
+            )
+            return
+        await self._dispatch(entry)
+
+    def _entry_for(self, callback_id: str) -> ZSpecMenuEntry | None:
+        """Return the entry a click selects, or ``None`` if it is not z-spec's.
+
+        ``None`` is the documented "not ours": one hub delivers every app's
+        callbacks on the one stream, so an id z-spec never registered is
+        routine traffic rather than a fault.
+        """
+        return next((e for e in self._entries if e.matches(callback_id)), None)
 
     async def _dispatch(self, entry: ZSpecMenuEntry) -> None:
         """Raise the placeholder, render off-loop, and heal a stranded scene.

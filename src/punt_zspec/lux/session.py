@@ -2,10 +2,11 @@
 
 One session per MCP server process (one per Claude Code session). It owns the app
 identity, the server-owned ``Display`` every render path shares, and the listener
-task. :meth:`start` spawns the receive leg in the lifespan; :meth:`stop` cancels
-and drains it. A down luxd at startup is non-fatal — the listener retries and the
-check/test/animate tools keep working — because the render path and the listener
-only ever touch luxd lazily.
+task. :meth:`sync` is the one both callers use — the lifespan at startup and the
+enablement tool after every run — and it reads the repo's ``enabled`` marker to
+decide between :meth:`start` and :meth:`stop`. A down luxd at startup is
+non-fatal — the listener retries and the check/test/animate tools keep working —
+because the render path and the listener only ever touch luxd lazily.
 """
 
 from __future__ import annotations
@@ -28,6 +29,8 @@ from punt_zspec.lux.subscription import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from punt_zspec.commands.show import Display
 
 __all__ = ["ZSpecLuxSession"]
@@ -44,12 +47,14 @@ class ZSpecLuxSession:
 
     _clients: ZSpecLuxClients
     _display: LuxDisplay
+    _is_enabled: Callable[[], bool]
     _subscription: ZSpecSubscription
     _task: asyncio.Task[None] | None
-    __slots__ = ("_clients", "_display", "_subscription", "_task")
+    __slots__ = ("_clients", "_display", "_is_enabled", "_subscription", "_task")
 
     def __new__(
         cls,
+        is_enabled: Callable[[], bool],
         clients: ZSpecLuxClients | None = None,
         cwd: Path | None = None,
         tutorial_manifest: Path | None = None,
@@ -90,11 +95,13 @@ class ZSpecLuxSession:
                 target=directory,
             ),
         )
+        self._is_enabled = is_enabled
         self._subscription = ZSpecSubscription(
             entries=entries,
             menu=ZSpecMenuRegistrar(lux.rest),
             listen=lux.listen,
             display=self._display,
+            is_enabled=is_enabled,
         )
         self._task = None
         return self
@@ -103,6 +110,22 @@ class ZSpecLuxSession:
     def display(self) -> Display:
         """Return the server-owned app-identity display the tools render through."""
         return self._display
+
+    async def sync(self) -> None:
+        """Bring the receive leg into line with the repo's ``enabled`` marker.
+
+        The one call the lifespan and the enablement tool share, and what makes
+        the menu as immediate as the gated tools already are: ``enable`` in a
+        previously unmarked repo brings the listener up — and with it the
+        Tutorial and Browse entries — without waiting for a reconnect, and
+        ``disable`` drops the connection, so the lease lapses and the entries
+        leave the shared window. Idempotent in both directions.
+        """
+        if self._is_enabled():
+            await self.start()
+            return
+        logger.info("z-spec is not enabled here — the lux menu stays off")
+        await self.stop()
 
     async def start(self) -> None:
         """Spawn the listener task on the MCP server's event loop (best-effort).

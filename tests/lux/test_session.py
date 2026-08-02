@@ -21,8 +21,19 @@ if TYPE_CHECKING:
 _FOR_IDENTITY = "punt_zspec.lux.clients.LuxRestClient.for_identity"
 
 
-def _session(tmp_path: Path) -> ZSpecLuxSession:
+def _luxd_down(*_a: object, **_k: object) -> object:
+    """Stand in for the REST client factory when luxd is not running."""
+    raise HubUnavailableError("luxd not running")
+
+
+def _task_of(session: ZSpecLuxSession) -> asyncio.Task[None] | None:
+    """Return the session's listener task — the only handle on the receive leg."""
+    return session._task  # pyright: ignore[reportPrivateUsage]
+
+
+def _session(tmp_path: Path, *, enabled: bool = True) -> ZSpecLuxSession:
     return ZSpecLuxSession(
+        lambda: enabled,
         clients=ZSpecLuxClients(identity=ZSpecLuxIdentity("repo", 7)),
         cwd=tmp_path,
         tutorial_manifest=tmp_path / "manifest.toml",
@@ -32,10 +43,7 @@ def _session(tmp_path: Path) -> ZSpecLuxSession:
 def test_start_then_stop_is_clean_when_luxd_is_down(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-    def down(*_a: object, **_k: object) -> object:
-        raise HubUnavailableError("luxd not running")
-
-    monkeypatch.setattr(_FOR_IDENTITY, down)
+    monkeypatch.setattr(_FOR_IDENTITY, _luxd_down)
 
     async def scenario() -> object:
         session = _session(tmp_path)
@@ -62,10 +70,7 @@ def test_stop_before_start_is_safe(tmp_path: Path) -> None:
 def test_second_start_does_not_spawn_a_second_task(
     tmp_path: Path, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
 ) -> None:
-    def down(*_a: object, **_k: object) -> object:
-        raise HubUnavailableError("luxd not running")
-
-    monkeypatch.setattr(_FOR_IDENTITY, down)
+    monkeypatch.setattr(_FOR_IDENTITY, _luxd_down)
 
     async def scenario() -> None:
         session = _session(tmp_path)
@@ -82,9 +87,43 @@ def test_second_start_does_not_spawn_a_second_task(
     assert "already started" in caplog.text
 
 
-def _task_of(session: ZSpecLuxSession) -> asyncio.Task[None] | None:
-    """Return the session's listener task — the only handle on the receive leg."""
-    return session._task  # pyright: ignore[reportPrivateUsage]
+def test_sync_starts_the_leg_where_the_marker_is_present(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_FOR_IDENTITY, _luxd_down)
+
+    async def scenario() -> bool:
+        session = _session(tmp_path, enabled=True)
+        await session.sync()
+        live = _task_of(session) is not None
+        await session.stop()
+        return live
+
+    assert asyncio.run(scenario()) is True
+
+
+def test_sync_stops_the_leg_where_the_marker_is_absent(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_FOR_IDENTITY, _luxd_down)
+
+    async def scenario() -> object:
+        enabled = True
+        session = ZSpecLuxSession(
+            lambda: enabled,
+            clients=ZSpecLuxClients(identity=ZSpecLuxIdentity("repo", 7)),
+            cwd=tmp_path,
+            tutorial_manifest=tmp_path / "manifest.toml",
+        )
+        await session.sync()
+        # `/z-spec:disable` removes the marker while the server runs. The next
+        # sync must take the connection down, not leave the entries live on the
+        # shared window with the tool surface already shut.
+        enabled = False
+        await session.sync()
+        return _task_of(session)
+
+    assert asyncio.run(scenario()) is None
 
 
 def test_start_replaces_a_listener_task_that_has_died(

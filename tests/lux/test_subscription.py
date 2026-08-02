@@ -173,6 +173,8 @@ def _subscription(
     menu: _RecordingMenu | None = None,
     tutorial_log: list[tuple[Path, str]] | None = None,
     browse_log: list[tuple[Path, str]] | None = None,
+    *,
+    enabled: bool = True,
 ) -> ZSpecSubscription:
     return ZSpecSubscription(
         entries=_entries(
@@ -182,6 +184,7 @@ def _subscription(
         menu=menu if menu is not None else _RecordingMenu(),
         listen=_unused_listen,
         display=display,
+        is_enabled=lambda: enabled,
     )
 
 
@@ -271,6 +274,67 @@ def test_on_connect_registers_both_entries_with_two_axis_labels() -> None:
     ]
 
 
+def test_on_connect_registers_nothing_where_z_spec_is_not_enabled() -> None:
+    """A repo with no marker contributes no entries to the shared lux window.
+
+    on_connect fires on every handshake, so this is also what keeps a repo
+    disabled mid-session from having its entries put back by a reconnect after
+    a luxd restart.
+    """
+
+    async def scenario() -> list[tuple[str, str]]:
+        menu = _RecordingMenu()
+        sub = _subscription(_RecordingDisplay(), menu=menu, enabled=False)
+        await sub.on_connect()
+        return menu.registered
+
+    assert asyncio.run(scenario()) == []
+
+
+def test_a_click_dispatches_nothing_where_z_spec_is_not_enabled() -> None:
+    """A stale entry must be inert, not merely unregistered.
+
+    The lux lease keeps an entry on the shared window after the marker goes, so
+    the click that follows a `disable` still arrives. It must render nothing and
+    run no command — the same answer the gated tools give.
+    """
+
+    async def scenario() -> tuple[list[tuple[Path, str]], int]:
+        brw: list[tuple[Path, str]] = []
+        display = _RecordingDisplay()
+        sub = _subscription(display, browse_log=brw, enabled=False)
+        await sub.on_callback("z-spec-browse")
+        return brw, len(display.shows)
+
+    ran, shown = asyncio.run(scenario())
+
+    assert (ran, shown) == ([], 0)
+
+
+def test_enablement_is_re_read_per_click_not_captured_at_registration() -> None:
+    """Turning z-spec off mid-session must silence the entries already on screen."""
+
+    async def scenario() -> tuple[int, int]:
+        enabled = True
+        brw: list[tuple[Path, str]] = []
+        sub = ZSpecSubscription(
+            entries=_entries([], brw),
+            menu=_RecordingMenu(),
+            listen=_unused_listen,
+            display=_RecordingDisplay(),
+            is_enabled=lambda: enabled,
+        )
+        await sub.on_callback("z-spec-browse")
+        before = len(brw)
+        enabled = False
+        await sub.on_callback("z-spec-browse")
+        return before, len(brw)
+
+    before, after = asyncio.run(scenario())
+
+    assert (before, after) == (1, 1)
+
+
 def test_on_event_is_a_noop() -> None:
     async def scenario() -> None:
         sub = _subscription(_RecordingDisplay())
@@ -323,6 +387,7 @@ def test_a_failing_click_logs_and_replaces_the_placeholder(
             menu=_RecordingMenu(),
             listen=_unused_listen,
             display=display,
+            is_enabled=lambda: True,
         )
         with caplog.at_level(logging.WARNING):
             await sub.on_callback("z-spec-browse")
@@ -359,6 +424,7 @@ def test_a_stopped_subscription_runs_again_when_restarted() -> None:
             menu=menu,
             listen=_listen_factory(made),
             display=_RecordingDisplay(),
+            is_enabled=lambda: True,
         )
 
         first = asyncio.create_task(sub.run())

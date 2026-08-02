@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import logging
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -21,17 +21,10 @@ if TYPE_CHECKING:
 
     from punt_zspec.types import Collection, SpecModel, SpecReports
 
-logger = logging.getLogger(__name__)
-
 # The module's one public name: every tool is reached through the server, and
 # the lifespan is FastMCP's to call (PL-CU-3).
 __all__ = ["lifespan", "mcp"]
 
-
-# One per MCP server process: the persistent app-identity lux client, the display
-# every render tool shares, and the menu listener. Constructed lazily-connecting,
-# so a down luxd never blocks import or the check/test/animate tool surface.
-_SESSION = ZSpecLuxSession()
 
 # The repo the user has open. Never ``Path.cwd()``: plugin.json runs the server
 # as ``uv run --directory ${CLAUDE_PLUGIN_ROOT}``, and uv chdirs before exec, so
@@ -49,21 +42,24 @@ _PROJECT_DIR = str(_PROJECT_ROOT)
 # project root is re-read on every call, so no state outlives an ``enable`` run.
 _GATE = EnablementGate(_PROJECT_ROOT)
 
+# One per MCP server process: the persistent app-identity lux client, the display
+# every render tool shares, and the menu listener. Constructed lazily-connecting,
+# so a down luxd never blocks import or the check/test/animate tool surface. It
+# is handed the same gate the tools are guarded by, so the menu answers to the
+# marker exactly as they do, and re-reads it — never a startup snapshot.
+_SESSION = ZSpecLuxSession(_GATE.is_open, cwd=_PROJECT_ROOT)
+
 
 @asynccontextmanager
 async def lifespan(_server: FastMCP) -> AsyncIterator[None]:
-    """Start the menu listener on entry and drain it on shutdown (best-effort).
+    """Sync the menu listener to the marker on entry, drain it on shutdown.
 
-    In a repo with no marker the listener never starts, so z-spec contributes
-    no entries to the shared lux menu. The plugin loads in every Claude Code
-    session against one daemon serving one window; without this, every session
-    would register its entries in every repo.
+    In a repo with no marker nothing connects, so z-spec contributes no entries
+    to the shared lux menu. The plugin loads in every Claude Code session
+    against one daemon serving one window; without this, every session would
+    register its entries in every repo.
     """
-    if not _GATE.is_open():
-        logger.info("z-spec is not enabled here — lux menu registration skipped")
-        yield
-        return
-    await _SESSION.start()
+    await _SESSION.sync()
     try:
         yield
     finally:
@@ -309,7 +305,7 @@ def pick(directory: str = _PROJECT_DIR) -> str:
 
 
 @mcp.tool()
-def enablement(
+async def enablement(
     action: Literal["enable", "disable"], directory: str = _PROJECT_DIR
 ) -> str:
     """Turn z-spec on or off in this repository.
@@ -320,6 +316,10 @@ def enablement(
     leaves the rest of `.punt-labs/z-spec/` dormant. Enabling is idempotent and
     is also the upgrade path. Neither runs git: commit the marker in a PR.
 
+    Both verbs take effect immediately, on the menu as well as on the tools:
+    enabling brings the Tutorial and Browse entries up on the shared lux window
+    and disabling takes them down, with no server reconnect either way.
+
     Args:
         action: "enable" or "disable".
         directory: Directory inside the repository to act on. Defaults to the
@@ -329,7 +329,13 @@ def enablement(
         JSON with ok (bool), action, enabled (bool), and the marker, guide,
         and import_line paths, or error.
     """
-    return RepoEnablement.apply(EnablementAction(action), Path(directory)).to_json()
+    # Off-thread: the working-tree writes block, and this is the one tool that
+    # runs on the loop the listener shares (ADR §5.3).
+    result = await asyncio.to_thread(
+        RepoEnablement.apply, EnablementAction(action), Path(directory)
+    )
+    await _SESSION.sync()
+    return result.to_json()
 
 
 @mcp.tool()
