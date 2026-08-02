@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
+
 from punt_zspec.commands.picker import PickerCommand, PickerResult
 from punt_zspec.commands.result import CommandFailure
 from punt_zspec.commands.show import Display, DisplayError
@@ -181,6 +183,35 @@ def test_picker_file_argument_is_not_found(tmp_path: Path) -> None:
     error = result.error
     assert error is not None
     assert error.kind is CommandFailure.spec_not_found
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        ValueError("bad json"),  # json.JSONDecodeError ⊂ ValueError
+        OSError("permission denied"),  # read_text TOCTOU / permission race
+        UnicodeDecodeError("utf-8", b"", 0, 1, "corrupt report"),
+    ],
+)
+def test_picker_build_raises_is_spec_unreadable(tmp_path: Path, exc: Exception) -> None:
+    _write(tmp_path / "a.tex", "SPEC a")
+
+    def _raising_build(_specs: list[tuple[Path, SpecModel]], _root: Path) -> object:
+        raise exc
+
+    cmd = PickerCommand(
+        build=_raising_build,
+        display=_recording_display([]),
+        parse=_fake_parse,
+    )
+
+    result = cmd.run(tmp_path)
+
+    assert not result.is_ok
+    error = result.error
+    assert error is not None
+    assert error.kind is CommandFailure.spec_unreadable
+    assert str(exc) in error.message
 
 
 def test_picker_display_failed(tmp_path: Path) -> None:

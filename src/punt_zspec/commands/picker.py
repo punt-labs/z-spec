@@ -91,7 +91,7 @@ class PickerCommand:
             )
         try:  # PY-EH-5 exception: report load / scene build is an I/O boundary
             scene = self._build(specs, directory)
-        except (FileNotFoundError, ValueError) as exc:
+        except (FileNotFoundError, OSError, UnicodeDecodeError, ValueError) as exc:
             return CommandResult[PickerResult].failed(
                 CommandError(CommandFailure.spec_unreadable, str(exc))
             )
