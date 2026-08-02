@@ -66,7 +66,10 @@ jobs:
           cd "${RUNNER_TEMP}/fuzz"
           ./configure
           make
-          echo "${RUNNER_TEMP}/fuzz/src" >> "${GITHUB_PATH}"
+          # `make install` is not optional: fuzz reads its prelude from
+          # $libdir/fuzzlib at run time, so the binary alone exits with
+          # "can't read prelude file". This also lands fuzz on PATH.
+          sudo make install
 
       # The ProB release tarball carries probcli; pinned rather than "latest" so
       # a spec gate failure means the specs changed, not the tool. The archive
