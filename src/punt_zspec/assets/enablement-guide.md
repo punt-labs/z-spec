@@ -6,9 +6,9 @@ this repo — not how to develop z-spec itself.
 
 z-spec is per-repo: its MCP tools and its lux menu entries are live only where
 someone ran `z-spec enable` and committed `.punt-labs/z-spec/enabled`. In a repo
-with no marker every MCP tool declines with a one-line message and the plugin
-registers nothing. The `z-spec` CLI is never gated — a shell invocation is
-deliberate by definition.
+with no marker every MCP tool declines with a one-line message naming the enable
+command, and z-spec contributes no lux menu entries. The `z-spec` CLI is never
+gated — a shell invocation is deliberate by definition.
 
 ## Enabling z-spec in a repo
 
