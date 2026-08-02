@@ -26,18 +26,20 @@ no-op. It never runs git.
 
 ## Output
 
+The three paths are where the marker, the guide, and the import line were —
+the marker and the line are gone, the guide is dormant. This is what
+`z-spec disable` prints, and the tool returns the same values:
+
 ```
-z-spec disabled in /path/to/repo
-
-  marker: removed
-  guide:  .punt-labs/z-spec/CLAUDE.md (dormant)
-  import: removed from CLAUDE.md
-
+z-spec disabled in /repo
+  marker: /repo/.punt-labs/z-spec/enabled
+  guide:  /repo/.punt-labs/z-spec/CLAUDE.md
+  import: @.punt-labs/z-spec/CLAUDE.md
 Commit its removal so the repo stays off for everyone.
 ```
 
-If `ok` is false the repository could not be found — you are outside a git
-working tree. Report the error verbatim.
+If `ok` is false, either you are outside a git working tree or the repository
+refused the write. Report the error verbatim.
 
 ## Notes
 

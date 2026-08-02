@@ -28,20 +28,19 @@ marker. It never runs git.
 
 ## Output
 
-Report the three paths, then the one action left for the human:
+Report the three paths, then the one action left for the human. This is what
+`z-spec enable` prints, and the tool returns the same values:
 
 ```
-z-spec enabled in /path/to/repo
-
-  marker: .punt-labs/z-spec/enabled
-  guide:  .punt-labs/z-spec/CLAUDE.md
+z-spec enabled in /repo
+  marker: /repo/.punt-labs/z-spec/enabled
+  guide:  /repo/.punt-labs/z-spec/CLAUDE.md
   import: @.punt-labs/z-spec/CLAUDE.md
-
 Commit the marker so enablement travels with the repo.
 ```
 
-If `ok` is false the repository could not be found — you are outside a git
-working tree. Report the error verbatim; do not create a repository.
+If `ok` is false, either you are outside a git working tree or the repository
+refused the write. Report the error verbatim; do not create a repository.
 
 ## Notes
 
