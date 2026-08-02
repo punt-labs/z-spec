@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from pytest import MonkeyPatch
 
 _FOR_IDENTITY = "punt_zspec.lux.clients.LuxRestClient.for_identity"
+_CONNECT = "punt_zspec.lux.clients.LuxHubClient.connect"
 _LISTENER = object()
 
 
@@ -28,26 +29,27 @@ def test_rest_builds_a_client_for_the_app_identity(monkeypatch: MonkeyPatch) -> 
 
     identity = captured["identity"]
     assert getattr(identity, "kind", None) == "app"
-    assert getattr(identity, "name", None) == "z-spec · repo · #7"
+    assert getattr(identity, "name", None) == "z-spec / repo / #7"
     assert getattr(identity, "lease_ttl", None) == 30.0
 
 
-def test_listen_wires_the_handlers_onto_the_shared_client(
+def test_listen_builds_a_hub_leg_on_the_app_identity(
     monkeypatch: MonkeyPatch,
 ) -> None:
     seen: dict[str, object] = {}
 
-    class _FakeClient:
-        def listener(
-            self, *, on_callback: object, on_event: object, on_connect: object
-        ) -> object:
-            seen["handlers"] = (on_callback, on_event, on_connect)
-            return _LISTENER
+    def fake_connect(
+        identity: object,
+        *,
+        on_callback: object,
+        on_event: object,
+        on_connect: object,
+    ) -> object:
+        seen["identity"] = identity
+        seen["handlers"] = (on_callback, on_event, on_connect)
+        return _LISTENER
 
-    def fake_for_identity(*_a: object, **_k: object) -> object:
-        return _FakeClient()
-
-    monkeypatch.setattr(_FOR_IDENTITY, fake_for_identity)
+    monkeypatch.setattr(_CONNECT, fake_connect)
     clients = ZSpecLuxClients(identity=ZSpecLuxIdentity("repo", 7))
 
     async def cb(_id: str) -> None: ...
@@ -56,7 +58,12 @@ def test_listen_wires_the_handlers_onto_the_shared_client(
 
     result = clients.listen(on_callback=cb, on_event=ev, on_connect=cn)
 
-    # The listener rides on a REST client of the same identity, and the receive
+    # The receive leg is a LuxHubClient on the app identity's canonical /ws
+    # connection — luxd links a same-identity REST menu registration to it. The
     # handlers are passed straight through.
     assert result is _LISTENER
     assert seen["handlers"] == (cb, ev, cn)
+    identity = seen["identity"]
+    assert getattr(identity, "kind", None) == "app"
+    assert getattr(identity, "name", None) == "z-spec / repo / #7"
+    assert getattr(identity, "lease_ttl", None) == 30.0

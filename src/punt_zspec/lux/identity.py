@@ -1,11 +1,7 @@
 """``ZSpecLuxIdentity`` — the per-session app identity and its menu labels.
 
-z-spec is a lux *app*: it declares an explicit ``kind=app`` identity named for the
-repo and pid rather than deriving a ``cli`` identity from the working directory.
-Two same-repo sessions get distinct identities (the pid separates them), so each
-owns its own menu entries and a click routes back to the session that registered
-it. The name and the two menu labels carry both axes — tool (Tutorial vs Browse)
-and session (repo + pid) — so a human with two sessions never clicks the wrong one.
+z-spec is a lux *app*: an explicit ``kind=app`` identity named for the repo and pid.
+The pid separates same-repo sessions; the two menu labels carry tool and session axes.
 """
 
 from __future__ import annotations
@@ -27,12 +23,18 @@ class ZSpecLuxIdentity:
 
     _repo: str
     _pid: int
-    __slots__ = ("_pid", "_repo")
+    _client_identity: ClientIdentity
+    __slots__ = ("_client_identity", "_pid", "_repo")
 
     def __new__(cls, repo: str, pid: int) -> Self:
         self = super().__new__(cls)
         self._repo = repo
         self._pid = pid
+        # Build the identity once so both legs hand luxd the SAME object — luxd
+        # links a REST registration to the listen leg only when byte-identical.
+        self._client_identity = ClientIdentity(
+            kind="app", name=self.app_name, lease_ttl=_LEASE_TTL_SECONDS
+        )
         return self
 
     @classmethod
@@ -50,8 +52,13 @@ class ZSpecLuxIdentity:
 
     @property
     def app_name(self) -> str:
-        """Return the luxd menu disambiguator: ``z-spec · <repo> · #<pid>``."""
-        return f"z-spec · {self._repo} · #{self._pid}"
+        """Return the identity name ``z-spec / <repo> / #<pid>`` — ASCII-only.
+
+        It rides the ``X-Lux-Client-Name`` header luxd hashes into the ConnectionId.
+        A non-ASCII separator (e.g. ``·``, U+00B7) encodes to different bytes on the
+        WebSocket and REST legs, so luxd links no listen leg and refuses the register.
+        """
+        return f"z-spec / {self._repo} / #{self._pid}"
 
     @property
     def tutorial_label(self) -> str:
@@ -65,7 +72,5 @@ class ZSpecLuxIdentity:
 
     @property
     def client_identity(self) -> ClientIdentity:
-        """Return the app ``ClientIdentity`` (30s menu lease) both legs share."""
-        return ClientIdentity(
-            kind="app", name=self.app_name, lease_ttl=_LEASE_TTL_SECONDS
-        )
+        """Return the one app ``ClientIdentity`` (30s lease) both legs share."""
+        return self._client_identity

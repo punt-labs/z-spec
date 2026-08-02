@@ -25,6 +25,13 @@ __all__ = ["ZSpecMenuRegistrar"]
 
 logger = logging.getLogger(__name__)
 
+# on_connect registers when the listen leg is live and linkable, so the happy path
+# succeeds on the first attempt. The bounded retry is best-effort defense-in-depth
+# against a transient registration refusal — NOT the contract. register_callback is
+# idempotent by callback_id, so a retry never double-registers.
+_MAX_ATTEMPTS = 4
+_RETRY_BACKOFF_SECONDS = 1.5
+
 
 @final
 class ZSpecMenuRegistrar:
@@ -42,22 +49,29 @@ class ZSpecMenuRegistrar:
         """Register the ``label`` menu entry off-thread, dropping any lux failure.
 
         A best-effort REST I/O boundary (PY-EH-6): a down luxd logs a warning; any
-        other transport fault is logged with its traceback and swallowed. Nothing
-        is raised, so a failed registration can never escape into the receive
+        other transport fault is logged with its traceback and swallowed. An
+        ``OpError`` refusal is retried a bounded number of times with a short backoff
+        — defense-in-depth against a transient failure — then logged and dropped.
+        Nothing is raised, so a failed registration can never escape into the receive
         leg's guarded restart and turn a missing menu into a dropped connection.
         """
-        try:
-            client = await asyncio.to_thread(self._connect)
-            result = await asyncio.to_thread(
-                client.register_callback, callback_id, label
-            )
-        except HubUnavailableError:
-            logger.warning("luxd unavailable; %r menu entry not registered", label)
-            return
-        except Exception:
-            logger.exception("[lux] %r menu registration failed", label)
-            return
-        if isinstance(result, OpError):
+        for attempt in range(1, _MAX_ATTEMPTS + 1):
+            try:
+                client = await asyncio.to_thread(self._connect)
+                result = await asyncio.to_thread(
+                    client.register_callback, callback_id, label
+                )
+            except HubUnavailableError:
+                logger.warning("luxd unavailable; %r menu entry not registered", label)
+                return
+            except Exception:
+                logger.exception("[lux] %r menu registration failed", label)
+                return
+            if not isinstance(result, OpError):
+                return
+            if attempt < _MAX_ATTEMPTS:
+                await asyncio.sleep(_RETRY_BACKOFF_SECONDS)
+                continue
             logger.error(
                 "luxd rejected the %r menu registration: %s", label, result.reason
             )

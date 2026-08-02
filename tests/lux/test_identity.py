@@ -16,7 +16,19 @@ if TYPE_CHECKING:
 def test_app_name_carries_repo_and_pid() -> None:
     identity = ZSpecLuxIdentity("my-repo", 4242)
 
-    assert identity.app_name == "z-spec · my-repo · #4242"
+    assert identity.app_name == "z-spec / my-repo / #4242"
+
+
+def test_app_name_is_ascii_but_labels_keep_the_middle_dot() -> None:
+    # The identity name is the X-Lux-Client-Name header luxd hashes into the
+    # ConnectionId; a non-ASCII separator encodes to different bytes on the WS and
+    # REST transports, so luxd links no listen leg and refuses the register. The
+    # labels ride register_callback's JSON body (UTF-8), so they keep the "·".
+    identity = ZSpecLuxIdentity("my-repo", 4242)
+
+    assert identity.app_name.isascii()
+    assert not identity.tutorial_label.isascii()
+    assert not identity.browse_label.isascii()
 
 
 def test_labels_carry_both_tool_and_session_axes() -> None:
@@ -35,14 +47,14 @@ def test_client_identity_is_a_30s_app_lease() -> None:
     client_identity = identity.client_identity
 
     assert client_identity.kind == "app"
-    assert client_identity.name == "z-spec · my-repo · #4242"
+    assert client_identity.name == "z-spec / my-repo / #4242"
     assert client_identity.lease_ttl == 30.0
 
 
 def test_for_session_uses_this_pid_and_the_z_spec_repo() -> None:
     identity = ZSpecLuxIdentity.for_session()
 
-    assert identity.app_name.startswith("z-spec · ")
+    assert identity.app_name.startswith("z-spec / ")
     assert identity.app_name.endswith(f"#{os.getpid()}")
 
 
@@ -57,4 +69,4 @@ def test_for_session_resolves_the_enclosing_git_repo(
     identity = ZSpecLuxIdentity.for_session()
 
     # Walks up from the cwd to the nearest .git and names the session for it.
-    assert identity.app_name == f"z-spec · {tmp_path.name} · #{os.getpid()}"
+    assert identity.app_name == f"z-spec / {tmp_path.name} / #{os.getpid()}"
