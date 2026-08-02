@@ -1,4 +1,4 @@
-.PHONY: help lint type test check check-oo update-oo check-coupling update-coupling check-suppressions update-suppressions check-dev-commands gen-dev-commands format build clean depot assert report
+.PHONY: help lint type test test-py test-e2e check check-oo update-oo check-coupling update-coupling check-suppressions update-suppressions check-dev-commands gen-dev-commands format build install uat clean depot assert report spec-reports metrics coverage
 
 FUZZ      ?= fuzz
 PROBCLI   ?= $(HOME)/Applications/ProB/probcli
@@ -36,6 +36,9 @@ test: test-py $(addprefix test-z-,$(SPEC_NAMES)) ## Run Python tests and model-c
 
 test-py:
 	uv run pytest tests/ -v
+
+test-e2e: ## Tier 5 — drive the INSTALLED binary and MCP server (run make install first)
+	uv run pytest tests/e2e -v -m e2e
 
 test-z-%: examples/%.tex
 	@echo "probcli $< (setsize=$(SETSIZE))"
@@ -94,6 +97,29 @@ build: ## Build wheel and sdist
 	uv build
 	uvx twine check dist/*
 
+install: build ## Build the wheel and install the z-spec CLI locally
+	uv tool install --force dist/*.whl
+	@echo ""
+	@echo "  CLI installed: $$(z-spec --version 2>/dev/null || echo '(z-spec not on PATH)')"
+	@echo ""
+	@echo "  The RUNNING MCP server still holds the OLD code. A reinstall does"
+	@echo "  not restart it. Reconnect the z-spec MCP server before exercising"
+	@echo "  any MCP tool, lux menu entry, or slash command."
+
+uat: install ## Build, install, then run the acceptance flight by hand
+	@echo ""
+	@echo "  Acceptance flight: docs/testing/manual-tests.md"
+	@echo ""
+	@echo "  Hard rule: write the expected outcome BEFORE each step, then run it"
+	@echo "  and compare. Every difference is a bug. UAT passes before the PR"
+	@echo "  opens, not after."
+
+metrics: ## ABC complexity metrics on src/
+	uv run python tools/run_metrics.py
+
+coverage: ## Run tests with coverage report (terminal + HTML)
+	uv run python tools/run_coverage.py
+
 DEPOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))../.depot
 
 depot: build ## Build and copy wheel to local depot
@@ -115,8 +141,28 @@ assert-%: examples/%.tex
 	echo ""; \
 	exit $$rc
 
-report: $(addprefix report-,$(SPEC_NAMES)) ## Generate reports for all specs
+report: ## Full diagnostics — every gate and metric, no fail-fast
+	@echo "── OO score ─────────────────────────────────────────────"
 	-uv run python tools/oo_score.py src/punt_zspec/ --threshold
+	@echo "── Coupling ─────────────────────────────────────────────"
+	-uv run python tools/oo_coupling.py src/punt_zspec/ --threshold
+	@echo "── Suppressions ─────────────────────────────────────────"
+	-uv run python tools/suppression_ratchet.py src/punt_zspec/ --threshold
+	@echo "── Types (mypy) ─────────────────────────────────────────"
+	-uv run mypy src/ tests/
+	@echo "── Types (pyright) ──────────────────────────────────────"
+	-uv run pyright src/ tests/
+	@echo "── Formatting ───────────────────────────────────────────"
+	-uv run ruff format --check src/ tests/
+	@echo "── Lint ─────────────────────────────────────────────────"
+	-uv run ruff check .
+	@echo "── Tests ────────────────────────────────────────────────"
+	-uv run pytest
+	@echo "── Z specs (fuzz) ───────────────────────────────────────"
+	-$(MAKE) --keep-going $(addprefix type-z-,$(SPEC_NAMES))
+	@echo "Report complete."
+
+spec-reports: $(addprefix report-,$(SPEC_NAMES)) ## Generate probcli reports for all specs
 
 report-%: examples/%.tex
 	@echo "report $<"

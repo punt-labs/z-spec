@@ -1,79 +1,312 @@
-# Agent Instructions
+# z-spec
 
-This is a Claude Code plugin and Python package (`punt-z-spec`) for formal Z specifications. The plugin uses skill prompts (L4) to guide spec creation, type-checking, and animation. Deterministic work — parsing, binary wrappers, report I/O, applet rendering — lives in the Python package (L1). Skills call L1 MCP tools instead of raw bash.
+Part of [Punt Labs](https://github.com/punt-labs). This repo must be checked out inside the `punt-labs/` workspace meta-repo so that org-wide configuration loads via Claude Code's ancestor directory walk:
 
-This project follows [Punt Labs standards](https://github.com/punt-labs/punt-kit).
+- **`punt-labs/CLAUDE.md`** — org workflow, delegation model, beads issue tracking, tool configuration
+- **`punt-labs/.claude/rules/python-*.md`** — Python OO coding rules, scoped via `paths:` frontmatter (load on-demand when `.py` files are touched)
+- **`punt-labs/.envrc`** — git identity, beads DB connection, API keys from platform keychain
+- **`punt-kit/standards/`** — canonical reference docs
 
-## No "Pre-existing" Excuse
+If cloned outside the workspace, these rules and configuration will not be present.
 
-There is no such thing as a "pre-existing" issue. If you see a problem — in code you wrote, code a reviewer flagged, or code you happen to be reading — you fix it. Do not classify issues as "pre-existing" to justify ignoring them. Do not suggest that something is "outside the scope of this change." If it is broken and you can see it, it is your problem now.
+**OO Python standards adopted 2026-05-13.** The codebase does not yet fully comply. Every commit must improve OO scores (`make check-oo`), never regress. Do not match existing code patterns that violate the rules — write new code to the standard and improve touched files incrementally.
 
-## Scratch Files
+Formal Z specification toolkit: a `fuzz`/`probcli` wrapper, an MCP server, a CLI, and a Claude Code plugin whose skill prompts guide spec creation, type-checking, and animation. Deterministic work — parsing, binary wrappers, report I/O, lux rendering — lives in the Python package; skills call its MCP tools instead of raw bash.
 
-Use `.tmp/` at the project root for scratch and temporary files — never `/tmp`. The `TMPDIR` environment variable is set via `.envrc` so that `tempfile` and subprocesses automatically use it. Contents are gitignored; only `.gitkeep` is tracked.
+- **Package**: `punt-z-spec` (PyPI). Always `punt-{exact-repo-name}`.
+- **CLI**: `z-spec`
+- **MCP server**: `zspec` (stdio; `z-spec mcp`)
+- **Python**: 3.13+, managed with `uv`
 
-## Quality Gates
+## Mandatory Reading
+
+Source-of-truth documents, `@`-imported so they load into context at session
+start. Read them before writing code.
+
+@docs/WORKFLOW.md
+@TESTING.md
+@../punt-kit/standards/architecture.md
+@../punt-kit/standards/oo.md
+@../punt-kit/standards/python.md
+
+`WORKFLOW.md` is the three-loop development process (backlog → PR → mission),
+with pseudocode and an entry/exit Z schema at each level. `TESTING.md` is the
+five-tier pyramid whose top tier — user acceptance testing against the installed
+artifact — gates the PR. The `punt-kit/standards` imports are the org's
+canonical engine-and-clients architecture, object-oriented stance, and Python
+standard, including the ratchet suite this repo runs — cross-repo (external)
+imports, so the first load may ask for approval.
+
+## Read This First
+
+**`make check` passing is not evidence that a feature works.** It means the code
+compiles, the types hold, the unit tests pass, and every spec in `examples/`
+type-checks and model-checks. It says nothing about what a person sees when they
+run the CLI, call the MCP tool, or click the lux menu entry.
+
+The verification of record for every user-facing surface is **the feature
+running in the installed artifact, exercised by hand, compared against expected
+behavior written in advance** — before the PR opens. That is
+[`docs/testing/manual-tests.md`](docs/testing/manual-tests.md), reached by
+`make uat`. PR #82 shipped to review with a picker full of pytest scratch files,
+tabs labelled with truncated paths, an empty content pane, and a Tutorial stuck
+on "Loading…" — every one visible the first time a human ran it, none catchable
+by a review agent.
+
+The inner loop, run continuously while developing an interactive feature and not
+as a final packaging step:
 
 ```bash
-make check
+make check      # gates 1–4
+make uat        # build wheel + uv tool install --force dist/*.whl
+                # then RECONNECT the z-spec MCP server — a reinstall does not
+                # restart a running stdio server, and a stale server demos old code
 ```
 
-This runs `lint` (markdownlint + ruff), `type` (mypy + pyright + fuzz), and `test` (pytest + probcli). All gates must pass before commit. CI enforces this via `docs.yml`.
+## Architecture
+
+z-spec is one engine with two client surfaces. The engine is the command layer;
+the clients are the CLI and the MCP server. Neither client holds business logic
+— both resolve the same `Command` objects out of `commands/registry.py`, which
+is why `tests/commands/test_parity.py` can assert they cannot drift.
+
+```text
+z-spec CLI (__main__.py) ─┐
+                          ├─→ commands/registry.py ─→ Command ─→ fuzz.py / prob.py / report.py
+zspec MCP (server.py)  ───┘                                  └─→ display.py ─→ lux Hub
+```
+
+### Key architectural boundary: commands vs. surfaces
+
+A **command** owns one capability end to end: validate its inputs, invoke the
+binary or the store, and return a `CommandResult`. It never prints, never raises
+for expected failure, and never knows which surface called it. A **surface**
+(CLI verb, MCP tool) translates arguments in and formats results out. A feature
+that exists on one surface only is a defect, not a partial delivery.
+
+The lux integration is a third boundary: `display.py` is the only module that
+publishes scenes to the Hub, and `lux/` is the receive leg — the session,
+identity, menu registration, and click dispatch owned by the MCP server's
+FastMCP lifespan. Rendering builders (`applet.py`, `browser.py`) produce element
+trees and know nothing about transport.
+
+### Module map
+
+| Module | Responsibility |
+|--------|---------------|
+| `__main__.py` | Typer CLI — the verb surface |
+| `server.py` | FastMCP server (key: `zspec`) — the tool surface; owns the lux session lifespan |
+| `commands/registry.py` | The canonical capability list and each capability's name on each surface |
+| `commands/*.py` | One command per capability: `check`, `test`, `animate`, `model_check`, `report`, `partition`, `audit`, `show`, `browse`, `picker`, `doctor` |
+| `commands/result.py` | `CommandResult` — the envelope every command returns |
+| `commands/options.py` | Parameter bundles for the probcli-backed commands |
+| `fuzz.py` | Wrapper for the `fuzz` type-checker |
+| `prob.py` | Wrapper for the `probcli` model checker |
+| `parser.py` | LaTeX Z specification parser → `SpecModel` |
+| `report.py` | Report I/O — `<stem>.<type>.json` beside the `.tex` |
+| `manifest.py` | Tutorial collection manifests (`manifest.toml`) |
+| `display.py` | `LuxDisplay` — the one module that publishes scenes to the lux Hub |
+| `applet.py` | Builds a single spec's tabbed lux scene |
+| `browser.py` | Builds a collection's tabbed scene and the spec picker |
+| `lux/session.py` | `ZSpecLuxSession` — the per-process menu session the lifespan owns |
+| `lux/identity.py` | Per-session app identity and its menu labels (**name must be ASCII**) |
+| `lux/clients.py` | REST and hub-listener clients built from one identity |
+| `lux/menu.py`, `lux/subscription.py`, `lux/command_ports.py`, `lux/ports.py` | Menu registration, the receive leg, and its transport protocols |
+| `lux/project.py` | `ProjectRoot` — the user's open project for a plugin-launched server |
+| `types/` | Domain types: `spec`, `fuzz`, `prob`, `partition`, `audit`, `reports`, `tutorial` |
+
+### Plugin structure
+
+| Path | Responsibility |
+|------|---------------|
+| `.claude-plugin/plugin.json` | Manifest; dev tree carries `"name": "z-spec-dev"`, MCP server `zspec` runs `uv run --directory ${CLAUDE_PLUGIN_ROOT} z-spec mcp` |
+| `commands/` | Slash commands — each prod command has a generated `-dev` twin (`make gen-dev-commands`, gated by `make check-dev-commands`) |
+| `hooks/` | Session hooks |
+| `examples/` | The spec corpus — type-checked and model-checked by `make check` |
+| `templates/preamble.tex` | Minimal LaTeX preamble for new specs |
+| `tutorials/` | Tutorial lesson collections |
+
+`ZSPEC_PLUGIN_ROOT` resolves the tutorial manifest in an installed plugin; a
+standalone wheel install needs `importlib.resources` packaging (bead
+`z-spec-9v6`).
+
+## Code Quality
+
+Three ratchets, adopted **verbatim from vox** — the canonical implementation for
+Python projects at Punt Labs. The tool sources under `tools/oo_ratchet/`,
+`tools/coupling/`, and `tools/suppression/` are byte-identical to vox's; keep
+them that way. Fixes go to vox first and are re-copied here, never patched in
+place. (`tools/*` carries one ruff per-file ignore in `pyproject.toml` for
+exactly this reason.)
+
+**OO ratchet:** `make check-oo` (part of `make check`) compares current OO scores
+against `.oo-baseline.json`. It passes only if no metric regressed on touched
+files **and at least one metric improved**. It fails if any metric got worse or
+nothing improved. `make check-coupling` and `make check-suppressions` are the
+same discipline for module coupling and for `# noqa` / `# type: ignore` counts.
+
+**Do not negotiate with the ratchet.** Do not edit `.oo-baseline.json` by hand
+except via `--rebaseline` for structural refactors. Do not suppress `check-oo`.
+If the ratchet fails, improve the code until it passes.
+
+**"No metric improved" means do a good deed, not a rebaseline.** When
+`check-oo` reports *"no metric improved on any touched file,"* the ratchet is
+telling you this change grew or churned code without paying anything down. The
+correct response is a **genuine improvement** — extract a god-method, split an
+oversized module, collapse a conditional forest, in a touched file *or*
+unrelated nearby debt — **never** a blanket `--rebaseline` to escape the gate.
+`--rebaseline` for a structural refactor is **not** a substitute for the
+paydown: even a large feature commit must leave at least one metric genuinely
+better. Distinguish a **scoped** rebaseline — only the specific `file+metric`
+entries that must grow to carry real feature substance, each with a one-line
+justification of *why* it is unavoidable, and every *improved* metric left at
+its old baseline so it registers as IMPROVED — from a **blanket** rebaseline
+that records all growth and retires no debt. The blanket form is the negotiation
+this section forbids. When you rebaseline `.oo-baseline.json`, check
+`.oo-coupling-baseline.json` too — a structural change often grows coupling.
+
+**The ratchet is tech-debt paydown — make medium-scale improvements, do not
+squeeze under the limit.** It exists to retire OO and complexity debt across the
+whole codebase a little at a time, the way you amortize a loan. This is
+deliberately counterintuitive: it means taking on scope *beyond* the immediate
+task, and that added scope is the point. When you touch a file, make a
+*substantive* improvement to it — extract a class, break up a god method,
+replace a primitive-obsessed signature with a type — not the smallest metric
+nudge that scrapes past the gate. Gaming the minimum burns more time than a real
+improvement and retires no debt. **Never game a size or complexity metric by
+stripping comments or docstrings** — `module_size` is retired by extracting
+classes and splitting modules, never by compressing prose.
+
+**Org standards override review tools.** Copilot, Bugbot, and Cursor are
+advisory. When a review suggestion conflicts with `../.claude/rules/python-*.md`,
+the rules win. Read the rules before accepting a reviewer's suggestion.
+
+**Verify outputs, not just metrics.** After writing a file, open it and read the
+content. `make check` passing does not mean the feature works.
+
+Workflow:
+
+1. Write code that improves OO quality on the files you touch.
+2. `make check` runs the three ratchets automatically. If one fails, fix the
+   regression.
+3. After all checks pass, run `make update-oo` (and `update-coupling` /
+   `update-suppressions` if those moved).
+4. Stage the baselines and audit logs with your commit — they are committed
+   files.
+
+Targets: `make check-oo`, `make update-oo`, `make check-coupling`,
+`make update-coupling`, `make check-suppressions`, `make update-suppressions`,
+`make report` (full diagnostics, no fail-fast), `make metrics` (ABC complexity),
+`make coverage` (HTML report).
+
+## Development Loop
+
+The development workflow is **three nested loops** — the **backlog loop** (what
+to work on and in what order), the **PR loop** (one rollback-coherent merge), and
+the **mission loop** (one delegated piece of work) — defined authoritatively in
+**[`docs/WORKFLOW.md`](docs/WORKFLOW.md)**, `@`-imported above so it loads at
+session start. Read it before any code change.
+
+The z-spec-specific precision: `make check` green before every commit;
+`make uat` **and an MCP server reconnect** before exercising any MCP, slash
+command, or lux menu path, because a reinstall does not restart a running stdio
+server; the local review agents (`code-reviewer` and `silent-failure-hunter`)
+iterated to a zero-findings round; and the **acceptance flight run by hand
+before the PR opens** ([`docs/testing/manual-tests.md`](docs/testing/manual-tests.md)),
+because no review agent can see an empty pane. Merge mechanics and recap-email
+discipline are in the org workflow (`../CLAUDE.md`).
+
+### PR boundaries
+
+Split by **rollback granularity**, not size. If this broke production, what
+reverts together? That is one PR. "The diff is large" and "separate concern" are
+prohibited split reasons — independent rollback capability and sequential
+dependency are the only valid ones.
+
+**One branch, one PR.** A design step is a commit in the PR that implements it,
+never a separate design branch with its own doc-PR and review cycle. Do not
+review until it works.
+
+**PRs do not need to be "pure," and purity is never a reason to hold back an
+improvement.** These PRs are agent-reviewed and squash-merged. A docs tweak, a
+ratchet paydown, or an adjacent bug fix riding along with a feature is welcome.
+The one real constraint is mechanical: when multiple agents share one worktree,
+sequence them so no one's work is clobbered.
+
+## Testing
+
+Five tiers, defined in **[`TESTING.md`](TESTING.md)**, `@`-imported above.
+
+| Tier | Command | In CI | Proves |
+|------|---------|-------|--------|
+| Unit | `make test-py` | no | each module in isolation |
+| Spec type-check | `make type` | no | every `examples/*.tex` is fuzz-clean |
+| Spec model-check | `make test` | no | probcli finds no counterexample |
+| Surface parity | `test_parity.py` | no | CLI verb and MCP tool resolve to one command |
+| **Acceptance (UAT)** | `make uat` + the flight | no — a human | the installed CLI, the reconnected server, and the lux window do the right thing |
+
+**Nothing but markdownlint runs in CI.** There is no `test.yml` or `lint.yml` —
+only `docs.yml`, `release.yml`, and `biff-notify.yml`. A green PR attests to the
+markdown and nothing else, so the local `make check` is the only real gate.
+There is also no subprocess/E2E tier: no test runs the installed binary or drives
+the MCP server over stdio. Both gaps are recorded in `TESTING.md`.
+
+**UAT runs before the PR, not after.** `-bad.tex` specs are deliberate
+anti-pattern demonstrations, excluded from the gates by the `SPECS` filter in
+the Makefile — only use that suffix for specs designed to fail.
 
 ## Z Reference Materials (Quarry)
 
-The **`z-specification`** Quarry collection contains the authoritative Z notation reference library: the Z textbook (`zedbook.pdf`), fuzz type-checker manual (`fuzzman.pdf`), Bowen's formal specs guide, lecture slides (00–12), semantics slides (00–07), exercises, solutions, and course notes. This collection is sourced from the Z textbook collection and registered for incremental sync.
+The **`z-specification`** Quarry collection is the authoritative Z reference
+library: the Z textbook (`zedbook.pdf`), the fuzz manual (`fuzzman.pdf`),
+Bowen's formal specs guide, lecture and semantics slides, exercises, solutions,
+and course notes.
 
-**You must use Quarry (`mcp__quarry__search_documents` with `collection: "z-specification"`) to ground your Z work in these materials.** Before writing schemas, choosing conventions, or answering questions about Z notation, search this collection first. Do not rely on training data alone — these documents define the correct notation, typing rules, and idioms for this project.
+**Use Quarry (`mcp__quarry__search_documents` with `collection:
+"z-specification"`) to ground every Z decision.** Before writing schemas,
+choosing conventions, or answering questions about Z notation, search this
+collection. Training-data Z is unreliable.
 
-## What NOT to Change Without Care
+### Z conventions (ProB-compatible)
 
-- **z-spec skill prompt** — the skill ships from `claude-plugins` marketplace once the plugin is built. Test by running `/z-spec:check` and `/z-spec:test` after any edit. (The prompt is not yet committed in this repo; populate `skills/z-spec/SKILL.md` here when the plugin layout lands.)
-- **Z notation conventions** — the plugin outputs ProB-compatible Z (avoids B keyword conflicts, uses bounded integers, flat schemas). These constraints are intentional.
+These constraints are intentional — do not "modernize" them:
 
-## Documentation Discipline
-
-### CHANGELOG
-
-Entries are written in the PR branch, before merge — not retroactively on main. If a PR changes user-facing behavior and the diff does not include a CHANGELOG entry, the PR is not ready to merge. Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format under `## [Unreleased]`.
-
-### README
-
-Update README.md when user-facing behavior changes (new flags, commands, defaults, config, spec conventions).
-
-### PR/FAQ
-
-Update prfaq.tex when the change shifts product direction or validates/invalidates a risk assumption.
-
-## Pre-PR Checklist
-
-- [ ] **CHANGELOG entry** included in the PR diff under `## [Unreleased]` ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format)
-- [ ] **README updated** if user-facing behavior changed (new flags, commands, defaults, config, spec conventions)
-- [ ] **PR/FAQ updated** if the change shifts product direction or validates/invalidates a risk assumption
-- [ ] **Quality gates pass** — `npx markdownlint-cli2 "**/*.md" "#node_modules"`
-
-### Code Review Flow
-
-Do **not** merge immediately after creating a PR. Expect **2–6 review cycles** before merging.
-
-1. **Create PR** — push branch, open PR via `mcp__github__create_pull_request`. Prefer MCP GitHub tools over `gh` CLI.
-2. **Request Copilot review** — use `mcp__github__request_copilot_review`.
-3. **Watch for feedback in the background** — `gh pr checks <number> --watch` in a background task or separate session. Do not stop waiting. Copilot and Bugbot may take 1–3 minutes after CI completes.
-4. **Read all feedback** via MCP: `mcp__github__pull_request_read` with `get_reviews` and `get_review_comments`.
-5. **Take every comment seriously.** There is no such thing as "pre-existing" or "unrelated to this change" — if you can see it, you own it. If you disagree, explain why in a reply.
-6. **Fix and re-push** — commit fixes, push, re-run quality gates.
-7. **Repeat steps 3–6** until the latest review is **uneventful** — zero new comments, all checks green.
-8. **Merge only when the last review was clean** — use `mcp__github__merge_pull_request` (not `gh pr merge`).
-
-## Issue Tracking
-
-This project uses **beads** (`bd`) for issue tracking. If an issue discovered here affects multiple repos or requires a standards change, escalate to a [punt-kit bead](https://github.com/punt-labs/punt-kit) instead (see [bead placement scheme](../CLAUDE.md#where-to-create-a-bead)).
+- `\quad~` for continuation lines inside `\begin{zed}`; fuzz does not support `\t1`.
+- `ZBOOL ::= ztrue | zfalse`, not a native Bool.
+- Optional values as `\finset X` with `\# x \leq 1`.
+- `maxFoo : \nat` bounds so ProB can animate.
+- Two-letter lowercase free-type prefixes (`sp` for SessionPhase, `tp` for
+  ToolPhase) to avoid B keyword conflicts.
+- Flat schemas; avoid B keyword collisions.
 
 ## Ethos & Delegation
 
-Identity: `agent: claude` per `.punt-labs/ethos.yaml`. Sub-agent calls (`Agent(subagent_type=…)`) match ethos identity handles.
+Identity: `agent: claude` per `.punt-labs/ethos.yaml`. Sub-agent calls
+(`Agent(subagent_type=…)`) match ethos identity handles. All code delegation
+uses ethos missions; **dispatch is two operations** — `ethos mission create`
+writes the contract, a separate `Agent(..., run_in_background=true)` starts the
+worker.
 
-z-spec is a hybrid Claude Code plugin + Python package for formal Z specifications. Its specialists are Z's foundational authors: **jms** (Mike Spivey, *The Z Notation Reference Manual*, fuzz type-checker) and **jra** (Jean-Raymond Abrial, originator of Z and B-method). Together they hold authority on notation, typing rules, and proof obligations. Beneath them sit the standard Python and CLI specialists who ship the deterministic L1 layer. Within each row, the worker and evaluator must be distinct handles. Claude is the leader, never the evaluator.
+**The COO does not write code.** The only files the leader edits directly:
+`CHANGELOG.md`, `CLAUDE.md`, `README.md`, `TESTING.md`, `docs/WORKFLOW.md`,
+design docs, and plan files. **The COO must not read implementation files before
+writing a design spec** — a predetermined write-set prevents the specialist from
+extracting or restructuring.
+
+**One mission = one task.** Never give an agent multiple steps in a single
+prompt.
+
+**No migration, backwards-compatibility, shim, or version-compat code — ever.**
+Punt Labs products have no installed user base to migrate. When a feature
+supersedes an old behavior, DELETE the old path in the same change. The leader
+strikes any such element from a design **before** dispatching implementation.
+
+z-spec's specialists are Z's foundational authors: **jms** (Mike Spivey, *The Z
+Notation Reference Manual*, the `fuzz` type-checker) and **jra** (Jean-Raymond
+Abrial, originator of Z and the B method). They hold authority on notation,
+typing rules, and proof obligations. Beneath them sit the Python and CLI
+specialists who ship the deterministic layer. Within each row the worker and
+evaluator are distinct; Claude is the leader, never the evaluator.
 
 | Task type | Worker | Evaluator |
 |-----------|--------|-----------|
@@ -82,18 +315,87 @@ z-spec is a hybrid Claude Code plugin + Python package for formal Z specificatio
 | Refinement / B-method / proof obligations | `jra` | `jms` |
 | Typing rules / fuzz type-checker semantics | `jms` | `jra` |
 | ProB-compatibility constraints (bounded ints, flat schemas) | `jra` | `jms` |
-| Skill prompt (planned `skills/z-spec/SKILL.md`) — guides spec creation | `jms` | `adt` (Hopper) |
-| L1 Python: parsing, binary wrappers, report I/O | `rmh` (Hettinger) | `gvr` (van Rossum) |
-| L1 MCP tools (`check`, `model_check`, `animate`, `show_z_spec`) | `rmh` | `mdm` (Pike) |
-| Lux applet rendering for Z specs | `edt` (Tufte) | `dna` (Norman) |
-| CLI surface | `mdm` | `rmh` |
+| Skill prompts (`skills/`, `commands/`) | `jms` | `adt` (Hopper) |
+| Python: parsing, binary wrappers, report I/O, commands | `rmh` (Hettinger) | `gvr` (van Rossum) |
+| MCP tool surface (`server.py`) | `rmh` | `mdm` (Pike) |
+| CLI surface (`__main__.py`) | `mdm` | `rmh` |
+| Lux rendering (`applet.py`, `browser.py`, `display.py`) | `edt` (Tufte) | `dna` (Norman) |
+| Lux receive leg (`lux/` session, menu, subscription) | `rmh` | `edt` |
 | Plugin packaging / dev-prod swap / marketplace | `mdm` | `adb` (Lovelace) |
 | Quarry `z-specification` collection / sync | `adb` | `rmh` |
+| Test infrastructure and fixtures | `rmh` | `gvr` |
 
-Use the `formal` pipeline for any spec change — type-check with fuzz, animate with probcli, attach the report. Use `standard` for L1 Python or skill prompt changes. Use `quick` only for typo fixes that don't touch a schema. **Always ground Z work in the `z-specification` Quarry collection** before writing schemas — training-data Z is unreliable.
+Use the `formal` pipeline for any spec change — type-check with fuzz, animate
+with probcli, attach the report. Use `standard` for Python or skill-prompt
+changes. Use `quick` only for typo fixes that do not touch a schema.
+Review-cycle fix rounds (Copilot/Bugbot findings) use bare `Agent()`, not
+missions.
 
-## Standards References
+## Release
 
-- [GitHub](https://github.com/punt-labs/punt-kit/blob/main/standards/github.md)
-- [Workflow](https://github.com/punt-labs/punt-kit/blob/main/standards/workflow.md)
-- [Plugins](https://github.com/punt-labs/punt-kit/blob/main/standards/plugins.md)
+`punt-z-spec` publishes to PyPI and the plugin ships to the marketplace. The
+plugin uses dev/prod namespace isolation — the working tree carries
+`"name": "z-spec-dev"` in `plugin.json`.
+
+```bash
+uv tool install --force --editable .   # editable install (z-spec = working tree)
+claude --plugin-dir .                   # load dev plugin as z-spec-dev
+```
+
+Release scripts: `scripts/release-plugin.sh` (swap `z-spec-dev` → `z-spec`),
+`scripts/restore-dev-plugin.sh` (restore dev state after tag). Every prod
+slash command has a generated `-dev` twin — regenerate with
+`make gen-dev-commands`; `make check-dev-commands` fails the gate if they drift.
+
+## Documentation Discipline
+
+### CHANGELOG
+
+Entries are written in the PR branch, before merge — not retroactively on main.
+If a PR changes user-facing behavior and the diff does not include a CHANGELOG
+entry, the PR is not ready to merge. [Keep a
+Changelog](https://keepachangelog.com/en/1.1.0/) format under `## [Unreleased]`.
+
+### README
+
+Update `README.md` when user-facing behavior changes — new flags, commands,
+defaults, config, or spec conventions.
+
+### PR/FAQ
+
+Update `prfaq.tex` when the change shifts product direction or
+validates/invalidates a risk assumption.
+
+## Pre-PR Checklist
+
+- [ ] `make check` green — full output read, never piped through `tail`/`grep`
+- [ ] `make uat` run, MCP server reconnected, **every applicable row of
+      `docs/testing/manual-tests.md` executed and matching its written-in-advance
+      expectation**
+- [ ] Local review clean — `code-reviewer` and `silent-failure-hunter` both
+      return zero findings
+- [ ] CHANGELOG entry in the diff under `## [Unreleased]`
+- [ ] README updated if user-facing behavior changed
+- [ ] `prfaq.tex` updated if product direction shifted
+
+## Issue Tracking
+
+Beads (`bd`). If an issue affects multiple repos or requires a standards change,
+escalate to a [punt-kit bead](https://github.com/punt-labs/punt-kit) instead.
+
+## Key Documents
+
+- [`docs/WORKFLOW.md`](docs/WORKFLOW.md) — the three-loop development process
+- [`TESTING.md`](TESTING.md) — the five-tier pyramid
+- [`docs/testing/manual-tests.md`](docs/testing/manual-tests.md) — the acceptance flight
+- `README.md` — user-facing surface
+- `CHANGELOG.md` — release history
+- `prfaq.tex` → `prfaq.pdf` — product direction
+- `examples/*.tex` — the spec corpus, gated by `make check`
+
+## Quarry
+
+Local semantic search. Slash commands: `/find`, `/ingest`, `/remember`,
+`/explain`, `/source`, `/quarry`. The working directory is auto-indexed at
+session start; the `z-specification` collection is the Z reference library
+described above.

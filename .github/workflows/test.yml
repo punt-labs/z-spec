@@ -1,0 +1,84 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Tier 1 + 4: unit tests and CLI/MCP surface parity. No external binaries, so
+  # this job stays green even when an upstream tool download is unavailable.
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --frozen --all-extras
+      - run: make test-py
+
+  # Tier 5 (partial): drives the INSTALLED wheel — the z-spec binary as a
+  # subprocess and the MCP server over stdio. This is the tier that catches
+  # packaging faults (a data file missing from the wheel, an entry point that
+  # does not resolve), which no in-process test can see.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --frozen --all-extras
+      - run: make install
+      - run: make test-e2e
+
+  # Tiers 2 + 3: the Z spec corpus, type-checked with fuzz and model-checked
+  # with probcli. Both are external binaries: fuzz builds from source, probcli
+  # ships as a Linux archive. A failure here is a real gate failure — the specs
+  # this repo publishes are its documentation of the notation.
+  specs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --frozen --all-extras
+
+      - name: Build fuzz from source
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+          git clone --depth 1 https://github.com/Spivoxity/fuzz.git "${RUNNER_TEMP}/fuzz"
+          make -C "${RUNNER_TEMP}/fuzz"
+          echo "${RUNNER_TEMP}/fuzz" >> "${GITHUB_PATH}"
+
+      - name: Install probcli
+        run: |
+          sudo apt-get install -y unzip
+          mkdir -p "${RUNNER_TEMP}/ProB"
+          curl -fL -o "${RUNNER_TEMP}/prob.zip" \
+            https://prob.hhu.de/downloads/prob2-latest/prob-linux64.zip
+          unzip -q "${RUNNER_TEMP}/prob.zip" -d "${RUNNER_TEMP}/ProB"
+          chmod +x "${RUNNER_TEMP}/ProB/probcli"
+
+      - name: Verify both binaries resolve
+        run: |
+          fuzz -v < /dev/null || true
+          command -v fuzz
+          "${RUNNER_TEMP}/ProB/probcli" -version
+
+      # type-z-* (fuzz) then test-z-* (probcli) over every examples/*.tex.
+      - run: make type PROBCLI="${RUNNER_TEMP}/ProB/probcli"
+      - run: make test PROBCLI="${RUNNER_TEMP}/ProB/probcli"
