@@ -182,11 +182,25 @@ def test_the_lock_is_the_mandated_tool_agnostic_sibling(tmp_path: Path) -> None:
     assert (tmp_path / ".CLAUDE.md.punt-import.lock").is_file()
 
 
-def test_a_failed_write_leaves_no_temp_file(tmp_path: Path) -> None:
+def test_a_failed_write_leaves_no_temp_file_and_keeps_the_original(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The rename is the last step and the only one that can fail after the
+    # temp exists, so failing it is the one way to reach the cleanup branch.
     host = _host(tmp_path, "A\n")
-    ClaudeMdImport(host, LINE).register()
+    before = host.read_bytes()
+
+    def refuse(self: Path, target: str | Path) -> Path:
+        msg = "rename refused"
+        raise OSError(msg)
+
+    monkeypatch.setattr(Path, "replace", refuse)
+
+    with pytest.raises(OSError, match="rename refused"):
+        ClaudeMdImport(host, LINE).register()
 
     assert not [p for p in tmp_path.iterdir() if p.name.endswith(".tmp")]
+    assert host.read_bytes() == before
 
 
 def test_the_host_directory_is_created_on_demand(tmp_path: Path) -> None:
