@@ -143,6 +143,11 @@ class ZSpecSubscription:
     async def run(self) -> None:
         """Hold the receive leg open, retrying a down luxd; return on stop.
 
+        Entering re-arms the leg: ``stop()`` leaves ``_stopped`` set and the
+        session reuses this subscription across a stop/start cycle, so without
+        clearing it here the second run would exit before its first connect and
+        the menu would silently never register again.
+
         A down luxd is retried with a warning so the menu appears the moment luxd
         starts; any other fault is logged and retried, so the leg never dies
         silently. A listener that returns normally without a stop request (a
@@ -150,6 +155,8 @@ class ZSpecSubscription:
         and reconnected too, never a silent death. Cancellation on shutdown
         propagates cleanly out.
         """
+        self._stopped = False
+        self._listener = None  # the previous run's listener is closed and stale
         attempt = 0
         # ``_stopped`` flips via ``stop()`` from another thread mid-``listen``; a
         # method guard keeps mypy from narrowing it to a constant across the await.
