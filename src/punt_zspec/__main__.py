@@ -12,7 +12,8 @@ import typer
 from punt_zspec import __version__
 
 if TYPE_CHECKING:
-    from punt_zspec.types import Collection, SpecModel, SpecReports
+    from punt_zspec.commands.result import CommandResult
+    from punt_zspec.types import Collection, EnablementReport, SpecModel, SpecReports
 
 app = typer.Typer(
     name="z-spec",
@@ -302,6 +303,56 @@ def doctor() -> None:
 
     if not health.healthy:
         raise typer.Exit(1)
+
+
+_DIR_ARG = typer.Argument(
+    help="Directory inside the repository to change",
+    exists=True,
+    file_okay=False,
+    dir_okay=True,
+)
+
+
+def _echo_enablement(result: CommandResult[EnablementReport]) -> None:
+    """Print an enablement outcome, or exit 1 with the failure on stderr.
+
+    Shared by both verbs so either reports the same three paths, and each ends
+    on the reminder that this surface never runs git (§2.14).
+    """
+    err = result.error
+    if err is not None:
+        typer.echo(f"error: {err.message}. {err.hint}", err=True)
+        raise typer.Exit(1)
+    report = result.unwrap()
+    typer.echo(f"z-spec {'enabled' if report.enabled else 'disabled'} in {report.root}")
+    typer.echo(f"  marker: {report.marker}")
+    typer.echo(f"  guide:  {report.guide}")
+    typer.echo(f"  import: {report.import_line}")
+    typer.echo(
+        "Commit the marker so enablement travels with the repo."
+        if report.enabled
+        else "Commit its removal so the repo stays off for everyone."
+    )
+
+
+@app.command()
+def enable(
+    directory: Annotated[Path, _DIR_ARG] = Path(),
+) -> None:
+    """Turn z-spec on in this repository."""
+    from punt_zspec.commands.enable import EnableCommand
+
+    _echo_enablement(EnableCommand().run(directory))
+
+
+@app.command()
+def disable(
+    directory: Annotated[Path, _DIR_ARG] = Path(),
+) -> None:
+    """Turn z-spec off in this repository, leaving its files dormant."""
+    from punt_zspec.commands.disable import DisableCommand
+
+    _echo_enablement(DisableCommand().run(directory))
 
 
 @app.command()

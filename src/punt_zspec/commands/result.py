@@ -27,6 +27,7 @@ class CommandFailure(StrEnum):
     spec_unreadable = "spec_unreadable"  # parse/read failed after the file exists
     manifest_invalid = "manifest_invalid"  # manifest.toml malformed
     display_failed = "display_failed"  # lux surface unreachable
+    not_a_repository = "not_a_repository"  # enable/disable outside a git repo
 
 
 @final

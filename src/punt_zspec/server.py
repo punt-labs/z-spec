@@ -11,6 +11,7 @@ from mcp.server.fastmcp import FastMCP
 
 from punt_zspec import __version__
 from punt_zspec.lux import ZSpecLuxSession
+from punt_zspec.types import EnablementAction
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -261,6 +262,31 @@ def pick(directory: str = ".") -> str:
         .run(Path(directory))
         .to_json()
     )
+
+
+@mcp.tool()
+def enablement(action: EnablementAction, directory: str = ".") -> str:
+    """Turn z-spec on or off in this repository.
+
+    Enabling deposits `.punt-labs/z-spec/CLAUDE.md`, writes the
+    `.punt-labs/z-spec/enabled` marker, and adds the `@`-import line to the
+    repo `CLAUDE.md`. Disabling removes the import line and the marker and
+    leaves the rest of `.punt-labs/z-spec/` dormant. Enabling is idempotent and
+    is also the upgrade path. Neither runs git: commit the marker in a PR.
+
+    Args:
+        action: "enable" or "disable".
+        directory: Directory inside the repository. Defaults to the cwd.
+
+    Returns:
+        JSON with ok (bool), action, enabled (bool), and the marker, guide,
+        and import_line paths, or error.
+    """
+    from punt_zspec.commands.disable import DisableCommand
+    from punt_zspec.commands.enable import EnableCommand
+
+    command = EnableCommand() if action is EnablementAction.enable else DisableCommand()
+    return command.run(Path(directory)).to_json()
 
 
 @mcp.tool()

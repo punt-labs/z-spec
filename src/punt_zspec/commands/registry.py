@@ -9,7 +9,9 @@ from punt_zspec.commands.animate import AnimateCommand
 from punt_zspec.commands.audit import AuditCommand
 from punt_zspec.commands.browse import BrowseCommand
 from punt_zspec.commands.check import CheckCommand
+from punt_zspec.commands.disable import DisableCommand
 from punt_zspec.commands.doctor import DoctorCommand
+from punt_zspec.commands.enable import EnableCommand
 from punt_zspec.commands.model_check import ModelCheckCommand
 from punt_zspec.commands.partition import PartitionCommand
 from punt_zspec.commands.picker import PickerCommand
@@ -26,6 +28,10 @@ class Capability:
     The CLI verb and MCP tool names differ by design (``model-check`` vs
     ``model_check``, ``report`` vs ``get_report``), so both are recorded here
     and the parity test enforces each surface matches this registry.
+
+    Two capabilities may name the same MCP tool: ``enable`` and ``disable`` are
+    two CLI verbs but one ``enablement`` tool taking an action argument, the
+    form punt-kit ``tool-enable-disable.md`` §2.14 requires.
     """
 
     name: str  # canonical id, e.g. "partition"
@@ -46,4 +52,6 @@ CAPABILITIES: tuple[Capability, ...] = (
     Capability("show", ShowCommand, "show", "show_z_spec"),
     Capability("browse", BrowseCommand, "browse", "browse"),
     Capability("pick", PickerCommand, "pick", "pick"),
+    Capability("enable", EnableCommand, "enable", "enablement"),
+    Capability("disable", DisableCommand, "disable", "enablement"),
 )

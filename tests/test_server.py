@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 from punt_lux.rest_transport import HubUnavailableError
 
 from punt_zspec.server import mcp
+from punt_zspec.types import EnablementAction
 
 if TYPE_CHECKING:
     import pytest
@@ -323,3 +324,54 @@ x : \nat
     assert result["ok"] is True
     assert result["total"] == 1
     assert result["title"] == "Test Collection"
+
+
+# ---------------------------------------------------------------------------
+# enablement tool
+# ---------------------------------------------------------------------------
+
+
+def _repo(tmp_path: Path) -> Path:
+    (tmp_path / ".git").mkdir()
+    (tmp_path / "CLAUDE.md").write_text("# Project\n", encoding="utf-8")
+    return tmp_path
+
+
+def test_enablement_tool_takes_a_verb_not_a_boolean(tmp_path: Path) -> None:
+    # §2.14: the MCP surface takes action="enable"|"disable"; the retired
+    # y|n vocabulary must not reappear as an enabled: bool parameter.
+    from punt_zspec.server import enablement
+
+    result = json.loads(enablement(EnablementAction.enable, str(_repo(tmp_path))))
+    assert result["ok"] is True
+    assert result["action"] == "enable"
+    assert result["enabled"] is True
+
+
+def test_enablement_tool_writes_the_same_marker_as_the_cli(tmp_path: Path) -> None:
+    from punt_zspec.server import enablement
+
+    root = _repo(tmp_path)
+    enablement(EnablementAction.enable, str(root))
+
+    assert (root / ".punt-labs" / "z-spec" / "enabled").is_file()
+    assert "@.punt-labs/z-spec/CLAUDE.md" in (root / "CLAUDE.md").read_text()
+
+
+def test_enablement_tool_disables(tmp_path: Path) -> None:
+    from punt_zspec.server import enablement
+
+    root = _repo(tmp_path)
+    enablement(EnablementAction.enable, str(root))
+
+    result = json.loads(enablement(EnablementAction.disable, str(root)))
+    assert result["enabled"] is False
+    assert not (root / ".punt-labs" / "z-spec" / "enabled").exists()
+
+
+def test_enablement_tool_outside_a_repository_returns_an_error(tmp_path: Path) -> None:
+    from punt_zspec.server import enablement
+
+    result = json.loads(enablement(EnablementAction.enable, tmp_path.anchor))
+    assert result["ok"] is False
+    assert "not inside a git repository" in result["error"]

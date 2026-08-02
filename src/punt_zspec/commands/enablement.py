@@ -24,6 +24,8 @@ from pathlib import Path
 from typing import Self, final
 
 from punt_zspec.claude_md import ClaudeMdImport
+from punt_zspec.commands.result import CommandError, CommandFailure, CommandResult
+from punt_zspec.types import EnablementAction, EnablementReport
 
 __all__ = ["DepositedGuide", "EnabledMarker", "RepoEnablement"]
 
@@ -187,6 +189,42 @@ class RepoEnablement:
     def root(self) -> Path:
         """Return the repository root this instance operates on."""
         return self._marker.path.parents[len(_SUBTREE)]
+
+    @classmethod
+    def apply(
+        cls, action: EnablementAction, directory: Path
+    ) -> CommandResult[EnablementReport]:
+        """Run *action* on the repository containing *directory*, and report.
+
+        The one entry point both verb commands call, so a marker written by
+        ``z-spec enable`` and one written by the MCP tool are identical (§2.14).
+        """
+        try:
+            enablement = cls.for_directory(directory)
+        except ValueError as exc:
+            return CommandResult[EnablementReport].failed(
+                CommandError(
+                    kind=CommandFailure.not_a_repository,
+                    message=str(exc),
+                    hint="Run it from inside the repository you want to change.",
+                )
+            )
+        return CommandResult.ok(enablement.perform(action))
+
+    def perform(self, action: EnablementAction) -> EnablementReport:
+        """Reach the state *action* names, then report what is on disk."""
+        if action is EnablementAction.enable:
+            self.enable()
+        else:
+            self.disable()
+        return EnablementReport(
+            action=action,
+            root=self.root,
+            marker=self.marker_path,
+            guide=self.guide_path,
+            import_line=self.import_line,
+            enabled=self.is_enabled(),
+        )
 
     def is_enabled(self) -> bool:
         """Return whether z-spec is enabled here (the marker is present)."""
