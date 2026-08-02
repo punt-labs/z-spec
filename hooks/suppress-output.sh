@@ -138,6 +138,12 @@ case "$TOOL_NAME" in
     total=$(printf '%s' "$RESULT" | jq -r '.total // 0' 2>/dev/null)
     emit "browse: ${title} — ${total} lesson(s)" "$RESULT"
     ;;
+  pick)
+    # PickerResult.to_dict(): {ok, total, scene_id}.
+    total=$(printf '%s' "$RESULT" | jq -r '.total // 0' 2>/dev/null)
+    scene=$(printf '%s' "$RESULT" | jq -r '.scene_id // "picker"' 2>/dev/null)
+    emit "pick: ${total} spec(s) — ${scene}" "$RESULT"
+    ;;
   save_partition_report)
     # SavedReport.to_dict(): {ok, path}.
     saved=$(printf '%s' "$RESULT" | jq -r '.path // "?"' 2>/dev/null)

@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Self, final
 
@@ -28,6 +30,8 @@ if TYPE_CHECKING:
     from punt_zspec.commands.show import Display
 
 __all__ = ["ZSpecLuxSession"]
+
+logger = logging.getLogger(__name__)
 
 _TUTORIAL_CALLBACK = "z-spec-tutorial"
 _BROWSE_CALLBACK = "z-spec-browse"
@@ -97,7 +101,16 @@ class ZSpecLuxSession:
         return self._display
 
     async def start(self) -> None:
-        """Spawn the listener task on the MCP server's event loop (best-effort)."""
+        """Spawn the listener task on the MCP server's event loop (best-effort).
+
+        Idempotent: a second ``start()`` without an intervening ``stop()`` would
+        orphan the first task (``stop()`` only cancels the most recent), so a
+        live task short-circuits the spawn. The FastMCP lifespan calls this once;
+        the guard defends a double-entry test harness or reconnect path.
+        """
+        if self._task is not None:
+            logger.warning("z-spec listener already started; ignoring re-start")
+            return
         self._task = asyncio.create_task(self._subscription.run())
 
     async def stop(self) -> None:
@@ -113,10 +126,16 @@ class ZSpecLuxSession:
 
     @staticmethod
     def _default_tutorial_manifest() -> Path:
-        """Return the shipped ``tutorials/intro/manifest.toml`` beside the package."""
-        return (
-            Path(__file__).resolve().parents[3]
-            / "tutorials"
-            / "intro"
-            / "manifest.toml"
-        )
+        """Return the shipped ``tutorials/intro/manifest.toml``.
+
+        The installed plugin runs the MCP server from site-packages, where the
+        source tree's ``parents[3]`` holds no ``tutorials/``. plugin.json injects
+        ``ZSPEC_PLUGIN_ROOT`` (= ``CLAUDE_PLUGIN_ROOT``, the plugin checkout that
+        ships the tutorials) into the server env; prefer it. Fall back to the
+        src-layout resolution for a dev checkout where the env var is unset. An
+        absent manifest under either root is tolerated at click time — the
+        Tutorial command reports ``spec_not_found`` and renders an error scene.
+        """
+        root = os.environ.get("ZSPEC_PLUGIN_ROOT")
+        base = Path(root) if root else Path(__file__).resolve().parents[3]
+        return base / "tutorials" / "intro" / "manifest.toml"

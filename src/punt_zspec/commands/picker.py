@@ -97,7 +97,7 @@ class PickerCommand:
             )
         try:  # PY-EH-5 exception: lux render is an I/O boundary
             self._display.show(
-                scene, frame_id=frame_id, frame_title=f"Z Specs: {directory.name}"
+                scene, frame_id=frame_id, frame_title=self._frame_title(directory)
             )
         except DisplayError as exc:
             return CommandResult[PickerResult].failed(
@@ -126,6 +126,17 @@ class PickerCommand:
             if model.blocks:
                 specs.append((tex, model))
         return specs
+
+    @staticmethod
+    def _frame_title(directory: Path) -> str:
+        """Return the picker frame title, naming ``directory`` by its basename.
+
+        The CLI default ``Path()`` and the MCP default ``"."`` are the cwd, whose
+        ``.name`` is empty — a bare ``Z Specs:`` label. Resolving to an absolute
+        path first yields the real directory basename (only the filesystem root
+        stays nameless, an absurd picker target).
+        """
+        return f"Z Specs: {directory.resolve().name}"
 
     @staticmethod
     def _is_template(tex: Path) -> bool:

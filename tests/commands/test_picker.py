@@ -104,6 +104,26 @@ def test_picker_wire_format(tmp_path: Path) -> None:
     )
 
 
+def test_picker_default_dir_title_names_resolved_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write(tmp_path / "a.tex", "SPEC a")
+    calls: list[tuple[object, str, str]] = []
+    cmd = PickerCommand(
+        build=_recording_build([]),
+        display=_recording_display(calls),
+        parse=_fake_parse,
+    )
+    # The CLI default Path() and MCP default "." are the cwd, whose bare .name is
+    # "" — the frame title must resolve to the real directory basename, not
+    # "Z Specs: ".
+    monkeypatch.chdir(tmp_path)
+
+    cmd.run(Path())
+
+    assert calls[0][2] == f"Z Specs: {tmp_path.resolve().name}"
+
+
 def test_picker_frame_id_override(tmp_path: Path) -> None:
     _write(tmp_path / "a.tex", "SPEC a")
     calls: list[tuple[object, str, str]] = []
