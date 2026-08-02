@@ -68,20 +68,34 @@ jobs:
           make
           echo "${RUNNER_TEMP}/fuzz/src" >> "${GITHUB_PATH}"
 
+      # The ProB release tarball carries probcli; pinned rather than "latest" so
+      # a spec gate failure means the specs changed, not the tool. The archive
+      # layout is not contracted, so locate the binary instead of assuming a
+      # path, and fail loudly if it is absent. PROBCLI/PROB_HOME go to the env
+      # because the Makefile declares `PROBCLI ?=`.
       - name: Install probcli
+        env:
+          PROB_VERSION: "1.15.1"
         run: |
-          sudo apt-get install -y unzip
           mkdir -p "${RUNNER_TEMP}/ProB"
-          curl -fL -o "${RUNNER_TEMP}/prob.zip" \
-            https://prob.hhu.de/downloads/prob2-latest/prob-linux64.zip
-          unzip -q "${RUNNER_TEMP}/prob.zip" -d "${RUNNER_TEMP}/ProB"
-          chmod +x "${RUNNER_TEMP}/ProB/probcli"
+          curl -fL -o "${RUNNER_TEMP}/prob.tar.gz" \
+            "https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/${PROB_VERSION}/ProB.linux64.tar.gz"
+          tar -xzf "${RUNNER_TEMP}/prob.tar.gz" -C "${RUNNER_TEMP}/ProB"
+          PROBCLI="$(find "${RUNNER_TEMP}/ProB" -type f -name probcli | head -n 1)"
+          if [ -z "${PROBCLI}" ]; then
+            echo "FATAL: no probcli in the ProB ${PROB_VERSION} archive" >&2
+            find "${RUNNER_TEMP}/ProB" -maxdepth 2 >&2
+            exit 1
+          fi
+          chmod +x "${PROBCLI}"
+          echo "PROBCLI=${PROBCLI}" >> "${GITHUB_ENV}"
+          echo "PROB_HOME=$(dirname "${PROBCLI}")" >> "${GITHUB_ENV}"
 
       - name: Verify both binaries resolve
         run: |
           command -v fuzz
-          "${RUNNER_TEMP}/ProB/probcli" -version
+          "${PROBCLI}" -version
 
       # type-z-* (fuzz) then test-z-* (probcli) over every examples/*.tex.
-      - run: make type PROBCLI="${RUNNER_TEMP}/ProB/probcli"
-      - run: make test PROBCLI="${RUNNER_TEMP}/ProB/probcli"
+      - run: make type
+      - run: make test
