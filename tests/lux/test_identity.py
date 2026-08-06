@@ -60,17 +60,17 @@ def test_two_sessions_on_one_repo_own_distinct_connections(
     assert first.menu_label == second.menu_label == "my-repo"
 
 
-def test_the_declared_lease_is_the_applet_convention() -> None:
-    """60s: the length written for a client that lives and dies with a session.
+def test_no_lease_is_declared_so_the_applet_kind_length_applies() -> None:
+    """Absent is luxd's "use my kind's length", which for an applet is 60s.
 
-    The listen leg renews every 15s, so four beats may be lost before the entries
-    go — long enough to ride out a luxd restart, short enough that a killed
-    session's entries do not linger. The 30s this replaces was inherited from
-    voxd, a machine-wide daemon with a different lifetime.
+    An applet's length is already written for a client that lives and dies with a
+    session: the listen leg renews every 15s, so four beats may be lost before the
+    entries go. Declaring the number would copy a constant luxd owns. The 30s this
+    replaces came from voxd, a machine-wide daemon with a different lifetime.
     """
     identity = ZSpecLuxIdentity(_PROJECT).client_identity
 
-    assert identity.lease_ttl == 60.0
+    assert identity.lease_ttl is None
 
 
 def test_the_same_identity_object_backs_every_leg() -> None:

@@ -24,12 +24,6 @@ __all__ = ["ZSpecLuxIdentity"]
 
 _TOOL_NAME = "z-spec"
 
-# How long luxd may go without hearing from this server before it sweeps the
-# session and its menu entries. The applet convention: the listen leg renews
-# every 15s, so four beats may be lost — long enough to ride out a luxd restart,
-# short enough that a killed session's entries do not linger on a shared window.
-_LEASE_TTL_SECONDS = 60.0
-
 
 @final
 class ZSpecLuxIdentity:
@@ -52,11 +46,13 @@ class ZSpecLuxIdentity:
         # process's own pid, never a caller's argument — a declared pid naming some
         # other process would be a token that lies. Decimal rather than luxd's hex
         # so a person reading it in `Details` can `ps -p` it straight off.
+        #
+        # No lease_ttl: absent is luxd's documented "use my kind's length", and an
+        # applet's length is already the one written for a client that lives and
+        # dies with a session. Declaring a number would copy a constant luxd owns
+        # and pin us to today's value of it.
         self._client_identity = ClientIdentity(
-            kind="applet",
-            name=f"{_TOOL_NAME} #{os.getpid()}",
-            repo=str(project),
-            lease_ttl=_LEASE_TTL_SECONDS,
+            kind="applet", name=f"{_TOOL_NAME} #{os.getpid()}", repo=str(project)
         )
         return self
 
