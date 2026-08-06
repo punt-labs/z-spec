@@ -1,11 +1,12 @@
-"""Transport ports for the z-spec receive leg: the listener and the menu client.
+"""Transport ports for the z-spec receive leg: the listener and the REST surfaces.
 
 ``HubListener`` is the one persistent WebSocket the subscription holds — its
-``listen`` loop reconnects internally until ``stop``. ``MenuClient`` is the REST
-surface that registers a menu callback under the session's app identity.
-``ListenerFactory`` builds the listener from that same identity so a callback
-registered over REST is delivered on the listener's stream. All three are
-``Protocol``s (PY-TS-6) so the subscription is driven with fakes in tests.
+``listen`` loop reconnects internally until ``stop``. ``MenuClient`` and
+``FrameRaiseClient`` are the two REST surfaces the leg drives under the session's
+applet identity: registering a menu callback, and bringing a clicked entry's frame
+to the front. ``ListenerFactory`` builds the listener from that same identity so a
+callback registered over REST is delivered on the listener's stream. All are
+``Protocol``s (PY-TS-6) so the receive leg is driven with fakes in tests.
 """
 
 from __future__ import annotations
@@ -15,9 +16,9 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 if TYPE_CHECKING:
     from punt_lux import CallbackHandler, EventHandler, OpError
     from punt_lux.hub_client import ConnectHandler
-    from punt_lux.operations import Ok
+    from punt_lux.operations import FrameRaise, Ok
 
-__all__ = ["HubListener", "ListenerFactory", "MenuClient"]
+__all__ = ["FrameRaiseClient", "HubListener", "ListenerFactory", "MenuClient"]
 
 
 @runtime_checkable
@@ -39,7 +40,7 @@ class HubListener(Protocol):
 
 @runtime_checkable
 class MenuClient(Protocol):
-    """The REST surface that registers a menu callback under the app identity."""
+    """The REST surface that registers a menu callback under the applet identity."""
 
     def register_callback(self, callback_id: str, label: str) -> Ok | OpError:
         """Register a menu entry, returning success or a typed error."""
@@ -47,8 +48,17 @@ class MenuClient(Protocol):
 
 
 @runtime_checkable
+class FrameRaiseClient(Protocol):
+    """The REST surface that brings one frame to the front of the display."""
+
+    def raise_frame(self, frame_id: str) -> FrameRaise | OpError:
+        """Raise a frame, reporting whether it was raised or a typed error."""
+        ...
+
+
+@runtime_checkable
 class ListenerFactory(Protocol):
-    """Build the persistent listener leg that shares the session's app identity."""
+    """Build the persistent listener leg that shares the session's applet identity."""
 
     def __call__(
         self,

@@ -1,10 +1,10 @@
 """``ZSpecLuxSession`` — the per-process lux menu session the FastMCP lifespan owns.
 
-One session per MCP server process (one per Claude Code session). It owns the app
-identity, the server-owned ``Display`` every render path shares, and the listener
-task. :meth:`sync` is the one both callers use — the lifespan at startup and the
-enablement tool after every run — and it reads the repo's ``enabled`` marker to
-decide between :meth:`start` and :meth:`stop`. A down luxd at startup is
+One session per MCP server process (one per Claude Code session). It owns the
+applet identity, the server-owned ``Display`` every render path shares, and the
+listener task. :meth:`sync` is the one both callers use — the lifespan at startup
+and the enablement tool after every run — and it reads the repo's ``enabled``
+marker to decide between :meth:`start` and :meth:`stop`. A down luxd at startup is
 non-fatal — the listener retries and the check/test/animate tools keep working —
 because the render path and the listener only ever touch luxd lazily.
 """
@@ -19,14 +19,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Self, final
 
 from punt_zspec.display import LuxDisplay
+from punt_zspec.lux.click import ZSpecClickRunner, ZSpecFrameRaiser
 from punt_zspec.lux.clients import ZSpecLuxClients
+from punt_zspec.lux.entry import ZSpecMenuEntries
 from punt_zspec.lux.menu import ZSpecMenuRegistrar
 from punt_zspec.lux.project import ProjectRoot
-from punt_zspec.lux.subscription import (
-    ZSpecClickCommands,
-    ZSpecMenuEntry,
-    ZSpecSubscription,
-)
+from punt_zspec.lux.subscription import ZSpecSubscription
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -37,20 +35,16 @@ __all__ = ["ZSpecLuxSession"]
 
 logger = logging.getLogger(__name__)
 
-_TUTORIAL_CALLBACK = "z-spec-tutorial"
-_BROWSE_CALLBACK = "z-spec-browse"
-
 
 @final
 class ZSpecLuxSession:
-    """Own the app-identity clients, the shared display, and the listener task."""
+    """Own the shared applet-identity display, the receive leg, and its task."""
 
-    _clients: ZSpecLuxClients
     _display: LuxDisplay
     _is_enabled: Callable[[], bool]
     _subscription: ZSpecSubscription
     _task: asyncio.Task[None] | None
-    __slots__ = ("_clients", "_display", "_is_enabled", "_subscription", "_task")
+    __slots__ = ("_display", "_is_enabled", "_subscription", "_task")
 
     def __new__(
         cls,
@@ -59,7 +53,7 @@ class ZSpecLuxSession:
         cwd: Path | None = None,
         tutorial_manifest: Path | None = None,
     ) -> Self:
-        # None defaults (PY-TS-14): the real per-session app identity, the user's
+        # None defaults (PY-TS-14): the real per-session applet identity, the user's
         # project root, and the shipped manifest; tests inject fixed ones. The
         # Browse target is the project root, not ``Path.cwd()``: the plugin-launched
         # server's cwd is the plugin checkout (pinned by ``--directory``), so cwd
@@ -71,36 +65,18 @@ class ZSpecLuxSession:
             if tutorial_manifest is not None
             else cls._default_tutorial_manifest()
         )
-        identity = lux.identity
         self = super().__new__(cls)
-        self._clients = lux
-        # Every render path shares this app-identity display, so pushes and the
+        # Every render path shares this applet-identity display, so pushes and the
         # listen stream resolve to one session — the callback-delivery precondition.
         self._display = LuxDisplay(connect=lux.rest)
-        entries = (
-            ZSpecMenuEntry(
-                callback_id=_TUTORIAL_CALLBACK,
-                label=identity.tutorial_label,
-                scene_id="z-spec-tutorial",
-                scene_title="Z-Spec Tutorial",
-                factory=ZSpecClickCommands.tutorial,
-                target=manifest,
-            ),
-            ZSpecMenuEntry(
-                callback_id=_BROWSE_CALLBACK,
-                label=identity.browse_label,
-                scene_id="z-spec-picker",
-                scene_title="Z Specs",
-                factory=ZSpecClickCommands.picker,
-                target=directory,
-            ),
-        )
         self._is_enabled = is_enabled
         self._subscription = ZSpecSubscription(
-            entries=entries,
+            entries=ZSpecMenuEntries.of(
+                tutorial_manifest=manifest, browse_root=directory
+            ),
             menu=ZSpecMenuRegistrar(lux.rest),
             listen=lux.listen,
-            display=self._display,
+            click=ZSpecClickRunner(self._display, ZSpecFrameRaiser(lux.rest)),
             is_enabled=is_enabled,
         )
         self._task = None
@@ -108,7 +84,7 @@ class ZSpecLuxSession:
 
     @property
     def display(self) -> Display:
-        """Return the server-owned app-identity display the tools render through."""
+        """Return the server-owned applet-identity display the tools render through."""
         return self._display
 
     async def sync(self) -> None:

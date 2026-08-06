@@ -1,83 +1,72 @@
-"""``ZSpecLuxIdentity`` — the per-session app identity and its menu labels.
+"""``ZSpecLuxIdentity`` — the applet identity one z-spec MCP server declares.
 
-z-spec is a lux *app*: an explicit ``kind=app`` identity named for the repo and pid.
-The pid separates same-repo sessions; the two menu labels carry tool and session axes.
+z-spec is a lux *applet*: one client per server process, declaring the user's open
+project as the repository it works in. luxd names that client's Clients-menu
+submenu after the repository (``ClientIdentity.menu_label`` returns the repo's
+basename, never the declared name), and numbers two clients that read the same
+way. So the name is not a label — it is the distinctness token that keeps two
+sessions on one repository off a single connection.
 """
 
 from __future__ import annotations
 
 import os
-from pathlib import Path
-from typing import Self, final
+from typing import TYPE_CHECKING, Self, final
 
 from punt_lux import ClientIdentity
 
 from punt_zspec.lux.project import ProjectRoot
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 __all__ = ["ZSpecLuxIdentity"]
 
-_LEASE_TTL_SECONDS = 30.0
+_TOOL_NAME = "z-spec"
 
 
 @final
 class ZSpecLuxIdentity:
-    """Build z-spec's app ``ClientIdentity`` and its two two-axis menu labels."""
+    """Declare the one applet ``ClientIdentity`` both of z-spec's legs hand luxd."""
 
-    _repo: str
-    _pid: int
     _client_identity: ClientIdentity
-    __slots__ = ("_client_identity", "_pid", "_repo")
+    __slots__ = ("_client_identity",)
 
-    def __new__(cls, repo: str, pid: int) -> Self:
+    def __new__(cls, project: Path) -> Self:
         self = super().__new__(cls)
-        self._repo = repo
-        self._pid = pid
-        # Build the identity once so both legs hand luxd the SAME object — luxd
-        # links a REST registration to the listen leg only when byte-identical.
+        # Built once so both legs hand luxd the SAME identity. luxd derives a
+        # connection from (kind, name, repo, agent) and links a REST menu
+        # registration to the listen leg only when the two derive alike — which is
+        # also why the pid is in the name: without it, two sessions on one
+        # repository derive one connection and the second evicts the first's
+        # callbacks. It is this process's own pid, never a caller's argument: a
+        # declared pid that named some other process would be a token that lies.
+        #
+        # ASCII by construction: the name rides X-Lux-Client-Name, and a byte that
+        # two transports encode differently costs the registration.
+        #
+        # No lease_ttl — absent is luxd's documented "use my kind's length", and
+        # the applet length is the one written for a client that lives and dies
+        # with its session.
         self._client_identity = ClientIdentity(
-            kind="app", name=self.app_name, lease_ttl=_LEASE_TTL_SECONDS
+            kind="applet", name=f"{_TOOL_NAME} #{os.getpid()}", repo=str(project)
         )
         return self
 
     @classmethod
     def for_session(cls) -> Self:
-        """Resolve the identity from the git repo basename and this process pid.
+        """Declare this process's identity over the user's open project.
 
-        The repo walk starts from the user's project root, not ``Path.cwd()``:
-        the plugin-launched server's cwd is the plugin checkout (pinned by
-        ``--directory``), so cwd would name z-spec's own repo for every session.
+        The project comes from ``ProjectRoot``, never ``Path.cwd()``: the
+        plugin-launched server's cwd is the plugin checkout (pinned by
+        ``--directory``), so cwd would declare z-spec's own repository for every
+        session and every menu would read "z-spec". ``ProjectRoot`` yields an
+        absolute path either way, which is what ``ClientIdentity`` requires of a
+        declared repository.
         """
-        return cls(cls._resolve_repo(ProjectRoot.resolve().path), os.getpid())
-
-    @staticmethod
-    def _resolve_repo(start: Path) -> str:
-        """Return the enclosing git repo's basename, else the cwd basename."""
-        for directory in (start, *start.parents):
-            if (directory / ".git").exists():
-                return directory.name
-        return start.name or "z-spec"
-
-    @property
-    def app_name(self) -> str:
-        """Return the identity name ``z-spec / <repo> / #<pid>`` — ASCII-only.
-
-        It rides the ``X-Lux-Client-Name`` header luxd hashes into the ConnectionId.
-        A non-ASCII separator (e.g. ``·``, U+00B7) encodes to different bytes on the
-        WebSocket and REST legs, so luxd links no listen leg and refuses the register.
-        """
-        return f"z-spec / {self._repo} / #{self._pid}"
-
-    @property
-    def tutorial_label(self) -> str:
-        """Return the Tutorial entry label carrying both the tool and session axes."""
-        return f"z-spec Tutorial · {self._repo} · #{self._pid}"
-
-    @property
-    def browse_label(self) -> str:
-        """Return the Browse entry label carrying both the tool and session axes."""
-        return f"z-spec Browse · {self._repo} · #{self._pid}"
+        return cls(ProjectRoot.resolve().path)
 
     @property
     def client_identity(self) -> ClientIdentity:
-        """Return the one app ``ClientIdentity`` (30s lease) both legs share."""
+        """Return the applet identity luxd knows this server process by."""
         return self._client_identity

@@ -34,7 +34,7 @@ def _task_of(session: ZSpecLuxSession) -> asyncio.Task[None] | None:
 def _session(tmp_path: Path, *, enabled: bool = True) -> ZSpecLuxSession:
     return ZSpecLuxSession(
         lambda: enabled,
-        clients=ZSpecLuxClients(identity=ZSpecLuxIdentity("repo", 7)),
+        clients=ZSpecLuxClients(identity=ZSpecLuxIdentity(Path("/work/repo"))),
         cwd=tmp_path,
         tutorial_manifest=tmp_path / "manifest.toml",
     )
@@ -111,7 +111,7 @@ def test_sync_stops_the_leg_where_the_marker_is_absent(
         enabled = True
         session = ZSpecLuxSession(
             lambda: enabled,
-            clients=ZSpecLuxClients(identity=ZSpecLuxIdentity("repo", 7)),
+            clients=ZSpecLuxClients(identity=ZSpecLuxIdentity(Path("/work/repo"))),
             cwd=tmp_path,
             tutorial_manifest=tmp_path / "manifest.toml",
         )

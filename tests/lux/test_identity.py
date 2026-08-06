@@ -1,94 +1,120 @@
-"""Tests for ZSpecLuxIdentity — pure app-identity and two-axis label construction."""
+"""Tests for ZSpecLuxIdentity — what one z-spec server declares itself to luxd as."""
 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING
+
+from punt_lux.connection_identity import connection_for
 
 from punt_zspec.lux.identity import ZSpecLuxIdentity
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from pytest import MonkeyPatch
 
-
-def test_app_name_carries_repo_and_pid() -> None:
-    identity = ZSpecLuxIdentity("my-repo", 4242)
-
-    assert identity.app_name == "z-spec / my-repo / #4242"
+_PROJECT = Path("/work/my-repo")
 
 
-def test_app_name_is_ascii_but_labels_keep_the_middle_dot() -> None:
-    # The identity name is the X-Lux-Client-Name header luxd hashes into the
-    # ConnectionId; a non-ASCII separator encodes to different bytes on the WS and
-    # REST transports, so luxd links no listen leg and refuses the register. The
-    # labels ride register_callback's JSON body (UTF-8), so they keep the "·".
-    identity = ZSpecLuxIdentity("my-repo", 4242)
+def test_the_identity_is_an_applet_declaring_the_project_as_its_repo() -> None:
+    identity = ZSpecLuxIdentity(_PROJECT).client_identity
 
-    assert identity.app_name.isascii()
-    assert not identity.tutorial_label.isascii()
-    assert not identity.browse_label.isascii()
+    assert identity.kind == "applet"
+    assert identity.repo == "/work/my-repo"
 
 
-def test_labels_carry_both_tool_and_session_axes() -> None:
-    identity = ZSpecLuxIdentity("my-repo", 4242)
+def test_luxd_labels_the_client_from_the_repo_not_the_declared_name() -> None:
+    # menu_label is `_repo_name or name`, so declaring a repo is what makes the
+    # Clients submenu read "my-repo" instead of the connection token in the name.
+    identity = ZSpecLuxIdentity(_PROJECT).client_identity
 
-    # Tool axis (Tutorial vs Browse) AND session axis (repo + pid) — both are
-    # mandatory so two sessions never click the wrong repo's specs.
-    assert identity.tutorial_label == "z-spec Tutorial · my-repo · #4242"
-    assert identity.browse_label == "z-spec Browse · my-repo · #4242"
-    assert identity.tutorial_label != identity.browse_label
+    assert identity.menu_label == "my-repo"
 
 
-def test_client_identity_is_a_30s_app_lease() -> None:
-    identity = ZSpecLuxIdentity("my-repo", 4242)
+def test_the_name_is_an_ascii_connection_token_carrying_the_pid() -> None:
+    # The name rides X-Lux-Client-Name and is hashed into the connection id with
+    # kind, repo, and agent. The pid is what keeps two sessions on one repository
+    # off a single connection, where the second would evict the first's callbacks.
+    identity = ZSpecLuxIdentity(_PROJECT).client_identity
 
-    client_identity = identity.client_identity
-
-    assert client_identity.kind == "app"
-    assert client_identity.name == "z-spec / my-repo / #4242"
-    assert client_identity.lease_ttl == 30.0
+    assert identity.name == f"z-spec #{os.getpid()}"
+    assert identity.name.isascii()
 
 
-def test_for_session_uses_this_pid_and_the_z_spec_repo(
+def test_two_sessions_on_one_repo_own_distinct_connections(
     monkeypatch: MonkeyPatch,
 ) -> None:
+    """Same repository, two server processes, two connections — not one.
+
+    luxd hashes (kind, name, repo, agent) into the connection id, and a second
+    arrival on one connection takes the listener slot and clears the callbacks
+    the first registered. The pid in the name is what stops that.
+    """
+    monkeypatch.setattr(os, "getpid", lambda: 111)
+    first = ZSpecLuxIdentity(_PROJECT).client_identity
+    monkeypatch.setattr(os, "getpid", lambda: 222)
+    second = ZSpecLuxIdentity(_PROJECT).client_identity
+
+    assert connection_for(first.model_dump()) != connection_for(second.model_dump())
+    # ...and they still read identically in the menu; luxd numbers the collision.
+    assert first.menu_label == second.menu_label == "my-repo"
+
+
+def test_no_lease_is_declared_so_the_applet_kind_default_applies() -> None:
+    """An applet lives and dies with its session; luxd's own length for that fits.
+
+    Declaring nothing is luxd's documented "use my kind's length" — 60s for an
+    applet, against the 30s z-spec inherited from voxd, a machine-wide daemon.
+    """
+    identity = ZSpecLuxIdentity(_PROJECT).client_identity
+
+    assert identity.lease_ttl is None
+
+
+def test_the_same_identity_object_backs_every_leg() -> None:
+    # Both legs must hand luxd one identity: luxd links a REST menu registration
+    # to the listen leg through the connection both derive from it.
+    identity = ZSpecLuxIdentity(_PROJECT)
+
+    assert identity.client_identity is identity.client_identity
+
+
+def test_for_session_declares_this_pid(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
 
-    identity = ZSpecLuxIdentity.for_session()
+    identity = ZSpecLuxIdentity.for_session().client_identity
 
-    assert identity.app_name.startswith("z-spec / ")
-    assert identity.app_name.endswith(f"#{os.getpid()}")
-
-
-def test_for_session_resolves_the_enclosing_git_repo(
-    tmp_path: Path, monkeypatch: MonkeyPatch
-) -> None:
-    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
-    (tmp_path / ".git").mkdir()
-    nested = tmp_path / "src" / "pkg"
-    nested.mkdir(parents=True)
-    monkeypatch.chdir(nested)
-
-    identity = ZSpecLuxIdentity.for_session()
-
-    # With no project-dir env, the repo walk falls back to the cwd: up from the
-    # cwd to the nearest .git, naming the session for it.
-    assert identity.app_name == f"z-spec / {tmp_path.name} / #{os.getpid()}"
+    assert identity.name == f"z-spec #{os.getpid()}"
 
 
 def test_for_session_prefers_project_dir_env_over_cwd(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
     # The plugin-launched server's cwd is the plugin checkout; CLAUDE_PROJECT_DIR
-    # names the user's project. The repo walk must start from the env, not cwd,
-    # or every session's label reads the plugin repo instead of the open project.
+    # names the user's project. Declaring cwd would label every session's submenu
+    # "z-spec" instead of the repository the user has open.
     project = tmp_path / "user-project"
-    (project / ".git").mkdir(parents=True)
+    project.mkdir()
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
     monkeypatch.chdir(tmp_path)
 
-    identity = ZSpecLuxIdentity.for_session()
+    identity = ZSpecLuxIdentity.for_session().client_identity
 
-    assert identity.app_name == f"z-spec / {project.name} / #{os.getpid()}"
+    assert identity.repo == str(project)
+    assert identity.menu_label == "user-project"
+
+
+def test_for_session_declares_the_cwd_where_no_project_dir_is_set(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """The standalone CLI case: cwd is the user's project, and it is absolute.
+
+    ``ClientIdentity`` rejects a relative or blank repo, so the fallback has to
+    yield an absolute path or the whole session build raises.
+    """
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    identity = ZSpecLuxIdentity.for_session().client_identity
+
+    assert Path(identity.repo or "").is_absolute()
