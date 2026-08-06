@@ -58,6 +58,22 @@ library contract is repo `punt-labs/lux`, `docs/library.md` (locally
 
 ### 2.1 Per-session app identity, not the derived cli identity
 
+> **Superseded (2026-08-06).** The identity is now `kind="applet"`,
+> `name="z-spec #<pid>"`, `repo=<absolute project root>`, `lease_ttl=60`.
+> What changed is whose job disambiguation is. This section folded the repo
+> into the *name* because lux had no client grouping; lux 0.23's Clients menu
+> supplies one — one submenu per live client, labelled from `ClientIdentity`,
+> numbered on collision, never merged. `ClientIdentity.menu_label` returns
+> `self._repo_name or self.name`, so **once `repo` is set the name is never
+> displayed at all**: the submenu reads the project-root basename and answers
+> "which repo", nothing else. The pid stays in the name — not for display, but
+> because `ConnectionId` is a hash of `(kind, name, repo, agent)`, and two
+> same-repo sessions sharing all four collapse onto one connection where
+> `attach_listener` evicts the first session's callbacks. lux calls it "a
+> distinctness token and not something to read aloud". `lease_ttl` moves 30→60
+> to match the applet convention; the 30 was copied from voxd, a machine-wide
+> daemon, and never had a z-spec reason.
+
 The z-spec MCP server declares an explicit **app** identity:
 
 ```text
@@ -89,6 +105,11 @@ app (repo + pid) — a strict improvement for the multi-session case, invisible 
 the single-session case.
 
 ### 2.2 Two menu entries per session: Tutorial and Browse
+
+> **Superseded (2026-08-06).** The labels are now exactly `Tutorial` and
+> `Browse`. The composite forms below repeated the client and session inside a
+> submenu that already states both — noise beside `voxd ▸ Music` and every
+> other client's `Beads`. A leaf is named for its command alone.
 
 Each session registers **both** callbacks on its one app client:
 
@@ -127,6 +148,21 @@ replacing the per-call throwaway `LuxDisplay()`. Registration happens **only fro
 
 ### 2.4 Raise-first click contract (<100-200ms visible response)
 
+> **Superseded (2026-08-06).** The pin is now `>=0.23,<0.24`, `raise_frame`
+> exists, and `_raise_scene`'s placeholder-then-full-scene sequence is gone —
+> a click raises the frame in one call. The guard below did its job for the
+> whole `<0.23` pin lifetime and is now retired rather than merely unused.
+>
+> One prediction here was wrong and is worth recording. This section called the
+> collapse "a one-line change to the method body; nothing else moves". It was
+> not: the subscription raised through `Display.show`, and `Display` has no
+> raise, so a REST port had to be introduced. Rather than take
+> `ZSpecSubscription` to six constructor parameters, the click path moved into
+> its own class — which took `subscription.py` from 278 lines and 3 classes to
+> 166 and 1. The lesson is the general one about swap points: "one line in the
+> body" holds only if the new call needs nothing the old path did not already
+> have.
+
 A click must produce a visible response in **100-200ms** (operator-ruled,
 lux-side absolute). The Browse scene renders 153 elements; a full re-render on
 every click misses that budget on the cold path.
@@ -164,6 +200,15 @@ surface) is the live-verify item that matters for the whole pin lifetime (6.2) �
 `raise_frame` cannot be verified until 0.23 ships.
 
 ### 2.5 Cutover: pin punt-lux `>=0.21,<0.22` → `>=0.22.1,<0.23`
+
+> **Superseded (2026-08-06).** The pin is now `punt-lux>=0.23,<0.24`. 0.23
+> shipped `raise_frame` (2.4), the `applet` client kind and `menu_label` (2.1),
+> and `header_value.py`, which percent-encodes non-ASCII on the wire — so the
+> ASCII-only identity-name rule this document was written under no longer
+> applies. The "verify against a released install, never `../lux`" warning
+> below stands and earned itself twice more: a consumer's pin can be a release
+> behind the lux tree, so "what the source does" and "what we can construct"
+> are different questions. Ask which release a behavior landed in.
 
 `pyproject.toml:26` currently pins `punt-lux>=0.21,<0.22`. Bump to
 `punt-lux>=0.22.1,<0.23`. Everything the interactive half needs is present in

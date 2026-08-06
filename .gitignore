@@ -30,9 +30,15 @@
 # Node.js dependencies
 node_modules/
 
+# .claude/ is machine state except for the parts that are repo policy. Agent
+# definitions are ethos's projection of this repo's team into Claude Code's
+# subagent surface — generated, but configuration: every contributor who clones
+# should get the same specialists, and a change to the roster belongs in a diff
+# someone reviews, not in a file that silently differs per machine.
 .claude/*
 !.claude/settings.json
 !.claude/hooks/
+!.claude/agents/
 
 # Local-only files (machine-specific, per-user)
 *.local
@@ -90,7 +96,9 @@ htmlcov/
 
 # The mandated sibling lock every punt CLI takes before mutating a shared host
 # file (tool-enable-disable.md §2.4). It is per-machine runtime state, and it
-# persists by design — unlinking a lock file races the next writer.
-.*.punt-import.lock
+# persists by design — unlinking a lock file races the next writer. The pattern
+# is broad because the lock's name is the host file's, and tools differ on the
+# suffix — .CLAUDE.md.lock and .CLAUDE.md.punt-import.lock both appear.
+.*.lock
 
 uv.toml
