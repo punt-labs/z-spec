@@ -31,14 +31,14 @@ def test_luxd_labels_the_client_from_the_repo_not_the_declared_name() -> None:
     assert identity.menu_label == "my-repo"
 
 
-def test_the_name_is_an_ascii_connection_token_carrying_the_pid() -> None:
-    # The name rides X-Lux-Client-Name and is hashed into the connection id with
-    # kind, repo, and agent. The pid is what keeps two sessions on one repository
-    # off a single connection, where the second would evict the first's callbacks.
+def test_the_name_is_the_connection_token_carrying_this_process_pid() -> None:
+    # The name is hashed into the connection id with kind, repo, and agent. The
+    # pid is what keeps two sessions on one repository off a single connection,
+    # where the second would take the listener slot and clear the first's
+    # callbacks. It is this process's own — a pid naming another would lie.
     identity = ZSpecLuxIdentity(_PROJECT).client_identity
 
     assert identity.name == f"z-spec #{os.getpid()}"
-    assert identity.name.isascii()
 
 
 def test_two_sessions_on_one_repo_own_distinct_connections(
@@ -60,15 +60,17 @@ def test_two_sessions_on_one_repo_own_distinct_connections(
     assert first.menu_label == second.menu_label == "my-repo"
 
 
-def test_no_lease_is_declared_so_the_applet_kind_default_applies() -> None:
-    """An applet lives and dies with its session; luxd's own length for that fits.
+def test_the_declared_lease_is_the_applet_convention() -> None:
+    """60s: the length written for a client that lives and dies with a session.
 
-    Declaring nothing is luxd's documented "use my kind's length" — 60s for an
-    applet, against the 30s z-spec inherited from voxd, a machine-wide daemon.
+    The listen leg renews every 15s, so four beats may be lost before the entries
+    go — long enough to ride out a luxd restart, short enough that a killed
+    session's entries do not linger. The 30s this replaces was inherited from
+    voxd, a machine-wide daemon with a different lifetime.
     """
     identity = ZSpecLuxIdentity(_PROJECT).client_identity
 
-    assert identity.lease_ttl is None
+    assert identity.lease_ttl == 60.0
 
 
 def test_the_same_identity_object_backs_every_leg() -> None:

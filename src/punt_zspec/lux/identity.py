@@ -4,8 +4,8 @@ z-spec is a lux *applet*: one client per server process, declaring the user's op
 project as the repository it works in. luxd names that client's Clients-menu
 submenu after the repository (``ClientIdentity.menu_label`` returns the repo's
 basename, never the declared name), and numbers two clients that read the same
-way. So the name is not a label — it is the distinctness token that keeps two
-sessions on one repository off a single connection.
+way. So the repo is what reads, and the name is a distinctness token: it feeds
+the connection id luxd hashes, and nothing a user sees.
 """
 
 from __future__ import annotations
@@ -24,6 +24,12 @@ __all__ = ["ZSpecLuxIdentity"]
 
 _TOOL_NAME = "z-spec"
 
+# How long luxd may go without hearing from this server before it sweeps the
+# session and its menu entries. The applet convention: the listen leg renews
+# every 15s, so four beats may be lost — long enough to ride out a luxd restart,
+# short enough that a killed session's entries do not linger on a shared window.
+_LEASE_TTL_SECONDS = 60.0
+
 
 @final
 class ZSpecLuxIdentity:
@@ -34,22 +40,23 @@ class ZSpecLuxIdentity:
 
     def __new__(cls, project: Path) -> Self:
         self = super().__new__(cls)
-        # Built once so both legs hand luxd the SAME identity. luxd derives a
+        # Built once so both legs hand luxd the SAME identity: luxd derives a
         # connection from (kind, name, repo, agent) and links a REST menu
-        # registration to the listen leg only when the two derive alike — which is
-        # also why the pid is in the name: without it, two sessions on one
-        # repository derive one connection and the second evicts the first's
-        # callbacks. It is this process's own pid, never a caller's argument: a
-        # declared pid that named some other process would be a token that lies.
+        # registration to the listen leg only when the two derive alike.
         #
-        # ASCII by construction: the name rides X-Lux-Client-Name, and a byte that
-        # two transports encode differently costs the registration.
-        #
-        # No lease_ttl — absent is luxd's documented "use my kind's length", and
-        # the applet length is the one written for a client that lives and dies
-        # with its session.
+        # The name is a distinctness token, not a label — the menu reads the repo
+        # basename and never the name. The pid is what it carries, because without
+        # it two sessions on one repository derive one connection and the second
+        # takes the listener slot, clearing the callbacks the first registered:
+        # clicks that do nothing, with no error anywhere to find. It is this
+        # process's own pid, never a caller's argument — a declared pid naming some
+        # other process would be a token that lies. Decimal rather than luxd's hex
+        # so a person reading it in `Details` can `ps -p` it straight off.
         self._client_identity = ClientIdentity(
-            kind="applet", name=f"{_TOOL_NAME} #{os.getpid()}", repo=str(project)
+            kind="applet",
+            name=f"{_TOOL_NAME} #{os.getpid()}",
+            repo=str(project),
+            lease_ttl=_LEASE_TTL_SECONDS,
         )
         return self
 

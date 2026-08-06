@@ -363,6 +363,19 @@
     "public_attr_violations": 0.0,
     "future_annotations": 1.0
   },
+  "src/punt_zspec/lux/click.py": {
+    "method_ratio": 1.0,
+    "encapsulation_ratio": 1.0,
+    "avg_params": 1.4,
+    "max_complexity": 4.0,
+    "avg_complexity": 2.0,
+    "module_size": 91.0,
+    "classes_per_module": 2.0,
+    "class_to_func_ratio": 1.0,
+    "init_violations": 0.0,
+    "public_attr_violations": 0.0,
+    "future_annotations": 1.0
+  },
   "src/punt_zspec/lux/clients.py": {
     "method_ratio": 1.0,
     "encapsulation_ratio": 1.0,
@@ -389,13 +402,26 @@
     "public_attr_violations": 0.0,
     "future_annotations": 1.0
   },
+  "src/punt_zspec/lux/entry.py": {
+    "method_ratio": 1.0,
+    "encapsulation_ratio": 1.0,
+    "avg_params": 1.17,
+    "max_complexity": 1.0,
+    "avg_complexity": 1.0,
+    "module_size": 92.0,
+    "classes_per_module": 2.0,
+    "class_to_func_ratio": 1.0,
+    "init_violations": 0.0,
+    "public_attr_violations": 0.0,
+    "future_annotations": 1.0
+  },
   "src/punt_zspec/lux/identity.py": {
     "method_ratio": 1.0,
     "encapsulation_ratio": 1.0,
     "avg_params": 0.33,
     "max_complexity": 1.0,
     "avg_complexity": 1.0,
-    "module_size": 57.0,
+    "module_size": 63.0,
     "classes_per_module": 1.0,
     "class_to_func_ratio": 1.0,
     "init_violations": 0.0,
