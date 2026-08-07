@@ -70,9 +70,14 @@ library contract is repo `punt-labs/lux`, `docs/library.md` (locally
 > because `ConnectionId` is a hash of `(kind, name, repo, agent)`, and two
 > same-repo sessions sharing all four collapse onto one connection where
 > `attach_listener` evicts the first session's callbacks. lux calls it "a
-> distinctness token and not something to read aloud". `lease_ttl` moves 30→60
-> to match the applet convention; the 30 was copied from voxd, a machine-wide
-> daemon, and never had a z-spec reason.
+> distinctness token and not something to read aloud". `lease_ttl` is no longer
+> declared at all: absent is luxd's documented "use my kind's length", and an
+> applet's length is already the one written for a client that lives and dies
+> with a session — naming a number would copy a constant lux owns and pin us to
+> today's value of it. Resolved rather than assumed:
+> `SessionLease.for_kind("applet", now).ttl_seconds` is 60.0 with `lease_ttl`
+> None on the wire. The old 30 was copied from voxd, a machine-wide daemon, and
+> never had a z-spec reason.
 
 The z-spec MCP server declares an explicit **app** identity:
 

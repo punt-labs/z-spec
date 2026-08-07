@@ -68,7 +68,7 @@ def test_an_entry_matches_only_its_own_callback_id() -> None:
     assert browse.matches("z-spec-browse")
 
 
-def test_run_renders_the_target_into_the_entrys_own_scene() -> None:
+def test_run_renders_the_target_into_its_own_scene() -> None:
     ran: list[tuple[Path, str]] = []
     outcome: ClickOutcome = CommandResult.ok(
         PickerResult(total=1, scene_id="z-spec-picker")
