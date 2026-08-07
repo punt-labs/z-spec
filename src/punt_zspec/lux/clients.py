@@ -1,7 +1,7 @@
 """``ZSpecLuxClients`` — build z-spec's REST and hub listener clients from one identity.
 
-Both legs share one app identity, so luxd links a REST-registered menu callback to
-the ``LuxHubClient`` listen leg's stream. ``rest`` raises when luxd is down.
+Both legs share one applet identity, so luxd links a REST-registered menu callback
+to the ``LuxHubClient`` listen leg's stream. ``rest`` raises when luxd is down.
 """
 
 from __future__ import annotations
@@ -23,27 +23,22 @@ __all__ = ["ZSpecLuxClients"]
 
 @final
 class ZSpecLuxClients:
-    """Build the REST and listener clients that share one app identity."""
+    """Build the REST and listener clients that share one applet identity."""
 
     _identity: ZSpecLuxIdentity
     __slots__ = ("_identity",)
 
     def __new__(cls, identity: ZSpecLuxIdentity | None = None) -> Self:
-        # None (PY-TS-14): the real per-session app identity; tests inject a fixed
-        # one. A concrete default, not a missing value.
+        # None (PY-TS-14): the real per-session applet identity; tests inject a
+        # fixed one. A concrete default, not a missing value.
         self = super().__new__(cls)
         self._identity = (
             identity if identity is not None else ZSpecLuxIdentity.for_session()
         )
         return self
 
-    @property
-    def identity(self) -> ZSpecLuxIdentity:
-        """Return the app identity backing both legs (for the menu labels)."""
-        return self._identity
-
     def rest(self) -> LuxRestClient:
-        """Build a REST client under the app identity, or raise if luxd is down.
+        """Build a REST client under the applet identity, or raise if luxd is down.
 
         Callers invoke this lazily/under a guard: ``for_identity`` raises
         ``HubUnavailableError`` when luxd is not running, and the render path and
@@ -58,7 +53,7 @@ class ZSpecLuxClients:
         on_event: EventHandler,
         on_connect: ConnectHandler,
     ) -> HubListener:
-        """Build the persistent hub listen leg sharing the app identity.
+        """Build the persistent hub listen leg sharing the applet identity.
 
         The leg is a :class:`LuxHubClient` on the identity's canonical ``/ws``
         connection; luxd links a same-identity REST menu registration to it, so a

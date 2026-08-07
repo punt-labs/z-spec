@@ -42,7 +42,7 @@ _PROJECT_DIR = str(_PROJECT_ROOT)
 # project root is re-read on every call, so no state outlives an ``enable`` run.
 _GATE = EnablementGate(_PROJECT_ROOT)
 
-# One per MCP server process: the persistent app-identity lux client, the display
+# One per MCP server process: the persistent applet-identity lux client, the display
 # every render tool shares, and the menu listener. Constructed lazily-connecting,
 # so a down luxd never blocks import or the check/test/animate tool surface. It
 # is handed the same gate the tools are guarded by, so the menu answers to the
