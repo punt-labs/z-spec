@@ -94,6 +94,13 @@ htmlcov/
 # self-manage via their own .gitignore.
 .punt-labs/local/
 
+# Quarry's pre-compaction transcript captures. These are per-session machine
+# state — quarry writes one per session to feed its local index, each several
+# thousand lines of raw conversation that no one reviews and that changes on
+# every compaction. One was swept into the v0.17.1 release commit by a bare
+# `git add`; it was never a decision to version session transcripts.
+.punt-labs/quarry/captures/
+
 # The mandated sibling lock every punt CLI takes before mutating a shared host
 # file (tool-enable-disable.md §2.4). It is per-machine runtime state, and it
 # persists by design — unlinking a lock file races the next writer. The pattern
