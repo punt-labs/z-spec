@@ -18,38 +18,52 @@ feature is unusable."
 
 | Tier | Command | Runs in CI | What it proves | Gate |
 |------|---------|------------|----------------|------|
-| 1. Unit | `make test-py` | **no** | each module behaves in isolation — parsing, report I/O, command objects, types | every commit |
-| 2. Spec type-check | `make type` (`type-z-*`) | **no** | every `examples/*.tex` is fuzz-clean; the tool's own corpus type-checks | every commit |
-| 3. Spec model-check | `make test` (`test-z-*`) | **no** | probcli explores each spec's reachable state space with no counterexample | every commit |
-| 4. Surface parity | `tests/commands/test_parity.py` | **no** | the CLI verb and the MCP tool for one command resolve to the same `Command` object with the same options | every commit |
-| 5. **Acceptance (UAT)** | `make uat` + [`docs/testing/manual-tests.md`](docs/testing/manual-tests.md) | no — a human runs it | the installed CLI, the reconnected MCP server, and the lux menu do the right thing on screen | **before the PR opens** |
+| 1. Unit | `make test-py` | yes — `test.yml` `unit` | each module behaves in isolation — parsing, report I/O, command objects, types; and each shipped prompt document is internally consistent | every commit |
+| 2. Spec type-check | `make type` (`type-z-*`) | yes — `test.yml` `specs` | every `examples/*.tex` is fuzz-clean; the tool's own corpus type-checks | every commit |
+| 3. Spec model-check | `make test` (`test-z-*`) | yes — `test.yml` `specs` | probcli explores each spec's reachable state space with no counterexample | every commit |
+| 4. Surface parity | `tests/commands/test_parity.py` | yes — `test.yml` `unit` | the CLI verb and the MCP tool for one command resolve to the same `Command` object with the same options | every commit |
+| 5. **Acceptance (UAT)** | `make uat` + [`docs/testing/manual-tests.md`](docs/testing/manual-tests.md) | the subprocess half only — `test.yml` `e2e` | the installed CLI, the reconnected MCP server, and the lux menu do the right thing on screen | **before the PR opens** |
 
-Tiers 1–4 are `make check`. Tier 5 is the demo gate in
-[`docs/WORKFLOW.md`](docs/WORKFLOW.md) — the one human step in the loop.
+Tiers 1–4 are `make check`. Tier 5 splits: `make test-e2e` drives the installed
+binary and the stdio server and does run in CI, while the human half — the lux
+window, the labels, what a person actually sees — is the demo gate in
+[`docs/WORKFLOW.md`](docs/WORKFLOW.md) and cannot be automated.
 
-### Known gap: none of this runs in CI
+### What CI covers
 
-`.github/workflows/` contains `docs.yml` (markdownlint), `release.yml`, and
-`biff-notify.yml`. **There is no test or lint workflow.** On a pull request, the
-only check that runs is markdownlint — so "CI green" in the merge gate currently
-attests to nothing but the markdown. Tiers 1–4 are enforced by discipline at the
-local `make check`, not by the platform.
+`.github/workflows/` carries `lint.yml` and `test.yml` alongside `docs.yml`,
+`release.yml` and `biff-notify.yml`. `lint.yml` runs ruff check and format, mypy,
+pyright, shellcheck, `check-dev-commands`, and all three ratchets scoped to the
+merge base via `OO_BASE` / `COUPLING_BASE` / `SUPPRESSION_BASE`, with a
+post-merge `HEAD~1` tripwire on main. `test.yml` runs three jobs: `unit`
+(pytest), `e2e` (builds and installs the wheel, then drives the installed
+artifact), and `specs` (builds `fuzz` from source, downloads `probcli`, then
+type-checks and model-checks every `examples/*.tex`).
 
-vox has `test.yml` and `lint.yml`; z-spec needs the same, plus the ratchet gates
-with their `--base-ref <merge-base> --require-base` flags (the `OO_BASE`,
-`COUPLING_BASE`, `SUPPRESSION_BASE` Makefile variables exist for exactly this and
-are unused). Until those workflows land, do not treat a green PR as evidence.
+So a green PR is now evidence. It was not before, and this section previously
+said so long after it had stopped being true — the gap sections were written
+when they were real, the gaps were closed, and nobody came back to the page. A
+"known gap" that has been fixed is worse than no note at all, because it tells a
+reader to distrust a gate that works.
 
-### Known gap: no subprocess/E2E tier
+The remaining honest caveat is narrower: the ratchets compare against a merge
+base, so a branch that never touches Python trivially passes them. That is by
+design, not a hole.
 
-Nothing in `tests/` runs the installed `z-spec` binary as a subprocess or drives
-the MCP server over stdio. `tests/test_main.py` uses Typer's in-process
-`CliRunner`; `tests/test_fuzz.py`, `test_prob.py`, and `test_server.py` patch
-`subprocess.run` and assert against hand-written `CompletedProcess` output. That
-means the wire between the installed artifact and its process boundary — argv
-parsing, exit codes, stdio framing, packaged data files — is covered only by tier
-5, by hand. The org standard (`PL-TT-1`) calls for this tier behind a pytest
-marker; z-spec has no markers configured at all.
+### The subprocess tier
+
+`tests/e2e/` drives the `z-spec` binary that `make install` put on `PATH` — not
+the working tree. `test_installed_cli.py` runs it as a subprocess (`--version`,
+every registry verb in `--help`, a missing spec failing without a traceback,
+`check` reaching the real `fuzz`, `doctor` from an unrelated directory) and
+`test_installed_mcp.py` drives the MCP server over stdio with a JSON-RPC
+`initialize` handshake and `tools/list` asserted against the capability registry.
+
+These catch the packaging faults no in-process test can see: an entry point that
+does not resolve, a data file absent from the wheel, a `__file__`-relative path
+that only works in a checkout. `pyproject.toml` declares the `e2e` marker and
+`addopts` deselects it by default, so a plain `pytest` run does not test whatever
+wheel happens to be installed. Run it with `make test-e2e`.
 
 Tests mirror source: one `test_*.py` per module, `tests/commands/` and
 `tests/lux/` mirroring their packages, `conftest.py` for shared fixtures.

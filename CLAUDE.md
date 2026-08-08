@@ -239,17 +239,22 @@ Five tiers, defined in **[`TESTING.md`](TESTING.md)**, `@`-imported above.
 
 | Tier | Command | In CI | Proves |
 |------|---------|-------|--------|
-| Unit | `make test-py` | no | each module in isolation |
-| Spec type-check | `make type` | no | every `examples/*.tex` is fuzz-clean |
-| Spec model-check | `make test` | no | probcli finds no counterexample |
-| Surface parity | `test_parity.py` | no | CLI verb and MCP tool resolve to one command |
-| **Acceptance (UAT)** | `make uat` + the flight | no — a human | the installed CLI, the reconnected server, and the lux window do the right thing |
+| Unit | `make test-py` | `test.yml` `unit` | each module in isolation; each prompt document is internally consistent |
+| Spec type-check | `make type` | `test.yml` `specs` | every `examples/*.tex` is fuzz-clean |
+| Spec model-check | `make test` | `test.yml` `specs` | probcli finds no counterexample |
+| Surface parity | `test_parity.py` | `test.yml` `unit` | CLI verb and MCP tool resolve to one command |
+| **Acceptance (UAT)** | `make uat` + the flight | `e2e` job — subprocess half only | the installed CLI, the reconnected server, and the lux window do the right thing |
 
-**Nothing but markdownlint runs in CI.** There is no `test.yml` or `lint.yml` —
-only `docs.yml`, `release.yml`, and `biff-notify.yml`. A green PR attests to the
-markdown and nothing else, so the local `make check` is the only real gate.
-There is also no subprocess/E2E tier: no test runs the installed binary or drives
-the MCP server over stdio. Both gaps are recorded in `TESTING.md`.
+**CI runs the gates.** `lint.yml` runs ruff, mypy, pyright, shellcheck,
+`check-dev-commands`, and all three ratchets scoped to the merge base;
+`test.yml` runs `unit`, `e2e` and `specs`. A green PR is evidence — which it was
+not before these landed, and this section said otherwise for weeks afterwards. A
+"known gap" left in place after the gap closes is worse than silence: it teaches
+the next reader to distrust a gate that works.
+
+What CI still cannot do is look at the screen. `make test-e2e` proves the
+installed binary answers and the stdio server handshakes; only a human sees an
+empty pane.
 
 **UAT runs before the PR, not after.** `-bad.tex` specs are deliberate
 anti-pattern demonstrations, excluded from the gates by the `SPECS` filter in
