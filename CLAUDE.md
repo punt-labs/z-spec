@@ -243,7 +243,7 @@ Five tiers, defined in **[`TESTING.md`](TESTING.md)**, `@`-imported above.
 | Spec type-check | `make type` | `test.yml` `specs` | every `examples/*.tex` is fuzz-clean |
 | Spec model-check | `make test` | `test.yml` `specs` | probcli finds no counterexample |
 | Surface parity | `test_parity.py` | `test.yml` `unit` | CLI verb and MCP tool resolve to one command |
-| **Acceptance (UAT)** | `make uat` + the flight | `e2e` job — subprocess half only | the installed CLI, the reconnected server, and the lux window do the right thing |
+| **Acceptance (UAT)** | `make uat` + the flight | `test.yml` `e2e` — subprocess half only | the installed CLI, the reconnected server, and the lux window do the right thing |
 
 **CI runs the gates.** `lint.yml` runs ruff, mypy, pyright, shellcheck,
 `check-dev-commands`, and all three ratchets scoped to the merge base;
