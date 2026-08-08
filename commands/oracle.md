@@ -693,6 +693,7 @@ Generate a test file that:
 // oracle/oracle.test.ts
 import fc from 'fast-check';
 import { execSync, spawn } from 'child_process';
+import { createInterface } from 'readline';
 import { AbstractState, abstractState } from './abstraction';
 
 // Path to the Lean oracle binary
@@ -702,48 +703,81 @@ const ORACLE_BIN = 'proofs/.lake/build/bin/oracle';
 const NUM_SEQUENCES = <sequences>;
 const MAX_STEPS = <steps>;
 
-/**
- * Send a command to the Lean oracle process and read the
- * resulting state as JSON.
- */
-function sendToOracle(
-  proc: ReturnType<typeof spawn>,
-  command: Operation,
-): Promise<AbstractState> {
-  return new Promise((resolve, reject) => {
-    const json = JSON.stringify(command);
-    proc.stdin!.write(json + '\n');
-
-    proc.stdout!.once('data', (data: Buffer) => {
-      try {
-        const state = JSON.parse(data.toString().trim());
-        resolve(state as AbstractState);
-      } catch (e) {
-        reject(new Error(`Failed to parse oracle output: ${data}`));
-      }
-    });
-  });
+/** One line of oracle output: the state, plus whether the step was accepted. */
+interface OracleResult {
+  state: AbstractState;
+  ok: boolean;
+  reason?: string;
 }
 
 /**
- * Execute an operation on the concrete system.
+ * Read the oracle's stdout one NDJSON line at a time.
+ *
+ * A 'data' event is a chunk boundary, not a line boundary: it may carry half a
+ * line or three of them. Parsing a raw chunk works until a state object grows
+ * past the pipe buffer, then fails intermittently and looks like a model bug.
+ * `readline` restores the framing the protocol assumes.
+ */
+function lineReader(proc: ReturnType<typeof spawn>): AsyncIterableIterator<string> {
+  return createInterface({ input: proc.stdout!, crlfDelay: Infinity })[
+    Symbol.asyncIterator
+  ]();
+}
+
+async function nextResult(
+  lines: AsyncIterableIterator<string>,
+): Promise<OracleResult> {
+  const { value, done } = await lines.next();
+  if (done) throw new Error('Oracle closed stdout before emitting a result');
+  return JSON.parse(value.trim()) as OracleResult;
+}
+
+/**
+ * Send a command to the Lean oracle process and read the resulting line.
+ *
+ * Returns the verdict as well as the state. Dropping `ok` here would leave the
+ * driver unable to tell a rejected operation from one that succeeded without
+ * changing anything.
+ */
+async function sendToOracle(
+  proc: ReturnType<typeof spawn>,
+  lines: AsyncIterableIterator<string>,
+  command: Operation,
+): Promise<OracleResult> {
+  proc.stdin!.write(JSON.stringify(command) + '\n');
+  return nextResult(lines);
+}
+
+/**
+ * Execute an operation on the concrete system; return whether it accepted.
+ *
+ * Return false when the implementation refuses — a thrown error, a false
+ * return, an error result, whatever refusal looks like here. The driver
+ * compares this against the specification's verdict, so an implementation that
+ * silently ignores an illegal operation must report false rather than true.
+ *
  * TODO: Import your concrete system and implement dispatch.
  */
 function executeConcreteOp(
   state: ConcreteState,
   op: Operation,
-): void {
-  switch (op.op) {
-    case 'deposit':
-      // TODO: state.deposit(op.amount);
-      break;
-    case 'withdraw':
-      // TODO: state.withdraw(op.amount);
-      break;
-    case 'getBalance':
-      // TODO: state.getBalance();
-      break;
-    // ... one case per operation
+): boolean {
+  try {
+    switch (op.op) {
+      case 'deposit':
+        // TODO: state.deposit(op.amount);
+        break;
+      case 'withdraw':
+        // TODO: state.withdraw(op.amount);
+        break;
+      case 'getBalance':
+        // TODO: state.getBalance();
+        break;
+      // ... one case per operation
+    }
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -759,13 +793,12 @@ describe('Oracle: concrete refines abstract model', () => {
           // Start fresh oracle process
           const oracle = spawn(ORACLE_BIN);
 
-          // Read initial state from oracle
-          const initLine = await new Promise<string>((resolve) => {
-            oracle.stdout!.once('data', (data: Buffer) => {
-              resolve(data.toString().trim());
-            });
-          });
-          let leanState: AbstractState = JSON.parse(initLine);
+          // One line reader for the whole session: it owns the buffer that
+          // reassembles chunks into lines, so it must not be recreated per read.
+          const lines = lineReader(oracle);
+
+          // Read initial state from oracle (enveloped, ok=true)
+          let leanState: AbstractState = (await nextResult(lines)).state;
 
           // Initialize concrete system
           // TODO: const concreteState = new ConcreteState();
@@ -773,8 +806,14 @@ describe('Oracle: concrete refines abstract model', () => {
 
           // Execute each operation on both sides
           for (const op of operations) {
-            leanState = await sendToOracle(oracle, op);
-            executeConcreteOp(concreteState, op);
+            const result = await sendToOracle(oracle, lines, op);
+            leanState = result.state;
+            const concreteAccepts = executeConcreteOp(concreteState, op);
+
+            // Verdict first: a disagreement here is the defect the oracle
+            // exists to find, and comparing state alone hides it whenever the
+            // rejected operation would not have changed the state anyway.
+            expect(concreteAccepts).toBe(result.ok);
 
             const abstracted = abstractState(concreteState);
             expect(abstracted).toEqual(leanState);
@@ -815,34 +854,55 @@ class OracleProcess:
             stdout=subprocess.PIPE,
             text=True,
         )
-        # Read initial state
-        line = self.proc.stdout.readline().strip()
-        self.state = json.loads(line)
+        # Read the initial state (also enveloped, with ok=True)
+        self.state, _, _ = self._read_result()
 
-    def execute(self, op: dict) -> dict:
-        """Send operation to oracle, return new state."""
+    def _read_result(self) -> tuple[dict, bool, str]:
+        """Read one result line: (state, accepted, reason)."""
+        line = self.proc.stdout.readline().strip()
+        result = json.loads(line)
+        return result["state"], result["ok"], result.get("reason", "")
+
+    def execute(self, op: dict) -> tuple[dict, bool, str]:
+        """Send an operation; return the new state, the verdict, and the reason.
+
+        The verdict is what lets the driver check that the implementation
+        refuses exactly what the specification refuses. Discarding it reduces
+        the oracle to a state comparison, which cannot distinguish a rejected
+        operation from one that legitimately changed nothing.
+        """
         self.proc.stdin.write(json.dumps(op) + "\n")
         self.proc.stdin.flush()
-        line = self.proc.stdout.readline().strip()
-        self.state = json.loads(line)
-        return self.state
+        self.state, accepted, reason = self._read_result()
+        return self.state, accepted, reason
 
     def close(self):
         self.proc.terminate()
         self.proc.wait()
 
 
-def execute_concrete_op(state, op: dict):
-    """Execute operation on the concrete system.
+def execute_concrete_op(state, op: dict) -> bool:
+    """Execute an operation on the concrete system; return whether it accepted.
+
+    Return False when the implementation refuses the operation — a raised
+    exception, a False return, an error result, whatever refusal looks like in
+    the system under test. The driver compares this against the specification's
+    verdict, so a system that silently ignores an illegal operation must report
+    False here rather than True; otherwise the disagreement it exists to catch
+    is reported as agreement.
 
     TODO: Import your concrete system and implement dispatch.
     """
     op_name = op["op"]
-    # if op_name == "deposit":
-    #     state.deposit(op["amount"])
-    # elif op_name == "withdraw":
-    #     state.withdraw(op["amount"])
-    # ...
+    # try:
+    #     if op_name == "deposit":
+    #         state.deposit(op["amount"])
+    #     elif op_name == "withdraw":
+    #         state.withdraw(op["amount"])
+    #     return True
+    # except (ValueError, PreconditionError):
+    #     return False
+    return True
 
 
 class TestOracle:
@@ -869,8 +929,19 @@ class TestOracle:
             concrete_state = None  # placeholder
 
             for op in operations:
-                lean_state = oracle.execute(op)
-                execute_concrete_op(concrete_state, op)
+                lean_state, spec_accepts, reason = oracle.execute(op)
+                concrete_accepts = execute_concrete_op(concrete_state, op)
+
+                # Check the verdict before the state. A disagreement here is
+                # the defect the oracle exists to find: the implementation
+                # permitting something the specification forbids, or refusing
+                # something it allows. Comparing state alone misses it whenever
+                # the rejected operation would not have changed the state.
+                assert concrete_accepts == spec_accepts, (
+                    f"Verdict mismatch on {op}: spec "
+                    f"{'accepts' if spec_accepts else f'rejects ({reason})'}, "
+                    f"implementation {'accepts' if concrete_accepts else 'rejects'}"
+                )
 
                 abstracted = abstract_state(concrete_state)
                 assert abstracted.__dict__ == lean_state, (
@@ -975,10 +1046,14 @@ struct OracleTests {
         let steps = Int.random(in: 1...maxSteps)
         for _ in 0..<steps {
             let op = Operation.random()
-            let leanState = oracle.execute(op)
-            // executeConcreteOp(&concreteState, op)
+            let result = oracle.execute(op)
+            // Compare the verdict before the state: state alone cannot
+            // distinguish a rejected operation from one that legitimately
+            // changed nothing.
+            // let concreteAccepts = executeConcreteOp(&concreteState, op)
+            // #expect(concreteAccepts == result.ok)
             // let abstracted = abstractState(concreteState)
-            // #expect(abstracted == leanState)
+            // #expect(abstracted == result.state)
         }
     }
 }
@@ -1055,10 +1130,14 @@ class OracleTest : FunSpec({
                 // TODO: val concreteState = ConcreteState()
 
                 for (op in operations) {
-                    val leanState = oracle.execute(op)
-                    // executeConcreteOp(concreteState, op)
+                    val result = oracle.execute(op)
+                    // Compare the verdict before the state: state alone cannot
+                    // distinguish a rejected operation from one that
+                    // legitimately changed nothing.
+                    // val concreteAccepts = executeConcreteOp(concreteState, op)
+                    // concreteAccepts shouldBe result.ok
                     // val abstracted = abstractState(concreteState)
-                    // abstracted shouldBe leanState
+                    // abstracted shouldBe result.state
                 }
             }
         }
@@ -1082,11 +1161,23 @@ is a complete JSON object.
 {"op": "<operation-name>", "args": {"<input1>": <value1>, "<input2>": <value2>}}
 ```
 
-**State format** (oracle to test harness):
+**Result format** (oracle to test harness) — the state, plus a verdict:
 
 ```json
-{"<field1>": <value1>, "<field2>": "<value2>"}
+{"state": {"<field1>": <value1>, "<field2>": "<value2>"}, "ok": true}
+{"state": {"<field1>": <value1>, "<field2>": "<value2>"}, "ok": false, "reason": "<violated-predicate>"}
 ```
+
+`ok` is mandatory on every line, including the initial state emitted at
+startup. Emit `false` when the operation's precondition did not hold, and
+leave `state` unmutated in that case.
+
+**Never emit a bare state object.** Without the verdict a rejected
+operation and one that succeeded while changing nothing are byte-identical
+on the wire, so the driver cannot assert that the implementation accepts
+exactly what the specification accepts — which is the only thing this
+harness exists to check. `reason` is diagnostic: name the violated
+predicate for the failure report, and do not require drivers to parse it.
 
 #### 9b. Type Serialization
 
@@ -1338,36 +1429,62 @@ generates:
 import ZSpec.State
 import ZSpec.Operations
 
-def Counter.toJson (s : Counter) : String :=
+def Counter.stateJson (s : Counter) : String :=
   "{\"value\": " ++ toString s.value ++
   ", \"limit\": " ++ toString s.limit ++ "}"
+
+-- Reasons name Z predicates, which routinely contain backslashes (`amount
+-- \leq balance`) and quotes. Interpolating one raw would emit invalid JSON and
+-- break the driver on exactly the rejection path the verdict exists to report.
+def jsonEscape (s : String) : String :=
+  s.foldl (fun acc c =>
+    acc ++ match c with
+      | '"'  => "\\\""
+      | '\\' => "\\\\"
+      | '\n' => "\\n"
+      | '\r' => "\\r"
+      | '\t' => "\\t"
+      | c    => c.toString) ""
+
+-- Every line carries the state AND the verdict. A rejected operation and one
+-- that succeeded without changing anything are indistinguishable otherwise.
+def Counter.resultJson (s : Counter) (ok : Bool) (reason : String) : String :=
+  if ok then
+    "{\"state\": " ++ Counter.stateJson s ++ ", \"ok\": true}"
+  else
+    "{\"state\": " ++ Counter.stateJson s ++
+    ", \"ok\": false, \"reason\": \"" ++ jsonEscape reason ++ "\"}"
 
 def increment_precondition_bool (s : Counter) : Bool :=
   s.value < s.limit
 
-def parseAndExecute (s : Counter) (line : String) : Counter :=
-  -- Simple dispatch based on operation name
+-- Returns the new state paired with its verdict, so the caller cannot
+-- accidentally report success for a step that was refused.
+def parseAndExecute (s : Counter) (line : String) : Counter × Bool × String :=
   if line.containsSubstr "\"increment\"" then
     if increment_precondition_bool s then
-      increment s
+      (increment s, true, "")
     else
-      s
+      (s, false, "increment: value < limit violated")
   else if line.containsSubstr "\"reset\"" then
-    reset s
+    (reset s, true, "")
   else
-    s  -- unknown op or getvalue (Xi): no state change
+    -- Unknown op, or an observation (Xi) that leaves the state alone. Still a
+    -- success: nothing was refused.
+    (s, true, "")
 
 def main : IO Unit := do
   let stdin <- IO.getStdin
   let stdout <- IO.getStdout
   let mut state := initCounter
-  stdout.putStrLn (Counter.toJson state)
+  stdout.putStrLn (Counter.resultJson state true "")
   let mut line <- stdin.getLine
   while !line.isEmpty do
     let trimmed := line.trim
     if !trimmed.isEmpty then
-      state := parseAndExecute state trimmed
-      stdout.putStrLn (Counter.toJson state)
+      let (next, ok, reason) := parseAndExecute state trimmed
+      state := next
+      stdout.putStrLn (Counter.resultJson state ok reason)
     line <- stdin.getLine
 ```
 

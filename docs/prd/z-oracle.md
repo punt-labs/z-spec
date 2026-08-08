@@ -63,18 +63,38 @@ The Lean executable communicates via newline-delimited JSON (NDJSON)
 over stdin/stdout:
 
 ```json
+// Output, before any input is read: the initial state
+{"state": {"balance": 0, "status": "active"}, "ok": true}
+
 // Input (one command per line)
 {"op": "Deposit", "args": {"amount": 50}}
 {"op": "Withdraw", "args": {"amount": 30}}
+{"op": "Withdraw", "args": {"amount": 500}}
 
-// Output (state after each command — flat state object)
-{"balance": 50, "status": "active"}
-{"balance": 20, "status": "active"}
+// Output (one further result per command: the state, plus the verdict)
+{"state": {"balance": 50, "status": "active"}, "ok": true}
+{"state": {"balance": 20, "status": "active"}, "ok": true}
+{"state": {"balance": 20, "status": "active"}, "ok": false, "reason": "Withdraw: amount \\leq balance violated"}
 ```
 
-On startup, the oracle outputs the initial state before reading any
-commands. If an operation's precondition is not met, the oracle
-outputs the state unchanged (no mutation).
+The startup line comes first and is shown above, so a driver reads exactly
+one more result than it sent commands. `reason` may contain backslashes —
+Z predicates routinely do — so an implementation must escape it rather than
+interpolate it raw.
+
+An operation whose precondition is not met leaves the state unmutated
+and reports `ok: false` with a `reason` naming the violated predicate.
+**The verdict is not decoration — it is the point.** Without it the wire
+is ambiguous: a rejected operation and one that succeeded while changing
+nothing emit byte-identical lines. A driver comparing traces could then
+never assert the property this whole command exists to establish — that
+the implementation accepts exactly what the specification accepts. An
+implementation permitting an illegal withdrawal would produce a trace
+indistinguishable from one that correctly refused, and its tests would
+pass.
+
+`reason` is diagnostic, not contractual: drivers branch on `ok` and
+report `reason`. Do not parse it.
 
 ## User Workflow
 
