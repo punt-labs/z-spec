@@ -25,7 +25,10 @@ import pytest
 COMMANDS = Path(__file__).resolve().parents[2] / "commands"
 DOCS_PRD = Path(__file__).resolve().parents[2] / "docs" / "prd"
 
-_FENCE = re.compile(r"^```(\w+)\n(.*?)^```", re.MULTILINE | re.DOTALL)
+# Leading whitespace is tolerated because fenced blocks nested inside list items
+# are indented, and a column-0-only pattern would skip them silently — the worst
+# failure mode for a linter, which is to report success on what it never read.
+_FENCE = re.compile(r"^[ \t]*```(\w+)\n(.*?)^[ \t]*```", re.MULTILINE | re.DOTALL)
 _JSON_COMMENT = re.compile(r"^\s*//.*$", re.MULTILINE)
 # Schema blocks use <angle-bracket> placeholders where a concrete example would
 # carry a literal. Substituting a string keeps the block parseable, so a
