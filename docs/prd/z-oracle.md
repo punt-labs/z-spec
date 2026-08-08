@@ -66,15 +66,30 @@ over stdin/stdout:
 // Input (one command per line)
 {"op": "Deposit", "args": {"amount": 50}}
 {"op": "Withdraw", "args": {"amount": 30}}
+{"op": "Withdraw", "args": {"amount": 500}}
 
-// Output (state after each command — flat state object)
-{"balance": 50, "status": "active"}
-{"balance": 20, "status": "active"}
+// Output (one result per command: the state, plus the verdict)
+{"state": {"balance": 50, "status": "active"}, "ok": true}
+{"state": {"balance": 20, "status": "active"}, "ok": true}
+{"state": {"balance": 20, "status": "active"}, "ok": false, "reason": "Withdraw: amount \\leq balance violated"}
 ```
 
-On startup, the oracle outputs the initial state before reading any
-commands. If an operation's precondition is not met, the oracle
-outputs the state unchanged (no mutation).
+On startup, the oracle emits the initial state, with `ok` true, before
+reading any commands.
+
+An operation whose precondition is not met leaves the state unmutated
+and reports `ok: false` with a `reason` naming the violated predicate.
+**The verdict is not decoration — it is the point.** Without it the wire
+is ambiguous: a rejected operation and one that succeeded while changing
+nothing emit byte-identical lines. A driver comparing traces could then
+never assert the property this whole command exists to establish — that
+the implementation accepts exactly what the specification accepts. An
+implementation permitting an illegal withdrawal would produce a trace
+indistinguishable from one that correctly refused, and its tests would
+pass.
+
+`reason` is diagnostic, not contractual: drivers branch on `ok` and
+report `reason`. Do not parse it.
 
 ## User Workflow
 
