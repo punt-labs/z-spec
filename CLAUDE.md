@@ -400,3 +400,4 @@ Local semantic search. Slash commands: `/find`, `/ingest`, `/remember`,
 session start; the `z-specification` collection is the Z reference library
 described above.
 @.punt-labs/z-spec/CLAUDE.md
+@.punt-labs/vox/CLAUDE.md

@@ -36,6 +36,7 @@
       "Bash(uvx:*)",
       "Bash(python3:*)",
       "Bash(z-spec:*)",
+      "Bash(vox:*)",
       "mcp__plugin_z-spec_zspec__*",
       "Skill(beadle:mail)",
       "Skill(beadle:send)",
