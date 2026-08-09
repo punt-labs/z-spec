@@ -63,6 +63,15 @@ class ProbOutput:
         ),
     )
 
+    # probcli's constraint-based checks announce a finding in prose, not as a
+    # traced counter-example: -cbc_deadlock prints the offending STATE and no
+    # path to it. The error tally would catch these one branch later with a
+    # generic message; this names what was found. Nothing here builds a
+    # CounterExample, because there is no trace to put in one.
+    _FAILURE_MARKERS: ClassVar[tuple[tuple[str, str], ...]] = (
+        ("*** deadlock state found ***", "deadlock state found"),
+    )
+
     def __new__(cls, text: str, returncode: int) -> Self:
         self = super().__new__(cls)
         self._text = text
@@ -156,10 +165,16 @@ class ProbOutput:
         because probcli prints both on the same line and the absence of a
         counter-example is a *universal* claim over the reachable states. A run
         that stopped short cannot establish it.
+
+        The failure markers sit between the two: they name a finding probcli
+        stated in prose, and a named finding beats the error tally's count.
         """
         lowered = self._text.lower()
         if _COUNTER_RE.search(self._text):
             return CheckResult(name, CheckStatus.failed, self._violation())
+        for marker, detail in self._FAILURE_MARKERS:
+            if marker in lowered:
+                return CheckResult(name, CheckStatus.failed, detail)
         if self._error_count():
             return CheckResult(name, CheckStatus.failed, self._reported_errors())
         if _INCOMPLETE_RE.search(self._text):
