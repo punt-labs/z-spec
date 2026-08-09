@@ -1,0 +1,347 @@
+%
+% oracle-protocol.tex
+%
+% Z Specification for the z-spec Oracle Wire Protocol
+% Formal model of the newline-delimited JSON contract between a Lean
+% executable oracle and a property-based test harness.
+%
+% Type-check: fuzz -t oracle-protocol.tex
+% Animate:    probcli oracle-protocol.tex -animate 20
+%
+
+\documentclass[a4paper,10pt,fleqn]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{fuzz}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+\begin{document}
+
+\title{The Oracle Wire Protocol: A Z Specification}
+\author{Formal Model of the Oracle--Harness Contract}
+\date{August 2026}
+\hypersetup{
+  pdftitle={The Oracle Wire Protocol: A Z Specification},
+  pdfauthor={Punt Labs},
+  pdfsubject={Z Specification},
+  pdfcreator={fuzz/probcli}
+}
+\maketitle
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Introduction}
+% ============================================================
+
+The \texttt{/z-spec:oracle} command generates two programs from a Z
+specification. The first is an \emph{oracle}: a Lean executable that
+holds the specification's state and answers commands about it. The
+second is a \emph{driver}: a property-based test harness that sends the
+oracle a random sequence of operations, sends the same sequence to the
+implementation under test, and compares the two. The property being
+tested is that the implementation accepts exactly what the specification
+accepts.
+
+The two programs speak newline-delimited JSON over a pipe. The oracle
+emits its state before reading anything; thereafter each command it reads
+yields exactly one result line. This document specifies what a result
+line means.
+
+\subsection{Why the verdict exists}
+
+A result line carries the state \emph{and} a verdict. The verdict is not
+decoration, and the reason it must be there is the subject of this
+specification.
+
+An operation whose precondition holds mutates the state. An operation
+whose precondition fails leaves the state alone. But an operation whose
+precondition holds may also, quite legitimately, leave the state alone
+--- withdrawing nothing from an account is a lawful withdrawal of zero.
+So the after-state does not determine which of the two happened. If the
+line carried the state and nothing else, a rejection and a no-op success
+would be byte-identical, and a driver comparing traces could not assert
+the one property the harness exists to establish. An implementation that
+permitted an illegal withdrawal would produce a trace indistinguishable
+from one that correctly refused it, and its tests would pass.
+
+That was a real defect in the prose statement of this protocol. Written
+in Z it is an omitted output variable on two operations that share an
+after-state, which is visible on inspection. Written in prose it survived
+review.
+
+\subsection{What the notation is doing}
+
+Two conventions carry the argument.
+
+The rejecting operation is framed with $\Xi Model$ rather than
+$\Delta Model$ plus a predicate saying the state does not change. The
+two are equivalent in what they permit, but they are not equivalent as
+documents: with $\Xi$, ``the state is not mutated on rejection'' is a
+consequence of the schema's declaration part and cannot be broken by
+editing a predicate. It is a theorem, not a promise.
+
+Every operation declares an output $ok!$, and the rejecting operation
+declares a second output $reason!$. Because $ok!$ appears in the
+signature of both operations, no line can be emitted without it. That is
+the whole fix, stated in the one place where it cannot be forgotten.
+
+% ============================================================
+\section{Basic Types}
+% ============================================================
+
+\begin{zed}
+  [PREDICATE]
+\end{zed}
+
+The names of the predicates a specification imposes. A rejection names
+the predicate it violated, so that a failure report can quote it.
+
+\texttt{PREDICATE} is deliberately a given set with no structure. The
+protocol says a driver must branch on the verdict and must not parse the
+reason; giving \texttt{PREDICATE} no operations is that rule stated in
+mathematics rather than in a warning.
+
+% ============================================================
+\section{Free Types}
+% ============================================================
+
+\begin{zed}
+  ZBOOL ::= ztrue | zfalse
+\end{zed}
+
+The verdict. \texttt{ztrue} is the JSON \texttt{true} of an accepted
+operation; \texttt{zfalse} is the \texttt{false} of a rejected one.
+
+% ============================================================
+\section{Global Constants}
+% ============================================================
+
+\begin{axdef}
+  maxBalance : \nat \\
+  reserve : \nat \\
+  reserveMaintained : PREDICATE
+  \where
+  maxBalance = 3 \\
+  reserve = 1 \\
+  reserve \leq maxBalance
+\end{axdef}
+
+\texttt{maxBalance} bounds the state and the command inputs so that
+probcli can enumerate the reachable states; the protocol itself imposes
+no such bound. \texttt{reserve} is the minimum balance the account must
+keep. \texttt{reserveMaintained} names the precondition of
+\texttt{Withdraw} --- the predicate a rejection reports.
+
+The third constraint, $reserve \leq maxBalance$, is not arithmetic
+bookkeeping. \texttt{Init} sets the balance to \texttt{maxBalance} and
+the minimum to \texttt{reserve}, so it establishes the state invariant
+$minimum \leq balance$ only if the two constants are ordered that way.
+Discharging that obligation here, where the constants are chosen, is
+cheaper than discovering it as an unreachable initial state.
+
+% ============================================================
+\section{State}
+% ============================================================
+
+The model under test is the account of the running example in
+\texttt{commands/oracle.md}: a balance, and a minimum the balance may not
+fall below. Only two things about it matter here. It has a precondition
+worth violating, so there is something to reject; and it admits an
+operation that is accepted and yet changes nothing, so acceptance and
+rejection can share an after-state. Everything else about the model is
+incidental to the protocol.
+
+\begin{schema}{Model}
+  balance : \nat \\
+  minimum : \nat
+  \where
+  %
+  % The invariant the rejecting case exists to protect
+  %
+  minimum \leq balance \\
+  %
+  % Bounded for ProB animation
+  %
+  balance \leq maxBalance
+\end{schema}
+
+\begin{schema}{Init}
+  Model'
+  \where
+  balance' = maxBalance \\
+  minimum' = reserve
+\end{schema}
+
+The oracle emits this state, with the verdict \texttt{ztrue}, before it
+reads any command. The startup line is an ordinary result line; it is
+described by \texttt{ReportState} below.
+
+% ============================================================
+\section{Operations}
+% ============================================================
+
+\texttt{Withdraw} is the specimen operation. Its precondition is that the
+balance left afterwards still covers the minimum. The two schemas below
+are the two things the oracle can do with it, and between them they cover
+every input: a command is either accepted or rejected, never neither and
+never both.
+
+\subsection{AcceptWithdraw}
+
+The precondition holds. The state changes and the verdict is
+\texttt{ztrue}.
+
+The interesting instance is $amount? = 0$. The precondition reduces to
+the state invariant and therefore always holds, so a withdrawal of
+nothing is always accepted --- and leaves the balance exactly where it
+was.
+
+\begin{schema}{AcceptWithdraw}
+  \Delta Model \\
+  amount? : \nat \\
+  ok! : ZBOOL
+  \where
+  %
+  % Bounded input for ProB animation
+  %
+  amount? \leq maxBalance \\
+  %
+  % The precondition of Withdraw
+  %
+  balance - amount? \geq minimum \\
+  %
+  balance' = balance - amount? \\
+  minimum' = minimum \\
+  ok! = ztrue
+\end{schema}
+
+\subsection{RejectWithdraw}
+
+The precondition fails. The state is unchanged --- by the $\Xi$ frame,
+not by a predicate --- the verdict is \texttt{zfalse}, and
+\texttt{reason!} names the predicate that failed.
+
+\begin{schema}{RejectWithdraw}
+  \Xi Model \\
+  amount? : \nat \\
+  ok! : ZBOOL \\
+  reason! : PREDICATE
+  \where
+  %
+  % Bounded input for ProB animation
+  %
+  amount? \leq maxBalance \\
+  %
+  % The negation of the precondition of Withdraw
+  %
+  \lnot (balance - amount? \geq minimum) \\
+  %
+  ok! = zfalse \\
+  reason! = reserveMaintained
+\end{schema}
+
+\subsection{ReportState}
+
+What an observer reads off the wire: the whole state, and a verdict. This
+is the startup line the oracle emits before reading any command, and it
+is also the general form of an observation --- a result line reports the
+state that holds after the command it answers.
+
+\begin{schema}{ReportState}
+  \Xi Model \\
+  balance! : \nat \\
+  minimum! : \nat \\
+  ok! : ZBOOL
+  \where
+  balance! = balance \\
+  minimum! = minimum \\
+  ok! = ztrue
+\end{schema}
+
+% ============================================================
+\section{The Distinguishability Property}
+% ============================================================
+
+The property the protocol exists to guarantee:
+
+\begin{quote}
+  An observer reading a result line can always tell a rejection from an
+  accepted operation that happened to change nothing.
+\end{quote}
+
+The specification makes it true, and the reason is worth stating
+precisely rather than asserting.
+
+Take the state $balance = 1$, $minimum = 1$, reached from \texttt{Init}
+by a single withdrawal of $2$.
+
+\begin{itemize}
+  \item \texttt{AcceptWithdraw} with $amount? = 0$ is enabled, because
+    $1 - 0 \geq 1$. It leaves $balance = 1$ and emits $ok! = ztrue$.
+  \item \texttt{RejectWithdraw} with $amount? = 1$ is enabled, because
+    $1 - 1 \geq 1$ is false. Its $\Xi$ frame leaves $balance = 1$ and it
+    emits $ok! = zfalse$.
+\end{itemize}
+
+The two lines carry the same state. Nothing recoverable from the state
+distinguishes them. They differ in $ok!$ and nowhere else --- so if $ok!$
+were dropped from the signatures, the two would be the same line, and no
+driver could tell a specification-conforming implementation from one that
+had just permitted an illegal withdrawal.
+
+Three consequences follow from the schemas as written:
+
+\begin{enumerate}
+  \item \textbf{Every line carries a verdict.} $ok!$ is in the signature
+    of \texttt{AcceptWithdraw}, \texttt{RejectWithdraw} and
+    \texttt{ReportState}. There is no schema that emits a bare state.
+  \item \textbf{A rejection cannot mutate.} $\Xi Model$ constrains the
+    after-state to equal the before-state as part of
+    \texttt{RejectWithdraw}'s declaration. No predicate in the schema can
+    weaken it, and none can be forgotten.
+  \item \textbf{The two cases are exhaustive and disjoint.} The
+    rejecting predicate is written $\lnot P$ against the accepting
+    predicate's $P$, over the same declarations, rather than as the
+    equivalent $balance - amount? < minimum$. Written that way the
+    argument is on the page: no input satisfies both, and every input
+    satisfies one, so every command yields exactly one result line. The
+    exception is an input outside $0 \upto maxBalance$, which neither
+    schema admits --- that is the animation bound and not a property of
+    the protocol, which accepts any $amount? : \nat$.
+\end{enumerate}
+
+% ============================================================
+\section{Correspondence With the Wire}
+% ============================================================
+
+The Z above and the JSON of \texttt{commands/oracle.md} are the same
+object in two notations. The correspondence:
+
+\begin{center}
+\begin{tabular}{ll}
+  \textbf{Z} & \textbf{JSON} \\
+  \hline
+  input variables ($amount?$)     & the \texttt{args} object of a command line \\
+  the after-state ($Model'$)      & the \texttt{state} object of a result line \\
+  $ok! = ztrue$                   & \texttt{"ok": true} \\
+  $ok! = zfalse$                  & \texttt{"ok": false} \\
+  $reason!$                       & \texttt{"reason"}, present only when \texttt{ok} is false \\
+  \texttt{Init} then \texttt{ReportState} & the startup line, emitted before any command is read \\
+\end{tabular}
+\end{center}
+
+Serialisation of Z types into JSON values is tabulated in
+\texttt{commands/oracle.md}; it is a matter of encoding and carries no
+obligations that this specification does not already impose.
+
+Two rules of the wire are outside the model, and are recorded here so
+that the omission is deliberate rather than accidental. First,
+\emph{one command, one line}: the framing of the pipe is a property of
+the transport, not of the operations, and the disjointness argument above
+is what makes it well defined. Second, \texttt{reason} is diagnostic:
+\texttt{PREDICATE} is a given set precisely so that nothing can be
+computed from a reason, and a driver that branches on one is relying on
+something this contract does not offer.
+
+\end{document}
