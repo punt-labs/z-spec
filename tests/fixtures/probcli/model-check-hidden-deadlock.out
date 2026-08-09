@@ -1,0 +1,22 @@
+Writing fuzz AST to /Users/jfreeman/Coding/punt-labs/z-spec/.tmp/wt-tests/tests/fixtures/probcli/specs/hidden-deadlock-bad.fuzz
+! Message (source: proz):
+! Did not find Init Schema; assuming following schema to define the initialisation: InitProbe
+Z operation: Step(choice?)
+Z operation: Hold
+
+ALL OPERATIONS COVERED
+% Model checking finished, all open states visited
+Model checking time: 2 ms (3 ms walltime)
+States analysed: 4
+Transitions fired: 7
+No counter example found. However, not all transitions were computed !
+
+Coverage:
+[STATES (5),deadlocked:0,invariant_violated:0,invariant_not_checked:0,open:0,explored_but_not_all_transitions_computed:1,live:5,total:5,TOTAL_TRANSITIONS,7,COVERED_OPERATIONS (3),Hold:3,INITIALISATION:1,Step:3,UNCOVERED_OPERATIONS (0)]
+
+
+! A warning occurred (source: model_check_incomplete) !
+! *** Not all transitions were computed as MAX_OPERATIONS=3 was too small, e.g., for state with id = 0
+! *** warning occurred ***
+! model_check_incomplete
+! Total Errors: 0, Warnings:1

@@ -63,6 +63,10 @@ examples/*.out
 examples/*.toc
 *.out
 
+# ...except the captured probcli transcripts. They are test fixtures — the
+# contract the output parser is written against — not build noise.
+!tests/fixtures/probcli/*.out
+
 
 # Temp/config files
 CLAUDE.md.tmp

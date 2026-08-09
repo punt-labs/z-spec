@@ -1,0 +1,18 @@
+Writing fuzz AST to /Users/jfreeman/Coding/punt-labs/z-spec/.tmp/wt-tests/examples/search-panel.fuzz
+Z operation: EnterQuery
+Z operation: ClearQuery
+Z operation: ReceiveResults(newResults?)
+Z operation: ReceiveEmpty
+Z operation: ReceiveError
+Z operation: SelectResult(result?)
+Z operation: HighlightResult(result?)
+Z operation: ClearHighlight
+Z operation: CloseDetail
+Z operation: ProgrammaticClear
+Z operation: ChangeCollection
+% given_set(RESULTID)
+[0m% Starting Constraint-Based DEADLOCK check 
+target(all)
+no_deadlock_counter_example_found(1,1)
+[32mNo DEADLOCK state found[0m
+

@@ -1,0 +1,22 @@
+\documentclass{article}
+\usepackage{fuzz}
+\begin{document}
+\begin{zed}
+  maxPos == 2
+\end{zed}
+\begin{schema}{Probe}
+  pos : \nat
+\where
+  pos \leq maxPos
+\end{schema}
+\begin{schema}{InitProbe}
+  Probe'
+\where
+  pos' = 5
+\end{schema}
+\begin{schema}{Hold}
+  \Delta Probe
+\where
+  pos' = pos
+\end{schema}
+\end{document}

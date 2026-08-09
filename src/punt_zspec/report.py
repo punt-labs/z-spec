@@ -113,12 +113,10 @@ def prob_from_dict(data: dict[str, Any]) -> ProbReport:
         for c in data.get("checks", [])
     ]
 
+    # ``covered`` in the JSON is derived output, not input: it is recomputed
+    # from the count so a hand-edited report cannot claim coverage it never had.
     operations = [
-        OperationCoverage(
-            name=o["name"],
-            times_fired=o["times_fired"],
-            covered=o["covered"],
-        )
+        OperationCoverage(name=o["name"], times_fired=o["times_fired"])
         for o in data.get("operations", [])
     ]
 

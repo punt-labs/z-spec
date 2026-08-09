@@ -94,7 +94,7 @@ def _make_report() -> ProbReport:
             ),
         ],
         operations=[
-            OperationCoverage(name="Increment", times_fired=10, covered=True),
+            OperationCoverage(name="Increment", times_fired=10),
         ],
         counter_example=None,
         states_analysed=42,

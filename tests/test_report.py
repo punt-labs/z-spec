@@ -58,8 +58,8 @@ def _make_report() -> ProbReport:
             ),
         ],
         operations=[
-            OperationCoverage(name="AddItem", times_fired=5, covered=True),
-            OperationCoverage(name="RemoveItem", times_fired=0, covered=False),
+            OperationCoverage(name="AddItem", times_fired=5),
+            OperationCoverage(name="RemoveItem", times_fired=0),
         ],
         counter_example=None,
         states_analysed=10,

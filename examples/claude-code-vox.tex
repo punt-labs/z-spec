@@ -900,6 +900,10 @@ No speech, no block.
   pendingResponse' = pendingResponse
 \end{schema}
 
+Every resource the session held is released; the session identifier is
+kept, because it is the record of which session ended. See
+\texttt{claude-code.tex} for the discussion.
+
 \begin{schema}{EndSession}
   \Delta State \\
   reason? : SessionEndReason
@@ -907,7 +911,7 @@ No speech, no block.
   sessionPhase = spIdle \\
   activeSubagents = \emptyset \\
   sessionPhase' = spEnded \\
-  sessionId' = \emptyset \\
+  sessionId' = sessionId \\
   toolPhase' = tpNone \\
   currentTool' = \emptyset \\
   toolsThisTurn' = 0 \\
@@ -916,13 +920,55 @@ No speech, no block.
   pendingPrompt' = \emptyset \\
   pendingResponse' = \emptyset \\
   permMode' = permMode \\
-  notifyMode' = nmOff \\
-  speakMode' = zfalse \\
+  notifyMode' = notifyMode \\
+  speakMode' = speakMode \\
   vibeMode' = vibeMode \\
   vibeSignals' = \emptyset \\
   stopHookActive' = zfalse \\
   spokeSummary' = zfalse
 \end{schema}
+
+\texttt{notifyMode} and \texttt{speakMode} are both carried through, and
+the rule that requires it is narrower than a taxonomy of variables:
+
+\begin{quote}
+  An operation entering the terminal phase must not disable a facility
+  that an operation enabled in that phase requires.
+\end{quote}
+
+\texttt{FarewellSession} below is the only operation in this corpus with
+an \texttt{spEnded} precondition other than the declared halt, and it is
+specified to speak as the session shuts down. It names
+\texttt{notifyMode} in its precondition, so silencing notifications here
+would leave it unable to fire from any state at all. It needs
+\texttt{speakMode} to do what its prose says, so clearing that would let
+it fire and chime while never speaking --- a farewell that is enabled
+everywhere it should be and audible nowhere. Both were true of this
+specification until now, in that order, and each was invisible for the
+same reason: the operation could not run, so nobody heard what it did not
+say.
+
+What \texttt{EndSession} does release is what the session accumulated ---
+subagents, context, vibe signals, and the two Stop-hook flags. The
+invariant at the head of this document survives the change:
+\texttt{speakMode = ztrue} still implies \texttt{notifyMode $\neq$ nmOff},
+because both are carried together.
+
+\subsection{SessionOver}
+
+The declared halt: enabled exactly in \texttt{spEnded}, and it changes
+nothing. Stating the intended termination as an operation is what makes
+the absence of others meaningful --- a model checker cannot otherwise
+distinguish a machine that has finished from one that is stuck, so with
+this schema present every remaining deadlock is unintended by
+construction.
+
+\begin{schema}{SessionOver}
+  \Xi State
+  \where
+  sessionPhase = spEnded
+\end{schema}
+
 
 % ============================================================
 \section{System Invariants}

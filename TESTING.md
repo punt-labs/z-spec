@@ -20,7 +20,7 @@ feature is unusable."
 |------|---------|------------|----------------|------|
 | 1. Unit | `make test-py` | yes — `test.yml` `unit` | each module behaves in isolation — parsing, report I/O, command objects, types; and each shipped prompt document is internally consistent | every commit |
 | 2. Spec type-check | `make type` (`type-z-*`) | yes — `test.yml` `specs` | every `examples/*.tex` is fuzz-clean; the tool's own corpus type-checks | every commit |
-| 3. Spec model-check | `make test` (`test-z-*`) | yes — `test.yml` `specs` | probcli explores each spec's reachable state space with no counterexample | every commit |
+| 3. Spec model-check | `make test` (`test-z-*`) | yes — `test.yml` `specs` | probcli explores each spec's reachable state space, finds no counterexample, certifies the exploration complete, and fires every operation at least once | every commit |
 | 4. Surface parity | `tests/commands/test_parity.py` | yes — `test.yml` `unit` | the CLI verb and the MCP tool for one command resolve to the same `Command` object with the same options | every commit |
 | 5. **Acceptance (UAT)** | `make uat` + [`docs/testing/manual-tests.md`](docs/testing/manual-tests.md) | the subprocess half only — `test.yml` `e2e` | the installed CLI, the reconnected MCP server, and the lux menu do the right thing on screen | **before the PR opens** |
 
@@ -115,6 +115,24 @@ has a characteristic failure:
   regression in the tool's documentation of its own notation. `-bad.tex` files
   are the deliberate exception — anti-pattern demonstrations, excluded from the
   gates by the `SPECS` filter in the Makefile.
+- **A specification that a gate reads is stored where its purpose says.**
+  `examples/` holds specs a reader should read, including deliberately bad ones
+  that teach — `animation-hints-bad.tex` is there to be read. `tests/fixtures/
+  probcli/specs/` holds specs a test should execute: `deadlock-bad.tex`,
+  `unreachable-operation-bad.tex`, `xi-frame-bad.tex`,
+  `covered-then-deadlock-bad.tex` and `hidden-deadlock-bad.tex` exist to make
+  the gate go red, and two of them are near-duplicates of a neighbour, which a
+  document written to be read would not be. The `-bad` suffix means "excluded
+  from the corpus gates," not "lives in `examples/`."
+- **A gate must be shown failing before it is trusted.** All five fixture
+  specs above are fuzz-clean: every defect they carry passes the type-check
+  tier untouched and is visible only at model-check. Each one exists because a
+  gate claimed to catch something and did not, and each was written by
+  constructing the failure rather than by reading the code — three separate
+  attempts were needed to build a specification whose deadlock a truncated
+  exploration actually hides, because `MAX_OPERATIONS` is a per-operation
+  budget and transitions sharing a successor collapse. A check that has never
+  been observed failing is a check whose passing means nothing.
 - **CLI and MCP must not drift.** Both surfaces run the same `Command` objects
   from `commands/registry.py`. `test_parity.py` asserts that; a command added to
   one surface only is a defect, not a partial feature.
@@ -124,6 +142,13 @@ has a characteristic failure:
   scene renders — that is tier 5, always.
 
 ## Running tests
+
+`make check` writes `examples/<stem>.report.json` for every spec it checks,
+because the gate drives the same `ModelCheckCommand` the CLI verb and MCP tool
+resolve, and that command persists its report. The files are gitignored and
+`make clean` removes them. It is worth knowing rather than discovering: after a
+`make check` the reports on disk correspond to the code that just ran, where
+before they corresponded to whenever someone last ran `make spec-reports`.
 
 ```bash
 make check          # tiers 1–4: lint, types, fuzz, pytest, probcli, ratchets

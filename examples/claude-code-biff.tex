@@ -1042,6 +1042,10 @@ read messages but is not forced to).
 
 \subsection{EndSession}
 
+Every resource the session held is released; the session identifier is
+kept, because it is the record of which session ended. See
+\texttt{claude-code.tex} for the discussion.
+
 \begin{schema}{EndSession}
   \Delta State \\
   reason? : SessionEndReason
@@ -1050,7 +1054,7 @@ read messages but is not forced to).
   activeSubagents = \emptyset \\
   %
   sessionPhase' = spEnded \\
-  sessionId' = \emptyset \\
+  sessionId' = sessionId \\
   toolPhase' = tpNone \\
   currentTool' = \emptyset \\
   toolCategory' = tcOther \\
@@ -1071,6 +1075,22 @@ read messages but is not forced to).
   wallActive' = zfalse \\
   wallText' = \emptyset
 \end{schema}
+
+\subsection{SessionOver}
+
+The declared halt: enabled exactly in \texttt{spEnded}, and it changes
+nothing. Stating the intended termination as an operation is what makes
+the absence of others meaningful --- a model checker cannot otherwise
+distinguish a machine that has finished from one that is stuck, so with
+this schema present every remaining deadlock is unintended by
+construction.
+
+\begin{schema}{SessionOver}
+  \Xi State
+  \where
+  sessionPhase = spEnded
+\end{schema}
+
 
 % ============================================================
 \section{System Invariants}

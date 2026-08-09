@@ -21,11 +21,24 @@ def _report(
         probcli_version="1.13.1",
         setsize=1,
         checks=checks,
-        operations=[OperationCoverage("Op", 3, covered=True)],
+        operations=[OperationCoverage("Op", 3)],
         counter_example=counter_example,
         states_analysed=42,
         transitions_fired=150,
     )
+
+
+def test_coverage_is_derived_from_the_fire_count() -> None:
+    assert OperationCoverage("Op", 3).covered is True
+    assert OperationCoverage("Op", 0).covered is False
+
+
+def test_to_dict_carries_the_derived_coverage() -> None:
+    assert OperationCoverage("Op", 0).to_dict() == {
+        "name": "Op",
+        "times_fired": 0,
+        "covered": False,
+    }
 
 
 def test_ok_is_false_when_any_check_failed() -> None:
@@ -33,15 +46,25 @@ def test_ok_is_false_when_any_check_failed() -> None:
     assert report.ok is False
 
 
-def test_ok_is_true_for_warning_skipped_passed() -> None:
+def test_ok_is_true_for_skipped_and_passed() -> None:
     report = _report(
         [
             CheckResult("a", CheckStatus.passed),
-            CheckResult("b", CheckStatus.warning),
             CheckResult("c", CheckStatus.skipped),
         ]
     )
     assert report.ok is True
+
+
+def test_ok_is_false_when_a_check_only_warned() -> None:
+    """A warning is an unestablished claim, and unestablished is not passing."""
+    report = _report(
+        [
+            CheckResult("a", CheckStatus.passed),
+            CheckResult("b", CheckStatus.warning, "not certified complete"),
+        ]
+    )
+    assert report.ok is False
 
 
 def test_to_dict_omits_counter_example_when_absent() -> None:

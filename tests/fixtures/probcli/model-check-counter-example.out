@@ -1,0 +1,21 @@
+Writing fuzz AST to /Users/jfreeman/Coding/punt-labs/z-spec/.tmp/wt-tests/tests/fixtures/probcli/specs/deadlock-bad.fuzz
+! Message (source: proz):
+! Did not find Init Schema; assuming following schema to define the initialisation: InitProbe
+Z operation: Step
+
+Model checking time: 0 ms (1 ms walltime)
+States analysed: 0
+Transitions fired: 1
+[31m*** COUNTER EXAMPLE FOUND ***[0m
+
+deadlock
+*** TRACE (length=1):
+ 1: INITIALISATION(count=0)
+
+Coverage:
+[STATES (2),invariant_violated:0,invariant_not_checked:0,open:0,live:1,deadlocked:1,total:2,TOTAL_TRANSITIONS,1,COVERED_OPERATIONS (1),INITIALISATION:1,UNCOVERED_OPERATIONS (1),Step]
+
+Found "deadlock" error in state id 0
+! *** error occurred ***
+! deadlock
+! Total Errors: 1, Warnings:0

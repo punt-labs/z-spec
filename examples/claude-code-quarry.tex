@@ -199,6 +199,30 @@ The key properties verified by this model:
 \section{Initialization}
 % ============================================================
 
+\texttt{Init} describes the machine before any session exists. The three
+capture toggles are read from \texttt{.claude/quarry.local.md} by the
+\texttt{SessionStart} hook, so at this point they have not been read and
+their values mean nothing; they are pinned to \texttt{zfalse} for
+definiteness, alongside the other quarry fields, all of which are empty
+or false while \texttt{sessionPhase = spInactive}.
+
+Setting the configuration here instead would assert that the machine
+knows it before the hook that reads it has run. That is the error this
+document already made in a subtler form: the flags were fixed to
+\texttt{ztrue} at initialisation and carried forward unchanged by every
+operation, so the configuration was declared as state and then made
+constant. The fourth key property promised above --- that each capture
+layer can be independently disabled --- was stated over flags no
+execution could vary, and the operations guarded by \texttt{zfalse} were
+unreachable from the initial state. A specification that documents
+behaviour it cannot exhibit is worse than one that omits it, because it
+reads as though it had been checked.
+
+The configuration therefore enters where it is read, as inputs on the two
+\texttt{SessionStart} operations below. It remains immutable for the life
+of the session: \texttt{QuarryFrame} carries \texttt{cfg\ldots' =
+cfg\ldots} through every operation that follows.
+
 \begin{schema}{Init}
   State'
   \where
@@ -217,9 +241,9 @@ The key properties verified by this model:
   activeDb' = \emptyset \\
   capturedUrls' = \emptyset \\
   compactionSaved' = zfalse \\
-  cfgSessionSync' = ztrue \\
-  cfgWebFetch' = ztrue \\
-  cfgCompaction' = ztrue
+  cfgSessionSync' = zfalse \\
+  cfgWebFetch' = zfalse \\
+  cfgCompaction' = zfalse
 \end{schema}
 
 % ============================================================
@@ -244,18 +268,32 @@ The key properties verified by this model:
 
 \subsection{StartSessionWithSync}
 
-\texttt{SessionStart} hook fires. If \texttt{cfgSessionSync = ztrue},
-quarry auto-registers the working directory and syncs. The codebase
-is indexed before Claude can process prompts.
+The \texttt{SessionStart} hook fires and reads the capture configuration.
+This is the branch it takes when session sync is enabled: quarry
+auto-registers the working directory and syncs, so the codebase is
+indexed before Claude can process a prompt.
+
+All three toggles arrive the same way, as inputs to this operation, and
+each is guarded or recorded by the term that names it. A nondeterministic
+choice between two operations of equal precondition would also express
+``something outside the machine decides,'' but it is the right form only
+when the deciding datum cannot be named. Here it can: \texttt{sessionSync?}
+is read from the same file, by the same hook, at the same moment as its
+two siblings, and a specification in which two of three configuration
+values are terms and the third is a choice of schema hides the symmetry
+its own reader needs.
 
 \begin{schema}{StartSessionWithSync}
   \Delta State \\
   sid? : SESSIONID \\
   source? : SessionStartSource \\
-  mode? : PermissionMode
+  mode? : PermissionMode \\
+  sessionSync? : ZBOOL \\
+  webFetch? : ZBOOL \\
+  compaction? : ZBOOL
   \where
   sessionPhase = spInactive \\
-  cfgSessionSync = ztrue \\
+  sessionSync? = ztrue \\
   %
   sessionPhase' = spIdle \\
   sessionId' = \{ sid? \} \\
@@ -272,24 +310,27 @@ is indexed before Claude can process prompts.
   activeDb' = \emptyset \\
   capturedUrls' = \emptyset \\
   compactionSaved' = zfalse \\
-  cfgSessionSync' = cfgSessionSync \\
-  cfgWebFetch' = cfgWebFetch \\
-  cfgCompaction' = cfgCompaction
+  cfgSessionSync' = sessionSync? \\
+  cfgWebFetch' = webFetch? \\
+  cfgCompaction' = compaction?
 \end{schema}
 
 \subsection{StartSessionNoSync}
 
-Session starts but sync is disabled. The codebase is not indexed
-automatically.
+The other branch: the session starts with sync disabled, and the codebase
+is not indexed automatically.
 
 \begin{schema}{StartSessionNoSync}
   \Delta State \\
   sid? : SESSIONID \\
   source? : SessionStartSource \\
-  mode? : PermissionMode
+  mode? : PermissionMode \\
+  sessionSync? : ZBOOL \\
+  webFetch? : ZBOOL \\
+  compaction? : ZBOOL
   \where
   sessionPhase = spInactive \\
-  cfgSessionSync = zfalse \\
+  sessionSync? = zfalse \\
   %
   sessionPhase' = spIdle \\
   sessionId' = \{ sid? \} \\
@@ -306,9 +347,9 @@ automatically.
   activeDb' = \emptyset \\
   capturedUrls' = \emptyset \\
   compactionSaved' = zfalse \\
-  cfgSessionSync' = cfgSessionSync \\
-  cfgWebFetch' = cfgWebFetch \\
-  cfgCompaction' = cfgCompaction
+  cfgSessionSync' = sessionSync? \\
+  cfgWebFetch' = webFetch? \\
+  cfgCompaction' = compaction?
 \end{schema}
 
 \subsection{SubmitPrompt}
@@ -856,6 +897,10 @@ for the next potential compaction cycle.
 \section{Session End}
 % ============================================================
 
+Every resource the session held is released; the session identifier is
+kept, because it is the record of which session ended. See
+\texttt{claude-code.tex} for the discussion.
+
 \begin{schema}{EndSession}
   \Delta State \\
   reason? : SessionEndReason
@@ -863,7 +908,7 @@ for the next potential compaction cycle.
   sessionPhase = spIdle \\
   activeSubagents = \emptyset \\
   sessionPhase' = spEnded \\
-  sessionId' = \emptyset \\
+  sessionId' = sessionId \\
   toolPhase' = tpNone \\
   currentTool' = \emptyset \\
   toolsThisTurn' = 0 \\
@@ -881,6 +926,22 @@ for the next potential compaction cycle.
   cfgCompaction' = cfgCompaction
 \end{schema}
 
+\subsection{SessionOver}
+
+The declared halt: enabled exactly in \texttt{spEnded}, and it changes
+nothing. Stating the intended termination as an operation is what makes
+the absence of others meaningful --- a model checker cannot otherwise
+distinguish a machine that has finished from one that is stuck, so with
+this schema present every remaining deadlock is unintended by
+construction.
+
+\begin{schema}{SessionOver}
+  \Xi State
+  \where
+  sessionPhase = spEnded
+\end{schema}
+
+
 % ============================================================
 \section{System Invariants}
 % ============================================================
@@ -892,8 +953,9 @@ for the next potential compaction cycle.
     \texttt{codebaseIndexed = ztrue} for the duration of the session.
 
   \item \textbf{Capture config is immutable during session}: the
-    \texttt{cfg*} flags are set at \texttt{Init} and preserved by
-    all operations. They cannot change mid-session.
+    \texttt{cfg*} flags are established by the \texttt{SessionStart}
+    operation that begins the session, and preserved unchanged by every
+    operation thereafter. They cannot change mid-session.
 
   \item \textbf{WebFetch deduplication}: \texttt{CaptureWebFetch}
     requires \texttt{url? $\notin$ capturedUrls}. No URL is ingested

@@ -1,10 +1,12 @@
-"""ProB verification report and its constituent check and trace types."""
+"""The ProB verification report and the check and coverage results it carries."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
+
+from punt_zspec.types.trace import CounterExample
 
 
 class CheckStatus(StrEnum):
@@ -34,47 +36,26 @@ class CheckResult:
 
 @dataclass(frozen=True)
 class OperationCoverage:
-    """Coverage data for a single Z operation."""
+    """One Z operation as probcli's coverage census counted it.
+
+    Coverage is derived, never stored: an operation is covered because the
+    census counted it firing. "Covered but never fired" is not a state this
+    type can be put into.
+    """
 
     name: str
     times_fired: int
-    covered: bool
+
+    @property
+    def covered(self) -> bool:
+        """Return whether probcli fired this operation at least once."""
+        return self.times_fired > 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "times_fired": self.times_fired,
             "covered": self.covered,
-        }
-
-
-@dataclass(frozen=True)
-class CounterExample:
-    """A counter-example trace from probcli."""
-
-    steps: list[TraceStep]
-    violation: str
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "steps": [s.to_dict() for s in self.steps],
-            "violation": self.violation,
-        }
-
-
-@dataclass(frozen=True)
-class TraceStep:
-    """A single step in a counter-example trace."""
-
-    step_number: int
-    operation: str
-    state: dict[str, str]
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "step_number": self.step_number,
-            "operation": self.operation,
-            "state": self.state,
         }
 
 
@@ -93,9 +74,15 @@ class ProbReport:
 
     @property
     def ok(self) -> bool:
+        """Return whether every check reached a verdict that can be relied on.
+
+        ``warning`` does not count. It marks a run that finished without
+        finding anything and without certifying it looked everywhere, and an
+        unestablished claim is not a passing one — the gate would otherwise
+        report success on the strength of a partial exploration.
+        """
         return all(
-            c.status in (CheckStatus.passed, CheckStatus.skipped, CheckStatus.warning)
-            for c in self.checks
+            c.status in (CheckStatus.passed, CheckStatus.skipped) for c in self.checks
         )
 
     def to_dict(self) -> dict[str, Any]:

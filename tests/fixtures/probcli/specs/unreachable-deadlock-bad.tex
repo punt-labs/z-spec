@@ -1,0 +1,47 @@
+\documentclass{article}
+\usepackage{fuzz}
+\begin{document}
+
+\section{Unreachable deadlock probe}
+
+\begin{zed}
+  ZBOOL ::= ztrue | zfalse
+\end{zed}
+
+\begin{zed}
+  maxCount == 3
+\end{zed}
+
+\begin{schema}{Probe}
+  count : \nat \\
+  flag : ZBOOL
+\where
+  count \leq maxCount
+\end{schema}
+
+\begin{schema}{InitProbe}
+  Probe'
+\where
+  count' = 0 \\
+  flag' = zfalse
+\end{schema}
+
+\begin{schema}{Step}
+  \Delta Probe
+\where
+  flag = zfalse \\
+  count < maxCount \\
+  count' = count + 1 \\
+  flag' = zfalse
+\end{schema}
+
+\begin{schema}{Reset}
+  \Delta Probe
+\where
+  flag = zfalse \\
+  count = maxCount \\
+  count' = 0 \\
+  flag' = zfalse
+\end{schema}
+
+\end{document}
