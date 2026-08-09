@@ -63,19 +63,24 @@ The Lean executable communicates via newline-delimited JSON (NDJSON)
 over stdin/stdout:
 
 ```json
+// Output, before any input is read: the initial state
+{"state": {"balance": 0, "status": "active"}, "ok": true}
+
 // Input (one command per line)
 {"op": "Deposit", "args": {"amount": 50}}
 {"op": "Withdraw", "args": {"amount": 30}}
 {"op": "Withdraw", "args": {"amount": 500}}
 
-// Output (one result per command: the state, plus the verdict)
+// Output (one further result per command: the state, plus the verdict)
 {"state": {"balance": 50, "status": "active"}, "ok": true}
 {"state": {"balance": 20, "status": "active"}, "ok": true}
 {"state": {"balance": 20, "status": "active"}, "ok": false, "reason": "Withdraw: amount \\leq balance violated"}
 ```
 
-On startup, the oracle emits the initial state, with `ok` true, before
-reading any commands.
+The startup line comes first and is shown above, so a driver reads exactly
+one more result than it sent commands. `reason` may contain backslashes —
+Z predicates routinely do — so an implementation must escape it rather than
+interpolate it raw.
 
 An operation whose precondition is not met leaves the state unmutated
 and reports `ok: false` with a `reason` naming the violated predicate.

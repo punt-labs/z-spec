@@ -693,6 +693,7 @@ Generate a test file that:
 // oracle/oracle.test.ts
 import fc from 'fast-check';
 import { execSync, spawn } from 'child_process';
+import { createInterface } from 'readline';
 import { AbstractState, abstractState } from './abstraction';
 
 // Path to the Lean oracle binary
@@ -710,28 +711,41 @@ interface OracleResult {
 }
 
 /**
+ * Read the oracle's stdout one NDJSON line at a time.
+ *
+ * A 'data' event is a chunk boundary, not a line boundary: it may carry half a
+ * line or three of them. Parsing a raw chunk works until a state object grows
+ * past the pipe buffer, then fails intermittently and looks like a model bug.
+ * `readline` restores the framing the protocol assumes.
+ */
+function lineReader(proc: ReturnType<typeof spawn>): AsyncIterableIterator<string> {
+  return createInterface({ input: proc.stdout!, crlfDelay: Infinity })[
+    Symbol.asyncIterator
+  ]();
+}
+
+async function nextResult(
+  lines: AsyncIterableIterator<string>,
+): Promise<OracleResult> {
+  const { value, done } = await lines.next();
+  if (done) throw new Error('Oracle closed stdout before emitting a result');
+  return JSON.parse(value.trim()) as OracleResult;
+}
+
+/**
  * Send a command to the Lean oracle process and read the resulting line.
  *
  * Returns the verdict as well as the state. Dropping `ok` here would leave the
  * driver unable to tell a rejected operation from one that succeeded without
  * changing anything.
  */
-function sendToOracle(
+async function sendToOracle(
   proc: ReturnType<typeof spawn>,
+  lines: AsyncIterableIterator<string>,
   command: Operation,
 ): Promise<OracleResult> {
-  return new Promise((resolve, reject) => {
-    const json = JSON.stringify(command);
-    proc.stdin!.write(json + '\n');
-
-    proc.stdout!.once('data', (data: Buffer) => {
-      try {
-        resolve(JSON.parse(data.toString().trim()) as OracleResult);
-      } catch (e) {
-        reject(new Error(`Failed to parse oracle output: ${data}`));
-      }
-    });
-  });
+  proc.stdin!.write(JSON.stringify(command) + '\n');
+  return nextResult(lines);
 }
 
 /**
@@ -779,13 +793,12 @@ describe('Oracle: concrete refines abstract model', () => {
           // Start fresh oracle process
           const oracle = spawn(ORACLE_BIN);
 
-          // Read initial state from oracle
-          const initLine = await new Promise<string>((resolve) => {
-            oracle.stdout!.once('data', (data: Buffer) => {
-              resolve(data.toString().trim());
-            });
-          });
-          let leanState: AbstractState = (JSON.parse(initLine) as OracleResult).state;
+          // One line reader for the whole session: it owns the buffer that
+          // reassembles chunks into lines, so it must not be recreated per read.
+          const lines = lineReader(oracle);
+
+          // Read initial state from oracle (enveloped, ok=true)
+          let leanState: AbstractState = (await nextResult(lines)).state;
 
           // Initialize concrete system
           // TODO: const concreteState = new ConcreteState();
@@ -793,7 +806,7 @@ describe('Oracle: concrete refines abstract model', () => {
 
           // Execute each operation on both sides
           for (const op of operations) {
-            const result = await sendToOracle(oracle, op);
+            const result = await sendToOracle(oracle, lines, op);
             leanState = result.state;
             const concreteAccepts = executeConcreteOp(concreteState, op);
 
@@ -1420,6 +1433,19 @@ def Counter.stateJson (s : Counter) : String :=
   "{\"value\": " ++ toString s.value ++
   ", \"limit\": " ++ toString s.limit ++ "}"
 
+-- Reasons name Z predicates, which routinely contain backslashes (`amount
+-- \leq balance`) and quotes. Interpolating one raw would emit invalid JSON and
+-- break the driver on exactly the rejection path the verdict exists to report.
+def jsonEscape (s : String) : String :=
+  s.foldl (fun acc c =>
+    acc ++ match c with
+      | '"'  => "\\\""
+      | '\\' => "\\\\"
+      | '\n' => "\\n"
+      | '\r' => "\\r"
+      | '\t' => "\\t"
+      | c    => c.toString) ""
+
 -- Every line carries the state AND the verdict. A rejected operation and one
 -- that succeeded without changing anything are indistinguishable otherwise.
 def Counter.resultJson (s : Counter) (ok : Bool) (reason : String) : String :=
@@ -1427,7 +1453,7 @@ def Counter.resultJson (s : Counter) (ok : Bool) (reason : String) : String :=
     "{\"state\": " ++ Counter.stateJson s ++ ", \"ok\": true}"
   else
     "{\"state\": " ++ Counter.stateJson s ++
-    ", \"ok\": false, \"reason\": \"" ++ reason ++ "\"}"
+    ", \"ok\": false, \"reason\": \"" ++ jsonEscape reason ++ "\"}"
 
 def increment_precondition_bool (s : Counter) : Bool :=
   s.value < s.limit
