@@ -1,0 +1,35 @@
+\documentclass{article}
+\usepackage{fuzz}
+\begin{document}
+
+\section{Exit-code probe}
+
+A deliberately deadlocking specification. The initial state sets $count = 0$
+and the only operation requires $count > 0$, so no operation is ever enabled
+and ProB must report a deadlock. Used once, to establish whether probcli
+signals a counterexample through its exit status or only through its output.
+
+\begin{zed}
+  maxCount == 3
+\end{zed}
+
+\begin{schema}{Probe}
+  count : \nat
+\where
+  count \leq maxCount
+\end{schema}
+
+\begin{schema}{InitProbe}
+  Probe'
+\where
+  count' = 0
+\end{schema}
+
+\begin{schema}{Step}
+  \Delta Probe
+\where
+  count > 0 \\
+  count' = count - 1
+\end{schema}
+
+\end{document}

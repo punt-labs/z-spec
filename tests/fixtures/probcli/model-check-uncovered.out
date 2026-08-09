@@ -1,0 +1,17 @@
+Writing fuzz AST to /Users/jfreeman/Coding/punt-labs/z-spec/.tmp/wt-tests/tests/fixtures/probcli/specs/unreachable-operation-bad.fuzz
+Z operation: AcceptWithdraw(amount?)
+Z operation: RejectWithdraw(amount?)
+Z operation: ReportState
+Z operation: Freeze
+% given_set(PREDICATE)
+% Runtime for SOLUTION for SETUP_CONSTANTS: 1 ms (walltime: 0 ms)
+% Runtime to FINALISE SETUP_CONSTANTS: 0 ms (walltime: 0 ms)
+% Model checking finished, all open states visited
+Model checking time: 1 ms (2 ms walltime)
+States analysed: 4
+Transitions fired: 17
+[32mNo counter example found. ALL states visited.[0m
+
+Coverage:
+[STATES (5),deadlocked:0,invariant_violated:0,invariant_not_checked:0,open:0,live:5,total:5,TOTAL_TRANSITIONS,17,COVERED_OPERATIONS (5),AcceptWithdraw:6,INITIALISATION:1,RejectWithdraw:6,ReportState:3,SETUP_CONSTANTS:1,UNCOVERED_OPERATIONS (1),Freeze]
+
