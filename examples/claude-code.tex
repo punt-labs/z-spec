@@ -820,10 +820,19 @@ leaves the state alone.
 
 Stating the intended termination as an operation is what makes the
 absence of others meaningful. A model checker reports a state with no
-enabled operation as a deadlock, and it cannot distinguish a machine that
-has finished from one that is stuck. With the one intended halt declared,
-every remaining deadlock in this specification is unintended by
-construction, and finding one is finding a defect.
+enabled operation as a deadlock and cannot tell a machine that has
+finished from one that is stuck, so before this schema existed the
+deadlock check had nothing to say here --- and, because \texttt{spEnded}
+was unreachable, nothing to say anywhere.
+
+The reason this declares one halt rather than silencing the check is the
+guard. \texttt{SessionOver} is enabled only where
+\texttt{sessionPhase = spEnded}, so the only deadlock it can mask is the
+one in that phase, which is the one intended. No other state's deadlock
+is reachable through it. Every remaining deadlock in this specification
+is therefore unintended by construction, and finding one is finding a
+defect --- which is a stronger property than the document had before,
+not a weaker one.
 
 \begin{schema}{SessionOver}
   \Xi State

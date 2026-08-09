@@ -273,22 +273,27 @@ This is the branch it takes when session sync is enabled: quarry
 auto-registers the working directory and syncs, so the codebase is
 indexed before Claude can process a prompt.
 
-The two \texttt{SessionStart} schemas have the same precondition and
-differ in what they establish. That is deliberate: which one fires is
-decided by the configuration file, and a nondeterministic choice between
-two operations is how this specification says that something outside the
-machine decides. Guarding them on \texttt{cfgSessionSync} instead would
-require the flag to be known before the hook that reads it has run.
+All three toggles arrive the same way, as inputs to this operation, and
+each is guarded or recorded by the term that names it. A nondeterministic
+choice between two operations of equal precondition would also express
+``something outside the machine decides,'' but it is the right form only
+when the deciding datum cannot be named. Here it can: \texttt{sessionSync?}
+is read from the same file, by the same hook, at the same moment as its
+two siblings, and a specification in which two of three configuration
+values are terms and the third is a choice of schema hides the symmetry
+its own reader needs.
 
 \begin{schema}{StartSessionWithSync}
   \Delta State \\
   sid? : SESSIONID \\
   source? : SessionStartSource \\
   mode? : PermissionMode \\
+  sessionSync? : ZBOOL \\
   webFetch? : ZBOOL \\
   compaction? : ZBOOL
   \where
   sessionPhase = spInactive \\
+  sessionSync? = ztrue \\
   %
   sessionPhase' = spIdle \\
   sessionId' = \{ sid? \} \\
@@ -305,7 +310,7 @@ require the flag to be known before the hook that reads it has run.
   activeDb' = \emptyset \\
   capturedUrls' = \emptyset \\
   compactionSaved' = zfalse \\
-  cfgSessionSync' = ztrue \\
+  cfgSessionSync' = sessionSync? \\
   cfgWebFetch' = webFetch? \\
   cfgCompaction' = compaction?
 \end{schema}
@@ -320,10 +325,12 @@ is not indexed automatically.
   sid? : SESSIONID \\
   source? : SessionStartSource \\
   mode? : PermissionMode \\
+  sessionSync? : ZBOOL \\
   webFetch? : ZBOOL \\
   compaction? : ZBOOL
   \where
   sessionPhase = spInactive \\
+  sessionSync? = zfalse \\
   %
   sessionPhase' = spIdle \\
   sessionId' = \{ sid? \} \\
@@ -340,7 +347,7 @@ is not indexed automatically.
   activeDb' = \emptyset \\
   capturedUrls' = \emptyset \\
   compactionSaved' = zfalse \\
-  cfgSessionSync' = zfalse \\
+  cfgSessionSync' = sessionSync? \\
   cfgWebFetch' = webFetch? \\
   cfgCompaction' = compaction?
 \end{schema}
