@@ -16,6 +16,14 @@ from punt_zspec.types import CheckResult, ProbReport
 # and no census is a failed coverage check rather than a silent pass.
 _COVERAGE = "-coverage"
 
+# The wall-clock cap on one probcli process. Deliberately NOT derived from
+# probcli's TIME_OUT, which bounds a single internal computation: a large
+# specification needs a generous TIME_OUT to get its operations solved rather
+# than abandoned, and tying the two would mean every raise of the solve budget
+# also lengthens how long a genuinely hung process is waited on. The slowest
+# spec in this repo completes in 2m16s.
+_PROCESS_TIMEOUT_S = 600
+
 
 def resolve_probcli() -> Path | None:
     """Find the probcli binary. Check $PROBCLI, then PATH, then ~/Applications."""
@@ -38,18 +46,25 @@ def _run_probcli(
     binary: Path,
     tex_path: Path,
     args: list[str],
-    timeout_s: int = 120,
+    timeout_s: int = _PROCESS_TIMEOUT_S,
 ) -> ProbOutput:
-    """Run probcli with given arguments and return its output."""
+    """Run probcli with given arguments and return its output.
+
+    A run that outlives its timeout is reported, not raised: an over-running
+    model check is normal operating input for a large specification, and the
+    caller needs a failed check it can print, not a traceback.
+    """
     cmd = [str(binary), str(tex_path), *args]
-    return ProbOutput.of(
-        subprocess.run(
+    try:
+        completed = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             timeout=timeout_s,
         )
-    )
+    except subprocess.TimeoutExpired:
+        return ProbOutput(f"probcli exceeded {timeout_s}s and was stopped\n", 1)
+    return ProbOutput.of(completed)
 
 
 def _model_check_args(setsize: int, max_ops: int, timeout_ms: int) -> list[str]:
@@ -116,7 +131,6 @@ def run_model_check(
         binary,
         tex_path,
         _model_check_args(setsize, max_ops, timeout_ms),
-        timeout_s=max(timeout_ms // 1000 + 30, 60),
     )
     coverage = checked.coverage()
 
@@ -152,7 +166,6 @@ def run_full_suite(
         binary,
         tex_path,
         _model_check_args(setsize, max_ops, timeout_ms),
-        timeout_s=max(timeout_ms // 1000 + 30, 60),
     )
 
     # The exhaustive model check is the run that decides coverage: it explores

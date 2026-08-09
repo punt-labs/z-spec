@@ -46,15 +46,25 @@ def test_ok_is_false_when_any_check_failed() -> None:
     assert report.ok is False
 
 
-def test_ok_is_true_for_warning_skipped_passed() -> None:
+def test_ok_is_true_for_skipped_and_passed() -> None:
     report = _report(
         [
             CheckResult("a", CheckStatus.passed),
-            CheckResult("b", CheckStatus.warning),
             CheckResult("c", CheckStatus.skipped),
         ]
     )
     assert report.ok is True
+
+
+def test_ok_is_false_when_a_check_only_warned() -> None:
+    """A warning is an unestablished claim, and unestablished is not passing."""
+    report = _report(
+        [
+            CheckResult("a", CheckStatus.passed),
+            CheckResult("b", CheckStatus.warning, "not certified complete"),
+        ]
+    )
+    assert report.ok is False
 
 
 def test_to_dict_omits_counter_example_when_absent() -> None:

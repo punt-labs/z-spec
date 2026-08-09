@@ -1,0 +1,65 @@
+\documentclass{article}
+\usepackage{fuzz}
+\begin{document}
+
+\section{A violation that truncation hides}
+
+This specification settles a question no argument could: can an incomplete
+model check report ``no counter example found'' on a specification that has
+one?
+
+\texttt{Step} leads from the initial state to $maxFan$ \emph{distinct}
+successors --- one per value of $choice?$ --- and exactly one of them,
+$pos = maxFan$, has nothing enabled. It is a deadlock, and no other path
+reaches it.
+
+The distinctness is the point. \texttt{MAX\_OPERATIONS} bounds the transitions
+computed per operation, and transitions sharing a successor collapse, so a
+trap behind a \emph{shared} successor is found however hard the run is
+truncated. A trap behind its own successor is not: cut the transition and the
+state is never visited, never checked, and never reported.
+
+Run it twice:
+
+\begin{itemize}
+  \item \texttt{-p MAX\_OPERATIONS 2000} --- the deadlock is found.
+  \item \texttt{-p MAX\_OPERATIONS 3} --- ``No counter example found. However,
+    not all transitions were computed !'', \texttt{deadlocked:0},
+    \texttt{ALL OPERATIONS COVERED}, and exit status 0.
+\end{itemize}
+
+\begin{zed}
+  maxFan == 1000
+\end{zed}
+
+\begin{schema}{Probe}
+  pos : \nat
+\where
+  pos \leq maxFan
+\end{schema}
+
+\begin{schema}{InitProbe}
+  Probe'
+\where
+  pos' = 0
+\end{schema}
+
+\begin{schema}{Step}
+  \Delta Probe \\
+  choice? : \nat
+\where
+  pos = 0 \\
+  choice? \geq 1 \\
+  choice? \leq maxFan \\
+  pos' = choice?
+\end{schema}
+
+\begin{schema}{Hold}
+  \Delta Probe
+\where
+  pos \geq 1 \\
+  pos < maxFan \\
+  pos' = pos
+\end{schema}
+
+\end{document}
