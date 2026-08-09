@@ -74,9 +74,15 @@ class ProbReport:
 
     @property
     def ok(self) -> bool:
+        """Return whether every check reached a verdict that can be relied on.
+
+        ``warning`` does not count. It marks a run that finished without
+        finding anything and without certifying it looked everywhere, and an
+        unestablished claim is not a passing one — the gate would otherwise
+        report success on the strength of a partial exploration.
+        """
         return all(
-            c.status in (CheckStatus.passed, CheckStatus.skipped, CheckStatus.warning)
-            for c in self.checks
+            c.status in (CheckStatus.passed, CheckStatus.skipped) for c in self.checks
         )
 
     def to_dict(self) -> dict[str, Any]:

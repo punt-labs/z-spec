@@ -27,6 +27,12 @@ _VERSION_RE = re.compile(r"ProB CLI.*?(\d+\.\d+\.\d+)")
 _COUNTER_RE = re.compile(r"(?<!No )COUNTER\s*EXAMPLE\s*FOUND", re.IGNORECASE)
 _STEP_RE = re.compile(r"(\d+):\s*(\w+)")
 
+# probcli's own tag for a run that stopped short of enumerating every
+# transition. It prints this beside "No counter example found", so the two
+# arrive together and the first phrase read decides the verdict.
+_INCOMPLETE_RE = re.compile(r"model_check_incomplete")
+_BOUND_RE = re.compile(r"(MAX_OPERATIONS=\d+) was too small")
+
 # The census probcli prints under "Coverage:" when -coverage is passed. One
 # bracketed line: state totals, then COVERED_OPERATIONS (n) and
 # UNCOVERED_OPERATIONS (m), each headline followed by exactly the number of
@@ -282,17 +288,32 @@ class ProbOutput:
 
         A counter-example is tested first and unconditionally. probcli prints
         its success markers as it goes and only then reports what it found, so
-        any marker consulted ahead of the counter-example can mask one.
+        any marker consulted ahead of the counter-example can mask one. A
+        counter-example survives a truncated run — finding one is an existential
+        claim — so it outranks incompleteness.
+
+        Incompleteness is tested next, ahead of "no counter example found",
+        because probcli prints both on the same line and the absence of a
+        counter-example is a *universal* claim over the reachable states. A run
+        that stopped short cannot establish it.
         """
         lowered = self._text.lower()
         if _COUNTER_RE.search(self._text):
             return CheckResult(name, CheckStatus.failed, self._violation())
+        if _INCOMPLETE_RE.search(self._text):
+            return CheckResult(name, CheckStatus.warning, self._uncertified())
         if "no counter example found" in lowered or "no counter-example" in lowered:
             return CheckResult(name, CheckStatus.passed, self._exploration_detail())
         for marker, status, detail in self._MARKERS:
             if marker in lowered:
                 return CheckResult(name, status, detail)
-        return self._exit_verdict(name, lowered)
+        return self._exit_verdict(name)
+
+    def _uncertified(self) -> str:
+        """Return why probcli could not certify it explored every transition."""
+        bound = _BOUND_RE.search(self._text)
+        raise_it = f"; raise {bound.group(1).split('=')[0]}" if bound else ""
+        return f"{self._exploration_detail()}, not certified complete{raise_it}"
 
     def _violation(self) -> str:
         """Return the violation probcli named, falling back to its leading output."""
@@ -301,12 +322,10 @@ class ProbOutput:
             return self._excerpt()
         return found.violation
 
-    def _exit_verdict(self, name: str, lowered: str) -> CheckResult:
+    def _exit_verdict(self, name: str) -> CheckResult:
         """Return the verdict for output carrying no recognised probcli marker."""
         if self._returncode == 0:
             return CheckResult(name, CheckStatus.passed, "OK")
-        if "not all transitions" in lowered:
-            return CheckResult(name, CheckStatus.warning, "incomplete exploration")
         return CheckResult(name, CheckStatus.failed, self._excerpt())
 
     def _exploration_detail(self) -> str:

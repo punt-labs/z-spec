@@ -3,8 +3,22 @@
 FUZZ      ?= fuzz
 PROBCLI   ?= $(HOME)/Applications/ProB/probcli
 SETSIZE   ?= 1
-MAX_OPS   ?= 200
-TIMEOUT   ?= 300000
+# MAX_OPS and TIMEOUT are ONE setting, and lowering either costs time rather
+# than saving it. TIMEOUT is probcli's per-computation TIME_OUT, not a wall
+# clock: below it, operations are abandoned rather than solved, and abandoning
+# them is far more expensive than solving them. Measured on claude-code.tex
+# (329357 states), each run to completion or the stated limit:
+#
+#   MAX_OPS=200   TIMEOUT=300000    3m43s  INCOMPLETE (model_check_incomplete)
+#   MAX_OPS=400   TIMEOUT=300000    5m56s  complete
+#   MAX_OPS=1000  TIMEOUT=300000   >10m    did not finish
+#   MAX_OPS=1000  TIMEOUT=1800000   2m16s  complete   <- this pair
+#
+# An incomplete run now fails the gate: "no counter-example" is a claim over
+# ALL reachable states, and a truncated run cannot establish it. So 200 is not
+# an option, and the fastest complete pair is the one configured here.
+MAX_OPS   ?= 1000
+TIMEOUT   ?= 1800000
 
 # Specs ending in -bad.tex are intentional anti-pattern demonstrations
 # excluded from quality gates. Only use this suffix for specs designed
