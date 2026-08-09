@@ -178,19 +178,38 @@ class PromptCorpus:
 
 _CORPUS = PromptCorpus(COMMANDS)
 
-# The prompts the JSON contract claims to cover. Both twins of each command are
-# named: deriving the set from the prod stems alone would let `audit-dev.md`
-# lose its example without changing anything the suite checks.
-JSON_EXAMPLE_PROMPTS: frozenset[str] = frozenset(
-    {
-        "audit.md",
-        "audit-dev.md",
-        "oracle.md",
-        "oracle-dev.md",
-        "partition.md",
-        "partition-dev.md",
-    }
+# The prod prompts the JSON contract claims to cover. Their `-dev` twins are
+# added below when the tree is in dev state, because they exist only there:
+# `scripts/release-plugin.sh` deletes every twin to publish, and the commit the
+# release tag points at therefore has none. Naming them unconditionally made
+# the suite unrunnable on exactly that commit — v0.18.0's tree failed its own
+# tests — while `restore-dev-plugin.sh` put them back one commit later.
+_JSON_EXAMPLE_PROD: frozenset[str] = frozenset(
+    {"audit.md", "oracle.md", "partition.md"}
 )
+
+
+def _tree_is_dev() -> bool:
+    """Return whether this checkout carries the dev plugin, twins and all.
+
+    The manifest names the state rather than the file listing, so a tree that
+    declares dev and has lost its twins fails the population check instead of
+    quietly reducing what the suite examines.
+    """
+    manifest = json.loads((_ROOT / ".claude-plugin" / "plugin.json").read_text())
+    return bool(manifest["name"].endswith("-dev"))
+
+
+def _expected_json_example_prompts() -> frozenset[str]:
+    """Return the prompts that must carry a JSON example in this tree."""
+    if not _tree_is_dev():
+        return _JSON_EXAMPLE_PROD
+    return _JSON_EXAMPLE_PROD | frozenset(
+        f"{name.removesuffix('.md')}-dev.md" for name in _JSON_EXAMPLE_PROD
+    )
+
+
+JSON_EXAMPLE_PROMPTS: frozenset[str] = _expected_json_example_prompts()
 
 
 # --- the JSON contract, and the population it claims --------------------------
@@ -240,11 +259,17 @@ def test_untagged_fence_holds_no_json_example(block: FencedBlock) -> None:
 
 
 def _oracle_protocol_sources() -> list[PromptDocument]:
-    return [
-        PromptDocument(COMMANDS / "oracle.md"),
-        PromptDocument(COMMANDS / "oracle-dev.md"),
-        PromptDocument(DOCS_PRD / "z-oracle.md"),
-    ]
+    """Return every document stating the oracle wire protocol in this tree.
+
+    The `-dev` twin is included only in a dev checkout: a released tree has
+    none, and naming it unconditionally makes the suite unrunnable on the
+    commit the release tag points at.
+    """
+    sources = [PromptDocument(COMMANDS / "oracle.md")]
+    if _tree_is_dev():
+        sources.append(PromptDocument(COMMANDS / "oracle-dev.md"))
+    sources.append(PromptDocument(DOCS_PRD / "z-oracle.md"))
+    return sources
 
 
 @pytest.mark.parametrize("doc", _oracle_protocol_sources(), ids=lambda d: d.name)
