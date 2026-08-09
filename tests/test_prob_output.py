@@ -228,6 +228,69 @@ def test_a_clean_run_has_no_counter_example() -> None:
     assert _output("model-check-covered.out").counter_example() is None
 
 
+def test_an_uncertified_run_is_neither_passed_nor_failed() -> None:
+    """probcli found nothing and did not finish looking; those differ.
+
+    "No counter example found" is a claim over ALL reachable states, so a
+    truncated run cannot establish it — but the specification is not thereby
+    broken either. The verdict is warning, and it names the bound to raise.
+    """
+    check = _output("model-check-incomplete.out").check("model_check")
+
+    assert check.status == CheckStatus.warning
+    assert "not certified complete" in check.detail
+    assert "raise MAX_OPERATIONS" in check.detail
+
+
+def test_an_incomplete_run_can_hide_a_real_violation() -> None:
+    """The reason the model-check verdict must not pass when uncertified.
+
+    ``specs/hidden-deadlock-bad.tex`` has a genuine deadlock: at
+    MAX_OPERATIONS=2000 probcli finds it. This transcript is the same
+    specification at MAX_OPERATIONS=3, where the transition reaching it was
+    never computed. probcli reports no counter-example, ``deadlocked:0``,
+    ``ALL OPERATIONS COVERED``, and exits 0 — every signal a clean run gives.
+    Only the incompleteness marker distinguishes the two.
+    """
+    output = _output("model-check-hidden-deadlock.out")
+
+    assert "No counter example found" in output.text
+    assert "deadlocked:0" in output.text
+    assert output.counter_example() is None
+    assert output.check("model_check").status is not CheckStatus.passed
+    assert output.check("model_check").status == CheckStatus.warning
+
+
+def test_the_coverage_half_of_a_hiding_run_is_still_sound() -> None:
+    """Coverage is existential, so truncation cannot make it over-report.
+
+    The same run that hides a deadlock reports its census honestly: every
+    operation it names did fire. Failing the whole report on incompleteness
+    must not discard that.
+    """
+    coverage = _output("model-check-hidden-deadlock.out").coverage()
+
+    assert coverage.check().status == CheckStatus.passed
+    assert {op.name for op in coverage.operations} == {
+        "Step",
+        "Hold",
+        "INITIALISATION",
+    }
+
+
+def test_an_uncertified_run_still_reports_the_coverage_it_saw() -> None:
+    """Coverage is existential and monotone, so truncation cannot over-report it.
+
+    More exploration only ever adds covered operations. A clean census from a
+    truncated run is therefore sound — and this run's census is not clean, so
+    the operation named here is the one the run did not reach.
+    """
+    coverage = _output("model-check-incomplete.out").coverage()
+
+    assert [op.name for op in coverage.operations if not op.covered] == ["EndSession"]
+    assert coverage.operations  # the census was read, not discarded
+
+
 def test_deadlock_free_marker_passes() -> None:
     check = _output("cbc-deadlock.out").check("cbc_deadlock")
 
@@ -243,10 +306,15 @@ def test_nonzero_exit_without_a_marker_fails() -> None:
     assert "cannot open file" in check.detail
 
 
-def test_incomplete_exploration_warns() -> None:
-    output = ProbOutput("not all transitions were computed\n", 1)
+def test_a_counter_example_outranks_incompleteness() -> None:
+    """Finding one is existential — a truncated run that found it still found it."""
+    output = ProbOutput(
+        "*** COUNTER EXAMPLE FOUND ***\ndeadlock\n 1: INITIALISATION\n"
+        "! model_check_incomplete\n",
+        0,
+    )
 
-    assert output.check("model_check").status == CheckStatus.warning
+    assert output.check("model_check").status == CheckStatus.failed
 
 
 def test_version_is_unknown_when_the_run_announces_none() -> None:

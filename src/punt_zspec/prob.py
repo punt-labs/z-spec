@@ -40,16 +40,23 @@ def _run_probcli(
     args: list[str],
     timeout_s: int = 120,
 ) -> ProbOutput:
-    """Run probcli with given arguments and return its output."""
+    """Run probcli with given arguments and return its output.
+
+    A run that outlives its timeout is reported, not raised: an over-running
+    model check is normal operating input for a large specification, and the
+    caller needs a failed check it can print, not a traceback.
+    """
     cmd = [str(binary), str(tex_path), *args]
-    return ProbOutput.of(
-        subprocess.run(
+    try:
+        completed = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             timeout=timeout_s,
         )
-    )
+    except subprocess.TimeoutExpired:
+        return ProbOutput(f"probcli exceeded {timeout_s}s and was stopped\n", 1)
+    return ProbOutput.of(completed)
 
 
 def _model_check_args(setsize: int, max_ops: int, timeout_ms: int) -> list[str]:
