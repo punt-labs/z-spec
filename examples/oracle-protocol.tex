@@ -46,7 +46,7 @@ accepts.
 The two programs speak newline-delimited JSON over a pipe. The oracle
 emits its state before reading anything; thereafter each command it reads
 yields exactly one result line. This document specifies what a result
-line means.
+line is.
 
 \subsection{Why the verdict exists}
 
@@ -65,26 +65,57 @@ the one property the harness exists to establish. An implementation that
 permitted an illegal withdrawal would produce a trace indistinguishable
 from one that correctly refused it, and its tests would pass.
 
-That was a real defect in the prose statement of this protocol. Written
-in Z it is an omitted output variable on two operations that share an
-after-state, which is visible on inspection. Written in prose it survived
-review.
+That was a real defect in the prose statement of this protocol, and it
+survived review because prose is where it lived.
 
-\subsection{What the notation is doing}
+\subsection{Where the property is kept}
 
-Two conventions carry the argument.
+A specification earns nothing by asserting a property beside its schemas;
+the assertion is then prose too, in the same register that failed. So
+what the wire promises is kept in the schemas, and this section only says
+where to look.
+
+\texttt{Line} is the result line: the state, the verdict, and the reason,
+declared together as a single object because that is what crosses the
+wire. Every operation includes it, so there is one place where the format
+of a line is decided. Its predicate
+
+\begin{center}
+  $(ok! = zfalse) \iff (reason! \neq \emptyset)$
+\end{center}
+
+binds the verdict to the reason, so the two are one bit expressed twice
+and neither can drift from the other. The reason is a set of at most one
+predicate name rather than an optional field, which is what keeps
+\texttt{reason} present on every line --- empty on acceptance, a
+singleton on rejection.
+
+That last point is not tidiness. If the reason were declared only on the
+rejecting operation, then the mere \emph{presence} of the \texttt{reason}
+key would tell an observer the operation had failed, independently of the
+verdict. The wire would then carry two discriminators, drivers would
+start reading the one they were told not to parse, and the verdict would
+become the redundant field --- which is the field a later implementer
+deletes.
+
+\subsection{What the $\Xi$ is worth}
 
 The rejecting operation is framed with $\Xi Model$ rather than
-$\Delta Model$ plus a predicate saying the state does not change. The
-two are equivalent in what they permit, but they are not equivalent as
-documents: with $\Xi$, ``the state is not mutated on rejection'' is a
-consequence of the schema's declaration part and cannot be broken by
-editing a predicate. It is a theorem, not a promise.
+$\Delta Model$ plus predicates saying the state does not change. It is
+worth being exact about what this buys, because the tempting claim is
+false: $\Xi Model$ is \emph{defined} as $\Delta Model$ with
+$\theta Model' = \theta Model$, so a predicate elsewhere in the schema
+can contradict it. ``The frame makes non-mutation a theorem'' is not
+true, and a predicate $balance' = balance + 1$ refutes it.
 
-Every operation declares an output $ok!$, and the rejecting operation
-declares a second output $reason!$. Because $ok!$ appears in the
-signature of both operations, no line can be emitted without it. That is
-the whole fix, stated in the one place where it cannot be forgotten.
+What $\Xi$ buys is the failure mode. Under $\Delta$ with explicit
+equalities, deleting one of those equalities leaves a satisfiable schema
+that quietly permits mutation on rejection: it type-checks, it
+model-checks, and it is wrong. Under $\Xi$, contradicting the frame makes
+the schema unsatisfiable, so the operation becomes disabled --- and a
+model checker asked for operation coverage reports it as never fired.
+The error stops being invisible and becomes a dead operation. That is a
+smaller claim than a theorem and it is the one the notation supports.
 
 % ============================================================
 \section{Basic Types}
@@ -173,9 +204,45 @@ incidental to the protocol.
   minimum' = reserve
 \end{schema}
 
-The oracle emits this state, with the verdict \texttt{ztrue}, before it
-reads any command. The startup line is an ordinary result line; it is
-described by \texttt{ReportState} below.
+The oracle emits this state before it reads any command, as an ordinary
+result line with the verdict \texttt{ztrue}; that line is
+\texttt{ReportState} below.
+
+% ============================================================
+\section{The Result Line}
+% ============================================================
+
+Everything the oracle writes is a \texttt{Line}. It is declared once,
+here, and included by every operation, so no operation can emit anything
+else and none can emit less.
+
+\begin{schema}{Line}
+  balance! : \nat \\
+  minimum! : \nat \\
+  ok! : ZBOOL \\
+  reason! : \finset PREDICATE
+  \where
+  %
+  % At most one violated predicate is reported
+  %
+  \# reason! \leq 1 \\
+  %
+  % The verdict and the reason are one bit, expressed twice
+  %
+  (ok! = zfalse) \iff (reason! \neq \emptyset)
+\end{schema}
+
+The state outputs $balance!$ and $minimum!$ are the \texttt{state} object
+of the JSON line. They are outputs rather than the after-state itself
+because an observer reads a line, not a schema binding: the wire carries
+values, and a specification of the wire has to say which values.
+
+The biconditional is the whole contract in one predicate. Read left to
+right it says a rejection must give a reason; right to left, that a
+reason may only accompany a rejection. It is also what makes $ok!$
+undeletable: strike $ok!$ from the declarations and this predicate no
+longer type-checks, so the omission that shipped cannot be reintroduced
+by quietly dropping a field.
 
 % ============================================================
 \section{Operations}
@@ -189,8 +256,8 @@ never both.
 
 \subsection{AcceptWithdraw}
 
-The precondition holds. The state changes and the verdict is
-\texttt{ztrue}.
+The precondition holds. The state changes, the line reports the state
+that now holds, and the verdict is \texttt{ztrue} with no reason.
 
 The interesting instance is $amount? = 0$. The precondition reduces to
 the state invariant and therefore always holds, so a withdrawal of
@@ -199,8 +266,8 @@ was.
 
 \begin{schema}{AcceptWithdraw}
   \Delta Model \\
-  amount? : \nat \\
-  ok! : ZBOOL
+  Line \\
+  amount? : \nat
   \where
   %
   % Bounded input for ProB animation
@@ -213,20 +280,25 @@ was.
   %
   balance' = balance - amount? \\
   minimum' = minimum \\
-  ok! = ztrue
+  %
+  % The line reports the state after the command
+  %
+  balance! = balance' \\
+  minimum! = minimum' \\
+  ok! = ztrue \\
+  reason! = \emptyset
 \end{schema}
 
 \subsection{RejectWithdraw}
 
-The precondition fails. The state is unchanged --- by the $\Xi$ frame,
-not by a predicate --- the verdict is \texttt{zfalse}, and
-\texttt{reason!} names the predicate that failed.
+The precondition fails. The line reports the unchanged state, the verdict
+is \texttt{zfalse}, and $reason!$ is the singleton naming the predicate
+that failed.
 
 \begin{schema}{RejectWithdraw}
   \Xi Model \\
-  amount? : \nat \\
-  ok! : ZBOOL \\
-  reason! : PREDICATE
+  Line \\
+  amount? : \nat
   \where
   %
   % Bounded input for ProB animation
@@ -237,26 +309,60 @@ not by a predicate --- the verdict is \texttt{zfalse}, and
   %
   \lnot (balance - amount? \geq minimum) \\
   %
+  balance! = balance \\
+  minimum! = minimum \\
   ok! = zfalse \\
-  reason! = reserveMaintained
+  reason! = \{ reserveMaintained \}
 \end{schema}
 
 \subsection{ReportState}
 
-What an observer reads off the wire: the whole state, and a verdict. This
-is the startup line the oracle emits before reading any command, and it
-is also the general form of an observation --- a result line reports the
-state that holds after the command it answers.
+The startup line: the oracle's state, reported before any command is
+read. It is an ordinary accepted line with nothing to report a reason
+about.
 
 \begin{schema}{ReportState}
   \Xi Model \\
-  balance! : \nat \\
-  minimum! : \nat \\
-  ok! : ZBOOL
+  Line
   \where
   balance! = balance \\
   minimum! = minimum \\
-  ok! = ztrue
+  ok! = ztrue \\
+  reason! = \emptyset
+\end{schema}
+
+\subsection{Ambiguity}
+
+The witness. \texttt{Ambiguity} holds in a state when two commands are
+available from it --- one accepted that changes nothing, one rejected ---
+so that both would report the same state. It is the reason the verdict
+exists, written as a schema rather than as a remark.
+
+Because it carries a $\Xi$ frame it is an operation, so a model checker
+enumerates it, and its appearance in the coverage report is a
+demonstration that the ambiguity is real and reachable. Were the two
+cases somehow never to coincide, \texttt{Ambiguity} would never fire and
+the coverage report would say so.
+
+\begin{schema}{Ambiguity}
+  \Xi Model \\
+  accepted? : \nat \\
+  rejected? : \nat
+  \where
+  %
+  % Bounded inputs for ProB animation
+  %
+  accepted? \leq maxBalance \\
+  rejected? \leq maxBalance \\
+  %
+  % accepted? is accepted, and changes nothing
+  %
+  balance - accepted? \geq minimum \\
+  balance - accepted? = balance \\
+  %
+  % rejected? is rejected
+  %
+  \lnot (balance - rejected? \geq minimum)
 \end{schema}
 
 % ============================================================
@@ -270,46 +376,57 @@ The property the protocol exists to guarantee:
   accepted operation that happened to change nothing.
 \end{quote}
 
-The specification makes it true, and the reason is worth stating
-precisely rather than asserting.
+It is not asserted here. It is carried by three schemas, and what each
+one carries is checkable by a tool rather than by a reader's assent.
 
-Take the state $balance = 1$, $minimum = 1$, reached from \texttt{Init}
-by a single withdrawal of $2$.
+\texttt{Ambiguity} says the problem is real. It is satisfiable exactly
+where an accepted command that changes nothing and a rejected command
+both exist, and it is an operation, so a model checker either fires it or
+reports it uncovered. In the state $balance = 1$, $minimum = 1$ --- which
+\texttt{Init} reaches by a single withdrawal of $2$ --- it holds with
+$accepted? = 0$ and $rejected? = 1$: a withdrawal of nothing is accepted
+and leaves $balance = 1$; a withdrawal of $1$ is rejected and leaves
+$balance = 1$. Two lines, one state.
 
-\begin{itemize}
-  \item \texttt{AcceptWithdraw} with $amount? = 0$ is enabled, because
-    $1 - 0 \geq 1$. It leaves $balance = 1$ and emits $ok! = ztrue$.
-  \item \texttt{RejectWithdraw} with $amount? = 1$ is enabled, because
-    $1 - 1 \geq 1$ is false. Its $\Xi$ frame leaves $balance = 1$ and it
-    emits $ok! = zfalse$.
-\end{itemize}
+\texttt{Line} says the problem is answered. Both lines above include it,
+so both carry $ok!$, and its biconditional forces $ok!$ and $reason!$ to
+agree. An observer therefore reads one discriminator, present on every
+line, and never has to infer a verdict from which keys happen to be
+there.
 
-The two lines carry the same state. Nothing recoverable from the state
-distinguishes them. They differ in $ok!$ and nowhere else --- so if $ok!$
-were dropped from the signatures, the two would be the same line, and no
-driver could tell a specification-conforming implementation from one that
-had just permitted an illegal withdrawal.
+\texttt{RejectWithdraw}'s $\Xi$ frame says the rejection did not lie
+about the state it reported.
 
-Three consequences follow from the schemas as written:
+\subsection{What this does and does not defend against}
 
-\begin{enumerate}
-  \item \textbf{Every line carries a verdict.} $ok!$ is in the signature
-    of \texttt{AcceptWithdraw}, \texttt{RejectWithdraw} and
-    \texttt{ReportState}. There is no schema that emits a bare state.
-  \item \textbf{A rejection cannot mutate.} $\Xi Model$ constrains the
-    after-state to equal the before-state as part of
-    \texttt{RejectWithdraw}'s declaration. No predicate in the schema can
-    weaken it, and none can be forgotten.
-  \item \textbf{The two cases are exhaustive and disjoint.} The
-    rejecting predicate is written $\lnot P$ against the accepting
-    predicate's $P$, over the same declarations, rather than as the
-    equivalent $balance - amount? < minimum$. Written that way the
-    argument is on the page: no input satisfies both, and every input
-    satisfies one, so every command yields exactly one result line. The
-    exception is an input outside $0 \upto maxBalance$, which neither
-    schema admits --- that is the animation bound and not a property of
-    the protocol, which accepts any $amount? : \nat$.
-\end{enumerate}
+The specification is checkable, so it is worth recording what the checks
+actually catch --- the failure this document exists to discuss was, after
+all, an overclaim about a contract.
+
+Deleting $ok!$ from \texttt{Line} makes the document fail
+\texttt{fuzz}, because the biconditional still refers to it. Deleting
+$ok!$ from \texttt{Line} \emph{and} from every operation's predicates
+still fails, for the same reason. That is the mutation worth defending
+against, because it is the one that looks like tidying up.
+
+Deleting the biconditional as well, and $reason!$ with it, yields a
+document that type-checks and model-checks and says nothing about
+verdicts --- which is the specification that shipped. No amount of Z
+prevents that, because a type-checker cannot object to an identifier no
+paragraph mentions. A specification enforces what it states; it cannot
+enforce that it states it. What has changed is the reading cost of
+noticing: the contract is now seven schemas rather than a paragraph in a
+document of sixteen hundred lines.
+
+The exhaustiveness of the two cases is a further consequence worth
+naming. The rejecting predicate is written $\lnot P$ against the
+accepting predicate's $P$, over the same declarations, rather than as the
+equivalent $balance - amount? < minimum$. Written that way the argument
+is on the page: no input satisfies both and every input satisfies one, so
+every command yields exactly one result line. The exception is an input
+outside $0 \upto maxBalance$, which neither schema admits --- that is the
+animation bound, not a property of the protocol, which accepts any
+$amount? : \nat$.
 
 % ============================================================
 \section{Correspondence With the Wire}
@@ -322,14 +439,26 @@ object in two notations. The correspondence:
 \begin{tabular}{ll}
   \textbf{Z} & \textbf{JSON} \\
   \hline
-  input variables ($amount?$)     & the \texttt{args} object of a command line \\
-  the after-state ($Model'$)      & the \texttt{state} object of a result line \\
-  $ok! = ztrue$                   & \texttt{"ok": true} \\
-  $ok! = zfalse$                  & \texttt{"ok": false} \\
-  $reason!$                       & \texttt{"reason"}, present only when \texttt{ok} is false \\
-  \texttt{Init} then \texttt{ReportState} & the startup line, emitted before any command is read \\
+  input variables ($amount?$)   & the \texttt{args} object of a command line \\
+  \texttt{Line}                 & one result line \\
+  $balance!$, $minimum!$        & the \texttt{state} object of a result line \\
+  $ok! = ztrue$                 & \texttt{"ok": true} \\
+  $ok! = zfalse$                & \texttt{"ok": false} \\
+  $reason! = \emptyset$         & \texttt{"reason": null} \\
+  $reason! = \{ p \}$           & \texttt{"reason"} naming $p$ \\
+  \texttt{ReportState}          & the startup line, emitted before any command is read \\
 \end{tabular}
 \end{center}
+
+Every row is a schema or a variable of one, which is the point of
+declaring \texttt{Line}: there is no row here that the mathematics does
+not produce.
+
+Note the two \texttt{reason} rows. The key is on every line --- null when
+the command was accepted --- so that a driver cannot learn the verdict
+from the key's presence. That is the contract's rule that \texttt{reason}
+is diagnostic, enforced by making the only thing it can tell you the
+thing $ok$ already told you.
 
 Serialisation of Z types into JSON values is tabulated in
 \texttt{commands/oracle.md}; it is a matter of encoding and carries no
@@ -339,9 +468,9 @@ Two rules of the wire are outside the model, and are recorded here so
 that the omission is deliberate rather than accidental. First,
 \emph{one command, one line}: the framing of the pipe is a property of
 the transport, not of the operations, and the disjointness argument above
-is what makes it well defined. Second, \texttt{reason} is diagnostic:
-\texttt{PREDICATE} is a given set precisely so that nothing can be
-computed from a reason, and a driver that branches on one is relying on
+is what makes it well defined. Second, the \emph{content} of a reason is
+not modelled: \texttt{PREDICATE} is a given set precisely so that nothing
+can be computed from a reason, and a driver that parses one is relying on
 something this contract does not offer.
 
 \end{document}
