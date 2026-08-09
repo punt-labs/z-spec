@@ -1,3 +1,10 @@
 [submodule ".punt-labs/ethos"]
 	path = .punt-labs/ethos
 	url = git@github.com:punt-labs/team.git
+	# ethos writes its mission records — missions.jsonl and missions/ — into
+	# this working tree as it runs. They are the team repo's runtime state, not
+	# a change this repo is making to it, but git reports them as
+	# "M .punt-labs/ethos" and a dirty tree blocks the release preflight.
+	# Ignoring untracked files here does NOT hide a moved submodule ref: a
+	# genuine update, the one that belongs in a reviewed diff, still shows.
+	ignore = untracked
