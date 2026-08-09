@@ -17,6 +17,13 @@ SETSIZE   ?= 1
 # An incomplete run now fails the gate: "no counter-example" is a claim over
 # ALL reachable states, and a truncated run cannot establish it. So 200 is not
 # an option, and the fastest complete pair is the one configured here.
+#
+# Raising TIMEOUT does NOT extend how long a run may take overall. The wrapper
+# caps the probcli process separately at _PROCESS_TIMEOUT_S (prob.py), which is
+# deliberately not derived from this value: TIMEOUT buys a large specification
+# the budget to solve its operations rather than abandon them, while the
+# process cap exists to notice a hung probcli. Tying them would mean every
+# raise of the solve budget also lengthened how long a hang is waited on.
 MAX_OPS   ?= 1000
 TIMEOUT   ?= 1800000
 

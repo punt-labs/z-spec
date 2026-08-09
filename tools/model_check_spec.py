@@ -19,9 +19,25 @@ from punt_zspec.types import ProbReport
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("spec", type=Path, help="the .tex specification to check")
-    parser.add_argument("--setsize", type=int, default=1)
-    parser.add_argument("--max-ops", type=int, default=200)
-    parser.add_argument("--timeout", type=int, default=300000)
+    parser.add_argument(
+        "--setsize", type=int, default=1, help="probcli DEFAULT_SETSIZE"
+    )
+    parser.add_argument(
+        "--max-ops",
+        type=int,
+        default=200,
+        help="probcli MAX_OPERATIONS: transitions enumerated per operation",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=300000,
+        help=(
+            "probcli TIME_OUT in MILLISECONDS, bounding one internal "
+            "computation — not a wall clock. The whole process is capped "
+            "separately and much lower; see _PROCESS_TIMEOUT_S in prob.py."
+        ),
+    )
     return parser.parse_args(argv)
 
 
