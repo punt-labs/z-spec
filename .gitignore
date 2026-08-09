@@ -35,10 +35,30 @@ node_modules/
 # subagent surface — generated, but configuration: every contributor who clones
 # should get the same specialists, and a change to the roster belongs in a diff
 # someone reviews, not in a file that silently differs per machine.
+#
+# The allowlist is per-agent, not the whole directory. ethos deposits every
+# specialist it knows about into every repo it touches, so un-ignoring
+# .claude/agents/ wholesale leaves eighteen Go, Swift, Kubernetes and product
+# agents permanently untracked here — noise that hides a real change to the
+# roster. The names below are punt-labs/z-spec's team, from
+# .punt-labs/ethos/teams/formal-methods.yaml, less the two with no agent file:
+# jfreeman, who is human, and claude, who leads rather than specialises.
+# Adding a specialist to this repo means adding a line here, which is the
+# review the comment above asks for.
 .claude/*
 !.claude/settings.json
 !.claude/hooks/
 !.claude/agents/
+.claude/agents/*
+!.claude/agents/adb.md
+!.claude/agents/adt.md
+!.claude/agents/dna.md
+!.claude/agents/edt.md
+!.claude/agents/gvr.md
+!.claude/agents/jms.md
+!.claude/agents/jra.md
+!.claude/agents/mdm.md
+!.claude/agents/rmh.md
 
 # Local-only files (machine-specific, per-user)
 *.local
