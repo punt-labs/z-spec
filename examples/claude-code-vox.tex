@@ -900,6 +900,10 @@ No speech, no block.
   pendingResponse' = pendingResponse
 \end{schema}
 
+Every resource the session held is released; the session identifier is
+kept, because it is the record of which session ended. See
+\texttt{claude-code.tex} for the discussion.
+
 \begin{schema}{EndSession}
   \Delta State \\
   reason? : SessionEndReason
@@ -907,7 +911,7 @@ No speech, no block.
   sessionPhase = spIdle \\
   activeSubagents = \emptyset \\
   sessionPhase' = spEnded \\
-  sessionId' = \emptyset \\
+  sessionId' = sessionId \\
   toolPhase' = tpNone \\
   currentTool' = \emptyset \\
   toolsThisTurn' = 0 \\
@@ -916,13 +920,41 @@ No speech, no block.
   pendingPrompt' = \emptyset \\
   pendingResponse' = \emptyset \\
   permMode' = permMode \\
-  notifyMode' = nmOff \\
+  notifyMode' = notifyMode \\
   speakMode' = zfalse \\
   vibeMode' = vibeMode \\
   vibeSignals' = \emptyset \\
   stopHookActive' = zfalse \\
   spokeSummary' = zfalse
 \end{schema}
+
+\texttt{notifyMode} is carried through, beside \texttt{permMode} and
+\texttt{vibeMode}. It is a setting rather than something the session
+accumulated, and silencing it here would contradict
+\texttt{FarewellSession} below, which is specified to speak as the
+session shuts down: an operation that switched notifications off on the
+way into \texttt{spEnded} would leave the farewell unable to fire from
+any state at all. That is exactly what this specification did until now,
+and the note under \texttt{FarewellSession} has described the intended
+behaviour correctly the whole time. What \texttt{EndSession} does release
+is what the session accumulated --- subagents, context, vibe signals, and
+the two Stop-hook flags.
+
+\subsection{SessionOver}
+
+The declared halt: enabled exactly in \texttt{spEnded}, and it changes
+nothing. Stating the intended termination as an operation is what makes
+the absence of others meaningful --- a model checker cannot otherwise
+distinguish a machine that has finished from one that is stuck, so with
+this schema present every remaining deadlock is unintended by
+construction.
+
+\begin{schema}{SessionOver}
+  \Xi State
+  \where
+  sessionPhase = spEnded
+\end{schema}
+
 
 % ============================================================
 \section{System Invariants}

@@ -89,6 +89,18 @@ final response to the user. \texttt{spEnded} is terminal. Startup and
 shutdown hooks are modeled as atomic transitions (not intermediate states)
 because no operation is enabled during hook execution.
 
+\texttt{spInactive} and \texttt{spEnded} both describe a machine with no
+session running, and they are not the same state. Before
+\texttt{SessionStart} there is no session, so there is no identifier;
+after \texttt{EndSession} there is a session that has finished, and it
+keeps its identifier. That is what the identity invariant below says, and
+it is why \texttt{EndSession} releases every resource the session held ---
+subagents, context, pending work --- while retaining the one thing that is
+not a resource: the name of the session that ended. A terminal state that
+has forgotten which session terminated records nothing, and the
+\texttt{SessionEnd} hook, which fires with the session id, would have
+nothing to fire about.
+
 \begin{zed}
   ToolPhase ::= \\
   \quad~ tpNone | tpPreHook | tpPermission | tpExecuting | tpPostHook
@@ -774,7 +786,10 @@ as the source.
 % ------------------------------------------------------------
 
 The session terminates. \texttt{SessionEnd} fires (non-blocking).
-All subagents must have stopped.
+All subagents must have stopped. Every resource the session held is
+released; the session identifier is kept, because it is the record of
+which session ended and the argument the \texttt{SessionEnd} hook fires
+with.
 
 \begin{schema}{EndSession}
   \Delta State \\
@@ -784,7 +799,7 @@ All subagents must have stopped.
   activeSubagents = \emptyset \\
   %
   sessionPhase' = spEnded \\
-  sessionId' = \emptyset \\
+  sessionId' = sessionId \\
   toolPhase' = tpNone \\
   currentTool' = \emptyset \\
   toolsThisTurn' = 0 \\
@@ -793,6 +808,27 @@ All subagents must have stopped.
   pendingPrompt' = \emptyset \\
   pendingResponse' = \emptyset \\
   permMode' = permMode
+\end{schema}
+
+% ------------------------------------------------------------
+\subsection{SessionOver}
+% ------------------------------------------------------------
+
+The declared halt. Once the session has ended nothing further changes,
+and this schema says so: it is enabled exactly in \texttt{spEnded} and
+leaves the state alone.
+
+Stating the intended termination as an operation is what makes the
+absence of others meaningful. A model checker reports a state with no
+enabled operation as a deadlock, and it cannot distinguish a machine that
+has finished from one that is stuck. With the one intended halt declared,
+every remaining deadlock in this specification is unintended by
+construction, and finding one is finding a defect.
+
+\begin{schema}{SessionOver}
+  \Xi State
+  \where
+  sessionPhase = spEnded
 \end{schema}
 
 % ============================================================
