@@ -1,0 +1,4 @@
+---
+notify: "y"
+speak: "y"
+---
