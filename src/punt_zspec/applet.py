@@ -152,8 +152,17 @@ class _SpecSceneBuilder:
                 )
             )
 
+        # No operations means no counts to show, not zero of them. Rendering
+        # "0/0 ops" states a measurement that was not taken; the checks table
+        # below already carries the coverage verdict and its reason, and a card
+        # that recomputes what it was handed is how this defect was written the
+        # first time.
         covered = sum(1 for op in report.operations if op.covered)
-        total = len(report.operations)
+        coverage_text = (
+            f"Coverage: {covered}/{len(report.operations)} ops"
+            if report.operations
+            else "Coverage: not measured"
+        )
         result_text = "PASS" if report.ok else "FAIL"
         elements.append(
             GroupElement(
@@ -167,9 +176,7 @@ class _SpecSceneBuilder:
                         id=f"{p}m-trans",
                         content=f"Transitions: {report.transitions_fired}",
                     ),
-                    TextElement(
-                        id=f"{p}m-coverage", content=f"Coverage: {covered}/{total} ops"
-                    ),
+                    TextElement(id=f"{p}m-coverage", content=coverage_text),
                     TextElement(id=f"{p}m-result", content=f"Result: {result_text}"),
                 ],
             )
@@ -198,6 +205,14 @@ class _SpecSceneBuilder:
             )
         )
 
+        if not report.operations:
+            elements.append(SeparatorElement())
+            elements.append(
+                TextElement(
+                    id=f"{p}ops-absent",
+                    content="No operation census in this report — see coverage above.",
+                )
+            )
         if report.operations:
             elements.append(SeparatorElement())
             op_rows = [
