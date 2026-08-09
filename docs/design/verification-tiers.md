@@ -31,12 +31,15 @@ were byte-identical, so the property-based driver could not assert the one
 property the harness exists for. `make check` was green throughout and always
 would have been.
 
-`tests/commands/test_prompt_contracts.py` (PR #97) closed the cheap half: 48
-deterministic cases asserting that a document specifying a protocol cannot
-contradict the worked examples of that protocol embedded in the same document.
-It costs nothing and it would have failed against the pre-fix files. It cannot
-prove the prompt makes a model emit conforming Lean. Nothing does, for any of
-the 21 commands.
+`tests/commands/test_prompt_contracts.py` (PR #97) closed the cheap half **for
+one command**: 48 deterministic cases asserting that a document specifying a
+protocol cannot contradict the worked examples of that protocol embedded in the
+same document. It costs nothing and it would have failed against the pre-fix
+files. What it does not do is cover the corpus — 48 green cases name exactly one
+of the 21 commands, and 36 of them examine nothing at all. §12.1 gives the
+measurement and §12.2 the defect that hid it. And no tier 1 test can prove the
+prompt makes a model emit conforming Lean. Nothing does, for any of the 21
+commands.
 
 This document defines what would, what it costs, what it cannot claim, and
 where it sits in a pyramid whose top tier is currently one sentence:
@@ -537,6 +540,19 @@ against a fixture, produce an artifact its checker accepts.
 | 5 | Acceptance — subprocess and human | the installed wheel's CLI and stdio MCP server answer; the lux window shows what a person would want | subprocess: seconds; human: minutes | anything the human did not run; anything intermittent | no (`make test-e2e`) | `test.yml` `e2e` (subprocess half only) | `e2e` |
 | 6 | **Elicitation conformance** | over *n* runs, a live model given the shipped prompt and a fixture produced an artifact its checker accepted *k* times | minutes and real money **per run** | whether the artifact is *good*; behaviour on any other spec; behaviour on any other model version; anything at *n* below the sample size | **no** | **no** — a separate workflow on release and on schedule | `sdk` |
 
+**One honest note on tier 1, in the same spirit as §12.2.** Python coverage
+measures 93.14% (2,449 statements, 168 missed), and **nothing enforces it**:
+`coverage` is not a prerequisite of `check` (`Makefile:56`) and `pyproject.toml`
+declares no `fail_under`. So the number is a report, not a gate — it can fall
+without anything turning red, which is a measurement that reads like a gate and
+therefore the same class of defect as a case that passes having asserted
+nothing. The two real gaps are `__main__.py` at 53.26% and `server.py` at
+84.85% — the two client surfaces, which is exactly where the subprocess and
+stdio tests of tier 5 do their work and where in-process unit tests structurally
+cannot. `lux/ports.py` and `lux/command_ports.py` read 0% because they are pure
+`Protocol` definitions with no executable body; that is expected and is not a
+gap.
+
 Tier 6, spelled out to the level `PL-TT-1` does not reach:
 
 - **What it asserts.** One statement, with three parameters that must appear in
@@ -961,12 +977,100 @@ money and cannot be trusted on one sample. `test_prompt_contracts.py` is the
 worked example: "the protocol is stated consistently" is decidable from the
 file; "the model emits a conforming implementation of it" is not.
 
-Two things this test should gain, neither of which changes its tier:
+### 12.1 What it covers today: one command of twenty-one
 
-1. **A cited authority.** Its assertions (`:107-138`) are one reading of
+§1 says PR #97 "closed the cheap half." Measured, that claim is too large, and
+the correction belongs here rather than in a later PR, because it changes what
+tier 1 can currently be said to hold.
+
+| Measured on this tree | Count |
+|---|---|
+| prod command prompts | 21 |
+| prod prompts named in a contract assertion | **1** (`oracle`) |
+| prod prompts containing any `json` fenced block | 3 (`audit`, `oracle`, `partition`) |
+| files `COMMANDS.glob("*.md")` parametrises over | 42 (21 prod + 21 `-dev` twins) |
+| of those, files carrying anything the JSON case can examine | 6 |
+| tests collected from the file | 48 |
+
+So prompt-document coverage went **from zero commands to one**. The suite is a
+frame holding one command's contract, correctly built, and not a corpus-wide
+gate. Forty-eight green dots read exactly like corpus-wide coverage, which is
+how the gap survived the review that shipped it.
+
+### 12.2 The gate must not report success on what it never examined
+
+The mechanism is worth naming precisely, because it is the *same defect* §1
+opens by naming in `check-dev-commands` — a gate that tests synchronisation and
+calls it correctness — one level deeper. `test_json_examples_parse`
+(`test_prompt_contracts.py:88-92`) is parametrised over all 42 files and its
+body is a loop over that file's `json` fenced blocks. In the 36 files with no
+such block the loop runs zero times, the case evaluates nothing, and pytest
+prints a green dot. **A gate reporting success on a file it never examined is
+worse than no gate, because it also reports the absence of one.**
+
+Two things this is not. It is not the missing `assert` keyword: the case asserts
+by exception — a malformed block raises `json.JSONDecodeError` — and that is a
+legitimate form. And it is not confined to this suite; it is the default
+behaviour of every parametrised test whose body is a loop over something the
+parameter might not contain.
+
+**The rule, stated as generally as PL-VT-5 because it is not a z-spec fact: a
+parametrised case that evaluates zero assertions must fail, not pass.**
+
+For this suite the fix is to parametrise over the files that carry a JSON block
+— *and* to assert the population separately. Both halves are needed and neither
+alone is sufficient:
+
+- **An explicit skip with a reason is the weaker half.** It removes the false
+  green and replaces it with 36 skips nobody reads. Silence in a different
+  colour is still silence, and a skip count is not a coverage claim.
+- **Narrowing the parametrisation alone lets the same failure back in through
+  the other door.** If `oracle.md` lost its JSON block tomorrow the suite would
+  quietly shrink from 6 cases to 4 and stay green — a test that disappears is
+  indistinguishable from a test that passes. The population assertion is what
+  turns that into a red case instead of a missing one.
+
+Asserting the population is the general form, and it is what makes the narrowing
+safe: name the set the suite claims to cover, and let the suite fail when the
+claim and the tree diverge.
+
+### 12.3 What a corpus-wide contract could assert
+
+The other 20 commands have no contract, and most emit prose, so their assertable
+surface is small. Small is a finding, not an excuse for silence — three
+contracts are available across all 21 today, and the first is the valuable one:
+
+1. **`allowed-tools` must grant every binary the prompt's body invokes.**
+   Decidable from the file — extract the commands from the `bash` fenced blocks,
+   compare against the frontmatter grant — and it is exactly Finding 1: two
+   prompts that generate compilable code, tool-restricted so they cannot compile
+   it. As a test it mechanises PL-VT-4 instead of leaving it as advice, and it
+   catches the next occurrence of the defect §5.2 Tier A is fixing by hand.
+2. **Every fenced block declares a language tag.** An untagged block is invisible
+   to `_blocks(path, lang)`, so a JSON example in an untagged fence is silently
+   unchecked — §12.2's failure arriving through the data instead of the
+   parametrisation.
+3. **Cross-references resolve.** A prompt naming `reference/z-notation.md`, a
+   `zspec` tool, or a sibling command must name one that exists.
+
+What is *not* available corpus-wide is a contract on what the prose says, and
+that bound should be stated plainly: tier 1 can decide a prompt's structure, its
+grants, and its self-consistency; it cannot decide whether an instruction
+elicits what it intends. That residue belongs to tier 6, for the one command
+that earns it, and it is §6.3's boundary seen from the other side.
+
+### 12.4 What this test should gain
+
+Three things, none of which changes its tier:
+
+1. **Non-vacuity, per §12.2** — the parametrisation narrowed to files with
+   something to examine, plus the population assertion that keeps the narrowing
+   honest. This is a defect in the gate, not an enhancement to it, and it comes
+   first.
+2. **A cited authority.** Its assertions (`:107-138`) are one reading of
    `oracle.md:1151-1167`. With `examples/oracle-protocol.tex` (§6.2) they become a
    transcription of a model-checked schema, and the docstring says so.
-2. **Growth on every tier 6 failure classified as a prompt defect.** §8.3 step
+3. **Growth on every tier 6 failure classified as a prompt defect.** §8.3 step
    3 requires it: when a failure turns out to have been decidable from the
    document, the assertion moves down to tier 1 and never costs money again.
    That is the ratchet that keeps tier 6 from growing without bound.
@@ -1039,6 +1143,15 @@ Numbered in punt-kit style so promotion is mechanical. All of these generalise;
   so that a checker can.
 - **PL-VT-10 — Every result carries three parameters.** Prompt version, fixture,
   model version. A conformance number without all three is not a result.
+- **PL-VT-11 — A test that asserts nothing must not report success.** Green is a
+  claim; a case that evaluates zero assertions makes no claim and must not be
+  counted as one. A parametrised case whose body iterates over something the
+  parameter may not contain fails or skips with a reason — never passes
+  silently. And a suite that narrows its parametrisation to the inputs with
+  something to assert must also assert that population, or a vanished test
+  becomes indistinguishable from a passing one. This generalises to every
+  repository with parametrised suites, which is all of them; §12.2 is the worked
+  example.
 
 ### 13.3 Concrete edits elsewhere
 
@@ -1078,7 +1191,7 @@ The one apparent exception is §6.2 — "write the contract as a Z spec and let
 the toolchain check it." That reads as a z-spec-specific move, but it is not:
 it is the product thesis, and it applies to any punt-labs repo that has z-spec
 enabled and ships an agentic surface with a wire contract. Stated as a rule it
-would be PL-VT-11, and I am not proposing it yet, because it is untested. §6.2
+would be PL-VT-12, and I am not proposing it yet, because it is untested. §6.2
 is the test. If `examples/oracle-protocol.tex` demonstrably prevents the next
 protocol divergence, it earns rule status; until then it is a recommendation
 with one worked example.
