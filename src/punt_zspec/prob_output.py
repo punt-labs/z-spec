@@ -9,16 +9,10 @@ from __future__ import annotations
 
 import re
 import subprocess
-from itertools import takewhile
-from typing import ClassVar, Protocol, Self, final
+from typing import ClassVar, Self, final
 
-from punt_zspec.types import (
-    CheckResult,
-    CheckStatus,
-    CounterExample,
-    OperationCoverage,
-    TraceStep,
-)
+from punt_zspec.coverage import Coverage, CoverageCensus
+from punt_zspec.types import CheckResult, CheckStatus, CounterExample, TraceStep
 
 _STATES_RE = re.compile(r"States\s+analysed:\s*(\d+)")
 _TRANS_RE = re.compile(r"Transitions\s+fired:\s*(\d+)")
@@ -33,149 +27,13 @@ _STEP_RE = re.compile(r"(\d+):\s*(\w+)")
 _INCOMPLETE_RE = re.compile(r"model_check_incomplete")
 _BOUND_RE = re.compile(r"(MAX_OPERATIONS=\d+) was too small")
 
-# The census probcli prints under "Coverage:" when -coverage is passed. One
-# bracketed line: state totals, then COVERED_OPERATIONS (n) and
-# UNCOVERED_OPERATIONS (m), each headline followed by exactly the number of
-# comma-separated entries it declares.
-_CENSUS_RE = re.compile(r"\[STATES \(\d+\),[^\]]*\]")
-_HEADLINE_RE = re.compile(r"(?:UN)?COVERED_OPERATIONS \(\d+\)")
-
-_COVERED = "COVERED_OPERATIONS"
-_UNCOVERED = "UNCOVERED_OPERATIONS"
-_CHECK_NAME = "coverage"
-
-
-class Coverage(Protocol):
-    """What one probcli run knows about which operations fired."""
-
-    @property
-    def operations(self) -> tuple[OperationCoverage, ...]:
-        """Return every operation the run accounted for, with its fire count."""
-        ...
-
-    def check(self) -> CheckResult:
-        """Return the coverage verdict as a named check result."""
-        ...
-
-
-@final
-class UnreadableCoverage:
-    """A run whose coverage question went unanswered.
-
-    Either probcli printed no census — the run did not ask — or it printed one
-    that will not parse. Both report a failed check, because unanswered is not
-    covered: a run that never asked must not be mistaken for one that asked and
-    got a clean answer.
-    """
-
-    _reason: str
-    __slots__ = ("_reason",)
-
-    def __new__(cls, reason: str) -> Self:
-        self = super().__new__(cls)
-        self._reason = reason
-        return self
-
-    @property
-    def operations(self) -> tuple[OperationCoverage, ...]:
-        """Return no operations — nothing was measured."""
-        return ()
-
-    def check(self) -> CheckResult:
-        """Return a failed check naming why the census could not be read."""
-        return CheckResult(
-            name=_CHECK_NAME, status=CheckStatus.failed, detail=self._reason
-        )
-
-
-@final
-class CoverageCensus:
-    """probcli's operation census: the operations it named, with fire counts.
-
-    An operation appears once, whether it fired or not; ``covered`` is derived
-    from the count, so a covered operation that never fired cannot be built.
-    """
-
-    _operations: tuple[OperationCoverage, ...]
-    __slots__ = ("_operations",)
-
-    def __new__(cls, operations: tuple[OperationCoverage, ...]) -> Self:
-        self = super().__new__(cls)
-        self._operations = operations
-        return self
-
-    @classmethod
-    def read(cls, census: str) -> Coverage:
-        """Return the census parsed from probcli's bracketed coverage line."""
-        tokens = census.removeprefix("[").removesuffix("]").split(",")
-        try:
-            fired = tuple(cls._entry(t) for t in cls._section(tokens, _COVERED))
-            idle = tuple(
-                OperationCoverage(name=name, times_fired=0)
-                for name in cls._section(tokens, _UNCOVERED)
-            )
-        except ValueError as exc:
-            return UnreadableCoverage(str(exc))
-        return cls(fired + idle)
-
-    @staticmethod
-    def _section(tokens: list[str], headline: str) -> list[str]:
-        """Return a headline's entries, checked against the length it declares.
-
-        A headline declaring more entries than it lists means the line was
-        truncated or the format moved; either way the census is unreadable, and
-        a short list must never be read as full coverage.
-        """
-        for index, token in enumerate(tokens):
-            declared = re.fullmatch(rf"{headline} \((\d+)\)", token)
-            if declared is None:
-                continue
-            entries = list(
-                takewhile(lambda t: not _HEADLINE_RE.fullmatch(t), tokens[index + 1 :])
-            )
-            if len(entries) != int(declared.group(1)):
-                msg = (
-                    f"{headline} declares {declared.group(1)} entries "
-                    f"but lists {len(entries)}"
-                )
-                raise ValueError(msg)
-            return entries
-        msg = f"probcli's coverage census has no {headline}"
-        raise ValueError(msg)
-
-    @staticmethod
-    def _entry(token: str) -> OperationCoverage:
-        """Return one ``Name:count`` census entry as an OperationCoverage."""
-        name, separator, count = token.partition(":")
-        if not separator or not count.isdigit():
-            msg = f"unreadable coverage entry: {token}"
-            raise ValueError(msg)
-        return OperationCoverage(name=name, times_fired=int(count))
-
-    @property
-    def operations(self) -> tuple[OperationCoverage, ...]:
-        """Return every operation probcli named, with its fire count."""
-        return self._operations
-
-    @property
-    def uncovered(self) -> tuple[str, ...]:
-        """Return the names of the operations that never fired."""
-        return tuple(op.name for op in self._operations if not op.covered)
-
-    def check(self) -> CheckResult:
-        """Return the coverage verdict — an uncovered operation is dead spec."""
-        idle = self.uncovered
-        if idle:
-            return CheckResult(
-                name=_CHECK_NAME,
-                status=CheckStatus.failed,
-                detail=f"never fired: {', '.join(idle)}",
-            )
-        return CheckResult(
-            name=_CHECK_NAME,
-            status=CheckStatus.passed,
-            detail=f"{len(self._operations)} operations covered",
-        )
+# probcli's own error tally, printed only when something went wrong and absent
+# from a clean run. It is the general failure signal every check can read: the
+# -init step in particular emits no counter-example, no census and none of the
+# markers, so without this its verdict would rest on an exit status probcli
+# does not set — it exits 0 even on INITIALISATION FAILS.
+_ERRORS_RE = re.compile(r"Total Errors:\s*(\d+)")
+_ERROR_TAG_RE = re.compile(r"\*\*\* error occurred \*\*\*\s*\n!\s*(\w+)")
 
 
 @final
@@ -187,7 +45,10 @@ class ProbOutput:
     __slots__ = ("_returncode", "_text")
 
     # Success markers probcli prints for the checks that do not explore a state
-    # space. Ordered: the first marker present decides.
+    # space. Ordered: the first marker present decides. Every phrase here is
+    # quoted from a captured transcript: a marker matching a string probcli
+    # does not emit is the same defect as a parser inferring one, and this
+    # table carried such a marker until the transcripts were checked.
     #
     # ALL OPERATIONS COVERED is deliberately absent. It answers the coverage
     # question, not "did this run find anything", and probcli prints it mid-run
@@ -195,7 +56,11 @@ class ProbOutput:
     # passes a deadlocking specification.
     _MARKERS: ClassVar[tuple[tuple[str, CheckStatus, str], ...]] = (
         ("no deadlock", CheckStatus.passed, "deadlock-free"),
-        ("no assertion", CheckStatus.skipped, "no assertions defined"),
+        (
+            "no counter-example to assertion",
+            CheckStatus.passed,
+            "no assertion violated",
+        ),
     )
 
     def __new__(cls, text: str, returncode: int) -> Self:
@@ -239,12 +104,7 @@ class ProbOutput:
 
     def coverage(self) -> Coverage:
         """Return the operation census this run printed, or why it cannot be read."""
-        census = _CENSUS_RE.search(self._text)
-        if census is None:
-            return UnreadableCoverage(
-                "probcli printed no coverage census — the run did not pass -coverage"
-            )
-        return CoverageCensus.read(census.group(0))
+        return CoverageCensus.locate(self._text)
 
     # CounterExample | None (PY-TS-14): absence is the contract — a clean run
     # has no counter-example, and that is the answer, not a failure to produce
@@ -300,14 +160,27 @@ class ProbOutput:
         lowered = self._text.lower()
         if _COUNTER_RE.search(self._text):
             return CheckResult(name, CheckStatus.failed, self._violation())
+        if self._error_count():
+            return CheckResult(name, CheckStatus.failed, self._reported_errors())
         if _INCOMPLETE_RE.search(self._text):
             return CheckResult(name, CheckStatus.warning, self._uncertified())
-        if "no counter example found" in lowered or "no counter-example" in lowered:
+        if "no counter example found" in lowered:
             return CheckResult(name, CheckStatus.passed, self._exploration_detail())
         for marker, status, detail in self._MARKERS:
             if marker in lowered:
                 return CheckResult(name, status, detail)
         return self._exit_verdict(name)
+
+    def _error_count(self) -> int:
+        """Return how many errors probcli tallied, or zero if it tallied none."""
+        found = _ERRORS_RE.search(self._text)
+        return int(found.group(1)) if found else 0
+
+    def _reported_errors(self) -> str:
+        """Return probcli's error count and the sources it named for them."""
+        tags = sorted(set(_ERROR_TAG_RE.findall(self._text)))
+        named = f": {', '.join(tags)}" if tags else ""
+        return f"probcli reported {self._error_count()} error(s){named}"
 
     def _uncertified(self) -> str:
         """Return why probcli could not certify it explored every transition."""
@@ -323,7 +196,16 @@ class ProbOutput:
         return found.violation
 
     def _exit_verdict(self, name: str) -> CheckResult:
-        """Return the verdict for output carrying no recognised probcli marker."""
+        """Return the verdict when probcli's output asserted nothing either way.
+
+        The exit status is the last resort, and a weak one — probcli exits 0 on
+        a counter-example, on INITIALISATION FAILS, and on an incompleteness
+        warning alike. It is consulted only once the output has been searched
+        for a counter-example, for probcli's own error tally, for an
+        incompleteness warning, and for every success marker, so what reaches
+        here is a run that reported nothing at all. Anything probcli does say
+        is read before this point.
+        """
         if self._returncode == 0:
             return CheckResult(name, CheckStatus.passed, "OK")
         return CheckResult(name, CheckStatus.failed, self._excerpt())

@@ -1,0 +1,18 @@
+Writing fuzz AST to /Users/jfreeman/Coding/punt-labs/z-spec/.tmp/wt-design/.tmp/sfh/unreachable-deadlock.fuzz
+! Message (source: proz):
+! Did not find Init Schema; assuming following schema to define the initialisation: InitProbe
+Z operation: Step
+Z operation: Reset
+[0m% Starting Constraint-Based DEADLOCK check 
+target(all)
+### Unbounded enumeration of count  : INTEGER : inf: -2 ---> -2: -2 
+deadlock_counter_example_found(1,1)
+[31m*** DEADLOCK state found ***[0m
+*** STATE = 
+     ( count=-2 &
+       flag=ztrue )
+*** END DEADLOCKING STATE 
+
+! *** error occurred ***
+! cbc_deadlock_check
+! Total Errors: 1, Warnings:0

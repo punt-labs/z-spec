@@ -22,6 +22,12 @@ _COVERAGE = "-coverage"
 # than abandoned, and tying the two would mean every raise of the solve budget
 # also lengthens how long a genuinely hung process is waited on. The slowest
 # spec in this repo completes in 2m16s.
+#
+# Because it is fixed, it can drift out of step with the Makefile's TIMEOUT as
+# the corpus grows: a spec still inside its configured solve budget would be
+# stopped here. The failure is reported, not silent, but if any spec ever
+# approaches this cap, re-measure the corpus and raise both together rather
+# than raising TIMEOUT alone.
 _PROCESS_TIMEOUT_S = 600
 
 

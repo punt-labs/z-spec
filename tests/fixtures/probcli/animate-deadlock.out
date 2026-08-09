@@ -1,0 +1,15 @@
+Writing fuzz AST to /Users/jfreeman/Coding/punt-labs/z-spec/.tmp/wt-design/.tmp/sfh/animate-deadlock.fuzz
+! Message (source: proz):
+! Did not find Init Schema; assuming following schema to define the initialisation: InitProbe
+Z operation: Step
+
+ALL OPERATIONS COVERED
+% Runtime for -animate: 1 ms (with gc: 1 ms, walltime: 1 ms); since start: 0 sec 662 ms
+Coverage:
+[STATES (4),invariant_violated:0,invariant_not_checked:0,open:0,live:3,deadlocked:1,total:4,TOTAL_TRANSITIONS,3,COVERED_OPERATIONS (2),INITIALISATION:1,Step:2,UNCOVERED_OPERATIONS (0)]
+
+! Deadlock occurred during -animate, at step number:
+! 3
+! *** error occurred ***
+! animate
+! Total Errors: 1, Warnings:0

@@ -136,6 +136,9 @@ def test_an_overrunning_run_is_reported_not_raised(tmp_path: Path) -> None:
     named = {c.name: c for c in report.checks}
     assert named["model_check"].status == CheckStatus.failed
     assert "exceeded" in named["model_check"].detail
+    # The census is missing because the run died, not because -coverage was
+    # omitted; the coverage line states what it observed and nothing more.
+    assert named["coverage"].detail == "probcli printed no coverage census"
     assert not report.ok
 
 

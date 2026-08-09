@@ -23,6 +23,7 @@ Every model-check row ran with
 | `model-check-covered-then-deadlock.out` | `specs/covered-then-deadlock-bad.tex` | `ALL OPERATIONS COVERED` **and** a counter-example, in that order |
 | `model-check-incomplete.out` | `examples/claude-code.tex` at `MAX_OPERATIONS=200` | `model_check_incomplete` beside `No counter example found` |
 | `model-check-hidden-deadlock.out` | `specs/hidden-deadlock-bad.tex` at `MAX_OPERATIONS=3` | a truncated run reporting no counter-example on a spec that **has** one |
+| `init-fails.out` | `specs/no-initial-state-bad.tex -init -p DEFAULT_SETSIZE 1` | `INITIALISATION FAILS` at exit 0 |
 | `cbc-assertions.out` | `examples/search-panel.tex -cbc_assertions` | no census — the run never asked |
 | `cbc-deadlock.out` | `examples/search-panel.tex -cbc_deadlock` | no census — the run never asked |
 
@@ -43,6 +44,7 @@ why the `-bad` suffix sits on the file rather than on a type error.
 | `unreachable-operation-bad.tex` | `Freeze` requires `balance > maxBalance`, which the state invariant forbids | coverage |
 | `xi-frame-bad.tex` | `RejectWithdraw`'s `\Xi` frame is broken, so the operation is unsatisfiable | coverage |
 | `hidden-deadlock-bad.tex` | one deadlock among 1000 **distinct** successors of a single operation | model-check, but only when not truncated |
+| `no-initial-state-bad.tex` | `InitProbe` sets `pos' = 5` against an invariant of `pos ≤ 2`, so no initial state exists | init |
 
 They live here rather than in `examples/`, which is the specimen corpus —
 documentation of how to write Z well. These are reproduction artifacts for the
@@ -126,7 +128,7 @@ truncated run is *not* proof of dead specification — "did not fire in the part
 explored" is not "cannot fire". Under-reporting coverage is over-reporting
 uncovered.
 
-## Four facts these transcripts pin down
+## Five facts these transcripts pin down
 
 **probcli exits 0 when it finds a counter-example.**
 `model-check-counter-example.out` came from a run whose exit status was `0`,
@@ -151,6 +153,15 @@ operation fires, and the run still failed. So a marker's presence never settles
 a run — it settles the one question that marker answers. The counter-example
 must be tested first and unconditionally, and coverage must be a separate
 verdict rather than an input to this one.
+
+**probcli tallies its own errors, and that tally is the general failure
+signal.** A clean run prints no `Total Errors` line at all; a run that went
+wrong prints `Total Errors: N, Warnings: M` with the sources named above it.
+This matters most for the steps that emit nothing else: `-init` produces no
+counter-example, no census and none of the success markers, so `init-fails.out`
+— `INITIALISATION FAILS`, exit status 0 — would otherwise be classified by an
+exit code probcli does not set, and a specification with no reachable initial
+state would pass the gate. Read the tally, not the status.
 
 **A branch that cannot execute is worse than a branch that is missing.**
 `_exit_verdict` used to carry a `"not all transitions" -> warning` case. It

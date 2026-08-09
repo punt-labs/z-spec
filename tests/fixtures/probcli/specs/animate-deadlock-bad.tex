@@ -1,0 +1,20 @@
+\documentclass{article}
+\usepackage{fuzz}
+\begin{document}
+\begin{schema}{Probe}
+  count : \nat
+\where
+  count \leq 2
+\end{schema}
+\begin{schema}{InitProbe}
+  Probe'
+\where
+  count' = 0
+\end{schema}
+\begin{schema}{Step}
+  \Delta Probe
+\where
+  count < 2 \\
+  count' = count + 1
+\end{schema}
+\end{document}

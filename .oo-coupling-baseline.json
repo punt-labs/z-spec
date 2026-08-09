@@ -167,6 +167,13 @@
     "max_lcom": 0.0,
     "avg_lcom": 0.0
   },
+  "src/punt_zspec/coverage.py": {
+    "efferent_coupling": 1.0,
+    "public_names": 3.0,
+    "circular_imports": 1.0,
+    "max_lcom": 0.667,
+    "avg_lcom": 0.334
+  },
   "src/punt_zspec/display.py": {
     "efferent_coupling": 1.0,
     "public_names": 4.0,
@@ -273,11 +280,11 @@
     "avg_lcom": 0.0
   },
   "src/punt_zspec/prob_output.py": {
-    "efferent_coupling": 1.0,
-    "public_names": 4.0,
+    "efferent_coupling": 2.0,
+    "public_names": 1.0,
     "circular_imports": 1.0,
-    "max_lcom": 0.667,
-    "avg_lcom": 0.347
+    "max_lcom": 0.316,
+    "avg_lcom": 0.316
   },
   "src/punt_zspec/report.py": {
     "efferent_coupling": 1.0,

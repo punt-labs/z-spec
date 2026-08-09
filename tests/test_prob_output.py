@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from punt_zspec.prob_output import CoverageCensus, ProbOutput, UnreadableCoverage
+from punt_zspec.prob_output import ProbOutput
 from punt_zspec.types import CheckStatus
 
 _FIXTURES = Path(__file__).parent / "fixtures" / "probcli"
@@ -20,127 +20,6 @@ _FIXTURES = Path(__file__).parent / "fixtures" / "probcli"
 
 def _output(name: str, returncode: int = 0) -> ProbOutput:
     return ProbOutput((_FIXTURES / name).read_text(encoding="utf-8"), returncode)
-
-
-# ---------------------------------------------------------------------------
-# The census probcli prints, read as probcli wrote it
-# ---------------------------------------------------------------------------
-
-
-def test_census_reports_the_real_names_and_counts() -> None:
-    """Counts come off the census, not from a 1-or-0 the parser made up."""
-    coverage = _output("model-check-covered.out").coverage()
-    counts = {op.name: op.times_fired for op in coverage.operations}
-
-    assert counts["ChangeCollection"] == 7
-    assert counts["SelectResult"] == 3
-    assert counts["ClearHighlight"] == 1
-    assert counts["INITIALISATION"] == 1
-
-
-def test_full_census_passes_the_coverage_check() -> None:
-    check = _output("model-check-covered.out").coverage().check()
-
-    assert check.name == "coverage"
-    assert check.status == CheckStatus.passed
-    assert check.detail == "13 operations covered"
-
-
-def test_unreachable_operation_fails_and_is_named() -> None:
-    """The mutant whose Freeze precondition no reachable state satisfies."""
-    coverage = _output("model-check-uncovered.out").coverage()
-    check = coverage.check()
-
-    assert check.status == CheckStatus.failed
-    assert "Freeze" in check.detail
-    assert [op.name for op in coverage.operations if not op.covered] == ["Freeze"]
-
-
-def test_broken_xi_frame_operation_fails_and_is_named() -> None:
-    """The mutant whose RejectWithdraw frame makes the operation unsatisfiable."""
-    check = _output("model-check-xi-uncovered.out").coverage().check()
-
-    assert check.status == CheckStatus.failed
-    assert "RejectWithdraw" in check.detail
-
-
-def test_uncovered_operation_is_carried_with_a_zero_count() -> None:
-    coverage = _output("model-check-uncovered.out").coverage()
-    freeze = next(op for op in coverage.operations if op.name == "Freeze")
-
-    assert freeze.times_fired == 0
-    assert freeze.covered is False
-
-
-def test_animate_census_is_read_too() -> None:
-    coverage = _output("animate.out").coverage()
-
-    assert [op.name for op in coverage.operations if not op.covered] == [
-        "ClearHighlight"
-    ]
-
-
-# ---------------------------------------------------------------------------
-# A missing or unreadable census is a failure, never a pass
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "fixture", ["init.out", "cbc-assertions.out", "cbc-deadlock.out"]
-)
-def test_a_run_that_never_asked_reports_a_failed_check(fixture: str) -> None:
-    coverage = _output(fixture).coverage()
-    check = coverage.check()
-
-    assert isinstance(coverage, UnreadableCoverage)
-    assert check.status == CheckStatus.failed
-    assert "-coverage" in check.detail
-    assert coverage.operations == ()
-
-
-def test_a_census_shorter_than_it_declares_is_unreadable() -> None:
-    """A truncated list must not be read as full coverage."""
-    truncated = (
-        "[STATES (5),total:5,TOTAL_TRANSITIONS,17,"
-        "COVERED_OPERATIONS (5),AcceptWithdraw:6,INITIALISATION:1,"
-        "UNCOVERED_OPERATIONS (0)]"
-    )
-    coverage = CoverageCensus.read(truncated)
-
-    assert isinstance(coverage, UnreadableCoverage)
-    assert coverage.check().status == CheckStatus.failed
-    assert "declares 5 entries but lists 2" in coverage.check().detail
-
-
-def test_an_uncovered_headline_that_overstates_itself_is_unreadable() -> None:
-    overstated = (
-        "[STATES (5),total:5,TOTAL_TRANSITIONS,17,"
-        "COVERED_OPERATIONS (1),AcceptWithdraw:6,"
-        "UNCOVERED_OPERATIONS (2),Freeze]"
-    )
-    coverage = CoverageCensus.read(overstated)
-
-    assert isinstance(coverage, UnreadableCoverage)
-    assert "declares 2 entries but lists 1" in coverage.check().detail
-
-
-def test_an_entry_without_a_count_is_unreadable() -> None:
-    malformed = (
-        "[STATES (5),total:5,TOTAL_TRANSITIONS,17,"
-        "COVERED_OPERATIONS (1),AcceptWithdraw,"
-        "UNCOVERED_OPERATIONS (0)]"
-    )
-    coverage = CoverageCensus.read(malformed)
-
-    assert isinstance(coverage, UnreadableCoverage)
-    assert "unreadable coverage entry: AcceptWithdraw" in coverage.check().detail
-
-
-def test_a_census_with_no_covered_headline_is_unreadable() -> None:
-    coverage = CoverageCensus.read("[STATES (5),total:5,UNCOVERED_OPERATIONS (0)]")
-
-    assert isinstance(coverage, UnreadableCoverage)
-    assert "no COVERED_OPERATIONS" in coverage.check().detail
 
 
 # ---------------------------------------------------------------------------
@@ -289,6 +168,38 @@ def test_an_uncertified_run_still_reports_the_coverage_it_saw() -> None:
 
     assert [op.name for op in coverage.operations if not op.covered] == ["EndSession"]
     assert coverage.operations  # the census was read, not discarded
+
+
+def test_a_failing_init_fails_although_probcli_exits_zero() -> None:
+    """The -init step emits no counter-example, no census, and no marker.
+
+    Without probcli's own error tally its verdict would rest on an exit status
+    probcli does not set: this transcript is INITIALISATION FAILS at exit 0.
+    A specification that cannot reach an initial state must not pass.
+    """
+    output = _output("init-fails.out")
+    check = output.check("init")
+
+    assert "INITIALISATION FAILS" in output.text
+    assert check.status == CheckStatus.failed
+    assert "initialisation_fails" in check.detail
+
+
+@pytest.mark.parametrize(
+    "fixture", ["init.out", "model-check-covered.out", "cbc-deadlock.out"]
+)
+def test_a_clean_run_tallies_no_errors(fixture: str) -> None:
+    """probcli prints the tally only when something went wrong."""
+    assert "Total Errors" not in _output(fixture).text
+    assert _output(fixture).check("run").status == CheckStatus.passed
+
+
+def test_a_warning_only_run_is_not_read_as_an_error() -> None:
+    """Total Errors: 0, Warnings: 1 must reach the incompleteness branch."""
+    check = _output("model-check-incomplete.out").check("model_check")
+
+    assert "Total Errors: 0" in _output("model-check-incomplete.out").text
+    assert check.status == CheckStatus.warning
 
 
 def test_deadlock_free_marker_passes() -> None:
