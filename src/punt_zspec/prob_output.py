@@ -45,7 +45,10 @@ class ProbOutput:
     __slots__ = ("_returncode", "_text")
 
     # Success markers probcli prints for the checks that do not explore a state
-    # space. Ordered: the first marker present decides.
+    # space. Ordered: the first marker present decides. Every phrase here is
+    # quoted from a captured transcript: a marker matching a string probcli
+    # does not emit is the same defect as a parser inferring one, and this
+    # table carried such a marker until the transcripts were checked.
     #
     # ALL OPERATIONS COVERED is deliberately absent. It answers the coverage
     # question, not "did this run find anything", and probcli prints it mid-run
@@ -53,7 +56,11 @@ class ProbOutput:
     # passes a deadlocking specification.
     _MARKERS: ClassVar[tuple[tuple[str, CheckStatus, str], ...]] = (
         ("no deadlock", CheckStatus.passed, "deadlock-free"),
-        ("no assertion", CheckStatus.skipped, "no assertions defined"),
+        (
+            "no counter-example to assertion",
+            CheckStatus.passed,
+            "no assertion violated",
+        ),
     )
 
     def __new__(cls, text: str, returncode: int) -> Self:
@@ -157,7 +164,7 @@ class ProbOutput:
             return CheckResult(name, CheckStatus.failed, self._reported_errors())
         if _INCOMPLETE_RE.search(self._text):
             return CheckResult(name, CheckStatus.warning, self._uncertified())
-        if "no counter example found" in lowered or "no counter-example" in lowered:
+        if "no counter example found" in lowered:
             return CheckResult(name, CheckStatus.passed, self._exploration_detail())
         for marker, status, detail in self._MARKERS:
             if marker in lowered:
