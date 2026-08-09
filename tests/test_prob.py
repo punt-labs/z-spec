@@ -127,6 +127,21 @@ def test_animate_passes_the_coverage_flag(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_an_overrunning_run_is_reported_not_raised(tmp_path: Path) -> None:
+    """An over-running model check must not reach the user as a traceback."""
+    expired = subprocess.TimeoutExpired(cmd=["probcli"], timeout=330)
+    with patch("subprocess.run", side_effect=expired):
+        report = run_model_check(_spec(tmp_path), _BINARY)
+
+    named = {c.name: c for c in report.checks}
+    assert named["model_check"].status == CheckStatus.failed
+    assert "exceeded" in named["model_check"].detail
+    # The census is missing because the run died, not because -coverage was
+    # omitted; the coverage line states what it observed and nothing more.
+    assert named["coverage"].detail == "probcli printed no coverage census"
+    assert not report.ok
+
+
 def test_run_init_returns_the_run_output(tmp_path: Path) -> None:
     completed = subprocess.CompletedProcess(
         args=[], returncode=0, stdout=_INIT, stderr=""

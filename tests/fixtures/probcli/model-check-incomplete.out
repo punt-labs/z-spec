@@ -1,0 +1,88 @@
+Writing fuzz AST to /Users/jfreeman/Coding/punt-labs/z-spec/.tmp/wt-tests/examples/claude-code.fuzz
+Z operation: StartSession(mode?,sid?,source?)
+Z operation: SubmitPrompt(contextChunk?,hookResult?,prompt?)
+Z operation: RejectPrompt(hookResult?,prompt?)
+Z operation: BeginToolCall(tool?)
+Z operation: PreToolHookAllow(hookDecision?,needsPermission?)
+Z operation: PreToolHookDeny(denialContext?,hookDecision?)
+Z operation: PreToolHookEscalate(hookDecision?)
+Z operation: GrantPermission
+Z operation: DenyPermission(denialContext?)
+Z operation: CompleteToolSuccess(output?)
+Z operation: CompleteToolFailure(errorContext?)
+Z operation: SpawnSubagent(agentId?)
+Z operation: StopSubagent(agentId?,hookResult?,resultContext?)
+Z operation: BeginResponse(response?)
+Z operation: FinishResponse(hookResult?,responseContext?)
+Z operation: ForceContinue(hookResult?)
+Z operation: CompactContext(newLen?)
+Z operation: EndSession(reason?)
+% given_set(TOOLNAME)
+% given_set(TOOLINPUT)
+% given_set(TOOLOUTPUT)
+% given_set(PROMPT)
+% given_set(RESPONSE)
+% given_set(AGENTID)
+% given_set(SESSIONID)
+% given_set(CONTEXTCHUNK)
+% Runtime for SOLUTION for SETUP_CONSTANTS: 0 ms (walltime: 0 ms)
+% Runtime to FINALISE SETUP_CONSTANTS: 0 ms (walltime: 0 ms)
+
+* 36325 states checked (77.9% of total 46614), 168324 transitions, 1 operation not covered, 261.164 MB
+* currently checking 1815.47 states/sec, adding 2329.67 new states/sec
+* walltime 0.3 minutes
+
+* 69800 states checked (81.7% of total 85483), 311329 transitions, 1 operation not covered, 332.553 MB
+* currently checking 1673.50 states/sec, adding 1943.16 new states/sec
+* walltime 0.7 minutes
+
+* 95625 states checked (87.2% of total 109610), 399036 transitions, 1 operation not covered, 375.274 MB
+* currently checking 1290.93 states/sec, adding 1206.05 new states/sec
+* walltime 1.0 minutes
+
+* 120750 states checked (90.8% of total 133043), 492306 transitions, 1 operation not covered, 415.883 MB
+* currently checking 1255.62 states/sec, adding 1171.06 new states/sec
+* walltime 1.3 minutes
+
+* 145075 states checked (93.1% of total 155817), 578663 transitions, 1 operation not covered, 451.855 MB
+* currently checking 1214.73 states/sec, adding 1137.28 new states/sec
+* walltime 1.7 minutes
+
+* 171650 states checked (95.7% of total 179320), 663388 transitions, 1 operation not covered, 496.552 MB
+* currently checking 1327.62 states/sec, adding 1174.15 new states/sec
+* walltime 2.0 minutes
+
+* 198100 states checked (96.6% of total 205015), 751574 transitions, 1 operation not covered, 548.743 MB
+* currently checking 1320.78 states/sec, adding 1283.08 new states/sec
+* walltime 2.3 minutes
+
+* 230125 states checked (97.4% of total 236319), 856609 transitions, 1 operation not covered, 595.566 MB
+* currently checking 1600.77 states/sec, adding 1564.73 new states/sec
+* walltime 2.7 minutes
+
+* 259750 states checked (97.9% of total 265317), 953912 transitions, 1 operation not covered, 639.635 MB
+* currently checking 1480.58 states/sec, adding 1449.25 new states/sec
+* walltime 3.0 minutes
+
+* 296700 states checked (98.3% of total 301705), 1074104 transitions, 1 operation not covered, 693.948 MB
+* currently checking 1846.30 states/sec, adding
+! A warning occurred (source: model_check_incomplete) !
+! *** Not all transitions were computed as MAX_OPERATIONS=200 was too small, e.g., for state with id = 43554
+ 1818.22 new states/sec
+* walltime 3.3 minutes
+
+* 328900 states checked (100.0% of total 328950), 1175067 transitions, 1 operation not covered, 735.888 MB
+* currently checking 1609.36 states/sec, adding 1361.71 new states/sec
+* walltime 3.7 minutes
+% Model checking finished, all open states visited
+Model checking time: 168043 ms (220304 ms walltime)
+States analysed: 329357
+Transitions fired: 1176532
+No counter example found. However, not all transitions were computed !
+
+Coverage:
+[STATES (329358),deadlocked:0,invariant_violated:0,invariant_not_checked:0,open:0,explored_but_not_all_transitions_computed:5,live:329358,total:329358,TOTAL_TRANSITIONS,1176532,COVERED_OPERATIONS (19),BeginResponse:39900,BeginToolCall:76200,CompactContext:100500,CompleteToolFailure:76200,CompleteToolSuccess:76200,DenyPermission:76200,FinishResponse:19950,ForceContinue:19950,GrantPermission:76200,INITIALISATION:1,PreToolHookAllow:152400,PreToolHookDeny:76200,PreToolHookEscalate:76200,RejectPrompt:1005,SETUP_CONSTANTS:1,SpawnSubagent:154200,StartSession:20,StopSubagent:154200,SubmitPrompt:1005,UNCOVERED_OPERATIONS (1),EndSession]
+
+! *** warning occurred ***
+! model_check_incomplete
+! Total Errors: 0, Warnings:1

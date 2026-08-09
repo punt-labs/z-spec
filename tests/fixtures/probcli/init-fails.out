@@ -1,0 +1,16 @@
+Writing fuzz AST to /Users/jfreeman/Coding/punt-labs/z-spec/.tmp/wt-tests/tests/fixtures/probcli/specs/no-initial-state-bad.fuzz
+! Message (source: proz):
+! Did not find Init Schema; assuming following schema to define the initialisation: InitProbe
+Z operation: Hold
+
+
+! An error occurred (source: initialisation_fails) !
+! INITIALISATION FAILS
+!  ERROR CONTEXT: OPERATION:INITIALISATION, State ID:root
+! *** error occurred ***
+! initialisation_fails
+! Processing or loading file failed: 
+! /Users/jfreeman/Coding/punt-labs/z-spec/.tmp/wt-tests/tests/fixtures/probcli/specs/no-initial-state-bad.tex
+! *** error occurred ***
+! initialisation_fails
+! Total Errors: 2, Warnings:0
