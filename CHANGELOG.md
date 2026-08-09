@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-08-09
+
 ### Fixed
 
 - **The spec model-check gate could not fail** --- `make test-z-*` decided pass or fail from probcli's exit status, and probcli exits 0 when it finds a counterexample: it prints `*** COUNTER EXAMPLE FOUND ***` and `Total Errors: 1`, then returns success. A specification with a real violation passed the gate while the violation scrolled past in the output. `z-spec model-check` was already correct here — the engine matched the counterexample text and set `ProbReport.ok` to false — so only the Makefile read the wrong channel. Verified by construction with a deadlocking specification that exits 0 under the old recipe and 1 under the new one.
