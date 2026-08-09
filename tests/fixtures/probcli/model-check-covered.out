@@ -1,0 +1,26 @@
+Writing fuzz AST to /Users/jfreeman/Coding/punt-labs/z-spec/.tmp/wt-tests/examples/search-panel.fuzz
+Z operation: EnterQuery
+Z operation: ClearQuery
+Z operation: ReceiveResults(newResults?)
+Z operation: ReceiveEmpty
+Z operation: ReceiveError
+Z operation: SelectResult(result?)
+Z operation: HighlightResult(result?)
+Z operation: ClearHighlight
+Z operation: CloseDetail
+Z operation: ProgrammaticClear
+Z operation: ChangeCollection
+% given_set(RESULTID)
+% Runtime for SOLUTION for SETUP_CONSTANTS: 0 ms (walltime: 0 ms)
+% Runtime to FINALISE SETUP_CONSTANTS: 0 ms (walltime: 0 ms)
+
+ALL OPERATIONS COVERED
+% Model checking finished, all open states visited
+Model checking time: 6 ms (6 ms walltime)
+States analysed: 8
+Transitions fired: 39
+[32mNo counter example found. ALL states visited.[0m
+
+Coverage:
+[STATES (9),deadlocked:0,invariant_violated:0,invariant_not_checked:0,open:0,live:9,total:9,TOTAL_TRANSITIONS,39,COVERED_OPERATIONS (13),ChangeCollection:7,ClearHighlight:1,ClearQuery:6,CloseDetail:1,EnterQuery:7,HighlightResult:2,INITIALISATION:1,ProgrammaticClear:7,ReceiveEmpty:1,ReceiveError:1,ReceiveResults:1,SETUP_CONSTANTS:1,SelectResult:3,UNCOVERED_OPERATIONS (0)]
+

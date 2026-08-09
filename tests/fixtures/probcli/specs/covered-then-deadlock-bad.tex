@@ -1,0 +1,28 @@
+\documentclass{article}
+\usepackage{fuzz}
+\begin{document}
+
+\begin{zed}
+  maxCount == 2
+\end{zed}
+
+\begin{schema}{Probe}
+  count : \nat
+\where
+  count \leq maxCount
+\end{schema}
+
+\begin{schema}{InitProbe}
+  Probe'
+\where
+  count' = 0
+\end{schema}
+
+\begin{schema}{Step}
+  \Delta Probe
+\where
+  count < maxCount \\
+  count' = count + 1
+\end{schema}
+
+\end{document}

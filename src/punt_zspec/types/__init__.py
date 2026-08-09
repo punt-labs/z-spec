@@ -11,16 +11,10 @@ from .partition import (
     PartitionReport,
     PartitionStatus,
 )
-from .prob import (
-    CheckResult,
-    CheckStatus,
-    CounterExample,
-    OperationCoverage,
-    ProbReport,
-    TraceStep,
-)
+from .prob import CheckResult, CheckStatus, OperationCoverage, ProbReport
 from .reports import SpecReports
 from .spec import BlockKind, SpecModel, ZBlock
+from .trace import CounterExample, TraceStep
 from .tutorial import Collection, Lesson
 
 __all__ = [

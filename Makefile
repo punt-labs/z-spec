@@ -42,16 +42,9 @@ test-e2e: ## Tier 5 — drive the INSTALLED binary and MCP server (run make inst
 
 test-z-%: examples/%.tex
 	@echo "probcli $< (setsize=$(SETSIZE))"
-	@mkdir -p .tmp
-	@$(PROBCLI) $< -model_check \
-		-p DEFAULT_SETSIZE $(SETSIZE) \
-		-p MAX_OPERATIONS $(MAX_OPS) \
-		-p TIME_OUT $(TIMEOUT) \
-		> .tmp/probcli-$*.out 2>&1; \
-	rc=$$?; \
-	grep -E "States analysed|Transitions fired|No counter|COUNTER|all open|not all" .tmp/probcli-$*.out | head -5; \
-	echo ""; \
-	exit $$rc
+	@PROBCLI=$(PROBCLI) uv run python tools/model_check_spec.py $< \
+		--setsize $(SETSIZE) --max-ops $(MAX_OPS) --timeout $(TIMEOUT)
+	@echo ""
 
 check: lint type test check-oo check-coupling check-suppressions check-dev-commands ## Run all quality gates
 
