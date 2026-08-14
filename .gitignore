@@ -1,3 +1,163 @@
+# === Punt Labs canonical .gitignore ===
+# Source of truth: .bin/gitignore-canonical.template
+# Rollout:         .bin/gitignore-canonical-rollout.sh
+# Repo-specific additions belong BELOW the "# === Repo-specific ===" marker.
+# Everything above it is managed by the rollout script.
+
+# --- Secrets & local overrides ---
+.env
+.env.*
+.env*.local
+!.env.example
+.envrc.local
+.biff.local
+.claude/settings.local.json
+.claude/settings.local.*
+.claude/mcp.local.json
+.mcp.local.json
+*.local
+*.local.*
+.*.local
+.*.local.*
+
+# --- Punt Labs runtime state (never commit) ---
+.punt-labs/local/
+.punt-labs/**/local/**
+.punt-labs/**/*.local.*
+.punt-labs/quarry/captures/
+.punt-labs/vox/ephemeral/
+.punt-labs/vox/vox.local.md
+.punt-labs/lux.md
+
+# --- Claude Code runtime state ---
+.claude/*
+!.claude/settings.json
+!.claude/commands/
+!.claude/hooks/
+!.claude/agents/
+!.claude/rules/
+!.claude/skills/
+.claude/scheduled_tasks*
+.claude/worktrees/
+.claude/projects/
+.claude/beadle.poll.*
+*/**/.claude/
+
+# --- Lock files (except uv.lock) ---
+.*.lock
+*.punt-import.lock
+.CLAUDE.md.lock
+.CLAUDE.md.punt-import.lock
+**/.create.lock
+
+# --- Beads runtime state ---
+.beads/bd.sock*
+.beads/beads.db*
+.beads/daemon-*
+.beads/daemon.log
+.beads/daemon-error
+.beads/.local_version
+
+# --- Scratch / temp ---
+.tmp/*
+!.tmp/.gitkeep
+*.tmp
+CLAUDE.md.tmp
+
+# --- Worktrees ---
+.worktrees/
+
+# --- OS junk ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+
+# --- Editors / IDEs ---
+.idea/
+.vscode/
+.cursor/
+.codex/
+.accio/
+.claude-flow/
+*.swp
+*.swo
+*~
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+dist/
+build/
+*.egg
+*.egg-info/
+.eggs/
+.mypy_cache/
+.pyright/
+.pytest_cache/
+.pytest-work/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+uv.toml
+
+# --- Node / web ---
+node_modules/
+.astro/
+.vercel/
+
+# --- Go ---
+coverage.out
+*.test
+
+# --- Swift / Xcode ---
+# (Do NOT ignore *.xcodeproj / *.xcworkspace — those directories are tracked;
+# only ignore user-specific state INSIDE them.)
+xcuserdata/
+DerivedData/
+CoverageDerived/
+*.xccheckout
+*.xcresult
+*.xcscmblueprint
+*.hmap
+*.dSYM
+*.dSYM.zip
+*.ipa
+.swiftpm/
+Package.pin
+Package.resolved
+Carthage/Build/
+Carthage/Checkout
+Pods/
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+iOSInjectionProject/
+playground.xcworkspace
+timeline.xctimeline
+
+# --- LaTeX build artifacts ---
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+
+# === Repo-specific ===
 # macOS
 .DS_Store
 ._*
@@ -45,24 +205,8 @@ node_modules/
 # jfreeman, who is human, and claude, who leads rather than specialises.
 # Adding a specialist to this repo means adding a line here, which is the
 # review the comment above asks for.
-.claude/*
-!.claude/settings.json
-!.claude/hooks/
-!.claude/agents/
-.claude/agents/*
-!.claude/agents/adb.md
-!.claude/agents/adt.md
-!.claude/agents/dna.md
-!.claude/agents/edt.md
-!.claude/agents/gvr.md
-!.claude/agents/jms.md
-!.claude/agents/jra.md
-!.claude/agents/mdm.md
-!.claude/agents/rmh.md
 
 # Local-only files (machine-specific, per-user)
-*.local
-*.local.*
 
 # Lux UI runtime state
 Lux.ini
@@ -110,18 +254,15 @@ dist/
 htmlcov/
 
 # Scratch/temp directory (TMPDIR set via .envrc)
-.tmp/
 
 # Local per-machine tool state under .punt-labs: only the local/ dir and
 # *local*-named files (the global *.local / *.local.* rules above cover the
 # latter). The ethos submodule, ethos.yaml, biff, and quarry are tracked or
 # self-manage via their own .gitignore.
-.punt-labs/local/
 
 # Quarry's per-session working files. Machine state: regenerated each session,
 # rewritten whenever the local index updates, and read by no one. Nothing here
 # belongs in version control.
-.punt-labs/quarry/captures/
 
 # The mandated sibling lock every punt CLI takes before mutating a shared host
 # file (tool-enable-disable.md §2.4). It is per-machine runtime state, and it
