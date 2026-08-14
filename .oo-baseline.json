@@ -41,7 +41,7 @@
   "src/punt_zspec/atomic_file.py": {
     "method_ratio": 1.0,
     "encapsulation_ratio": 1.0,
-    "avg_params": 0.67,
+    "avg_params": 0.5,
     "max_complexity": 2.0,
     "avg_complexity": 1.5,
     "module_size": 122.0,
