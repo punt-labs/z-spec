@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `OPENROUTER_API_KEY` wired up in `.envrc` (canonical envrc rollout).
+
 ## [0.18.0] - 2026-08-09
 
 ### Fixed
