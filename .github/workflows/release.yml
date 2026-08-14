@@ -22,7 +22,7 @@ jobs:
             echo "::error::Release must be triggered by a v* tag push. For manual dispatch, use: gh workflow run release.yml --ref v1.2.3"
             exit 1
           fi
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
       - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
