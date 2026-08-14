@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Self, final
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Generator
 
 __all__ = ["AtomicFile"]
 
@@ -61,7 +61,7 @@ class AtomicFile:
         return self._path
 
     @contextmanager
-    def locked(self) -> Iterator[None]:
+    def locked(self) -> Generator[None]:
         """Hold the exclusive sibling lock for a whole read-modify-write.
 
         Atomic rename prevents a torn file; it does not prevent a lost update —
