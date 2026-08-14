@@ -17,7 +17,7 @@ from punt_zspec.lux.project import ProjectRoot
 from punt_zspec.types import EnablementAction
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncGenerator
 
     from punt_zspec.types import Collection, SpecModel, SpecReports
 
@@ -51,7 +51,7 @@ _SESSION = ZSpecLuxSession(_GATE.is_open, cwd=_PROJECT_ROOT)
 
 
 @asynccontextmanager
-async def lifespan(_server: FastMCP) -> AsyncIterator[None]:
+async def lifespan(_server: FastMCP) -> AsyncGenerator[None]:
     """Sync the menu listener to the marker on entry, drain it on shutdown.
 
     In a repo with no marker nothing connects, so z-spec contributes no entries

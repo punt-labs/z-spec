@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Self, final
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Generator
 
 __all__ = ["AtomicFile"]
 
@@ -61,7 +61,7 @@ class AtomicFile:
         return self._path
 
     @contextmanager
-    def locked(self) -> Iterator[None]:
+    def locked(self) -> Generator[None]:
         """Hold the exclusive sibling lock for a whole read-modify-write.
 
         Atomic rename prevents a torn file; it does not prevent a lost update —
@@ -101,27 +101,27 @@ class AtomicFile:
         updates the real file and leaves a symlink pointing at it intact; an
         existing file's mode is preserved.
         """
-        target = self._path
-        target.parent.mkdir(parents=True, exist_ok=True)
+        self._path.parent.mkdir(parents=True, exist_ok=True)
         mode = (
-            stat.S_IMODE(target.stat().st_mode) if target.is_file() else _NEW_FILE_MODE
+            stat.S_IMODE(self._path.stat().st_mode)
+            if self._path.is_file()
+            else _NEW_FILE_MODE
         )
-        tmp = self._staged(target, text)
+        tmp = self._staged(text)
         try:
             # os.replace preserves the temp's 0600 mkstemp mode, so stamp the
             # intended mode before the rename or an existing 0644 file drops.
             tmp.chmod(mode)
-            tmp.replace(target)
+            tmp.replace(self._path)
         except BaseException:
             with contextlib.suppress(OSError):
                 tmp.unlink(missing_ok=True)
             raise
 
-    @staticmethod
-    def _staged(target: Path, text: str) -> Path:
-        """Write *text* to a fsynced temp file beside *target* and return it."""
+    def _staged(self, text: str) -> Path:
+        """Write *text* to a fsynced temp file beside the target and return it."""
         fd, name = tempfile.mkstemp(
-            dir=target.parent, prefix=f".{target.name}.", suffix=".tmp"
+            dir=self._path.parent, prefix=f".{self._path.name}.", suffix=".tmp"
         )
         tmp = Path(name)
         try:
