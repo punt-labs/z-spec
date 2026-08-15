@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
   seven places. The SHA is the security control, but the comment is the
   only part a human reads — a wrong one hides a stale pin from every
   review, which is how `gh-action-pypi-publish` broke punt-kit's 0.12.0
-  release. No SHA changed
+  release. No SHA changed.
 
 ### Added
 
