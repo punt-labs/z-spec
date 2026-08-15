@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Action pin comments now state the version actually pinned:
+  `actions/checkout` was pinned to v7.0.1's SHA but labelled `# v4` in
+  seven places. The SHA is the security control, but the comment is the
+  only part a human reads — a wrong one hides a stale pin from every
+  review, which is how `gh-action-pypi-publish` broke punt-kit's 0.12.0
+  release. No SHA changed.
+
 ### Added
 
 - `OPENROUTER_API_KEY` wired up in `.envrc` (canonical envrc rollout).
