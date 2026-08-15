@@ -17,7 +17,7 @@ jobs:
       # fetch-depth: 0 is load-bearing for the ratchets: the OO, coupling, and
       # suppression checks all resolve a merge-base and read the base-commit
       # baseline blob; a shallow clone has neither the base commit nor HEAD~1.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
