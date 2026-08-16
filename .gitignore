@@ -257,8 +257,22 @@ htmlcov/
 
 # Local per-machine tool state under .punt-labs: only the local/ dir and
 # *local*-named files (the global *.local / *.local.* rules above cover the
-# latter). The ethos submodule, ethos.yaml, biff, and quarry are tracked or
-# self-manage via their own .gitignore.
+# latter). ethos.yaml, biff, and quarry are tracked or self-manage via their
+# own .gitignore.
+#
+# .punt-labs/ethos/ is the mount point the org-wide convention puts the
+# punt-labs/team submodule at, and this repo does not have that submodule. It
+# was removed because z-spec ships as a marketplace plugin: `claude plugin
+# install` clones with submodules, .gitmodules named the SSH URL
+# git@github.com:punt-labs/team.git, and SSH auth fails before repo visibility
+# is consulted — so every user without a GitHub key had the install abort. An
+# HTTPS URL would fix the auth and still push 1 MB of internal identity data
+# (247 files: identities, personalities, writing styles) onto their disk.
+# Identity resolves from the global ~/.punt-labs/ethos/ instead, with the
+# repo-local pointer in .punt-labs/ethos.yaml, which stays tracked. The
+# trailing slash matters: it ignores the directory an `ethos` run may recreate
+# here without ignoring that file. Do NOT re-add the submodule.
+.punt-labs/ethos/
 
 # Quarry's per-session working files. Machine state: regenerated each session,
 # rewritten whenever the local index updates, and read by no one. Nothing here
