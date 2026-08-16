@@ -6,12 +6,20 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **Installing the plugin no longer requires a GitHub SSH key.** z-spec ships through the Punt Labs marketplace, and `claude plugin install` clones the plugin repo *with submodules*. `.gitmodules` mounted the org identity registry `punt-labs/team` at `.punt-labs/ethos/` over the SSH URL `git@github.com:punt-labs/team.git`, so a user without a key got `fatal: clone of 'git@github.com:punt-labs/team.git' into submodule path ... failed` / `Failed to clone '.punt-labs/ethos' a second time, aborting`, and the install stopped there. `punt-labs/team` being a public repo does not help: SSH authentication fails before repo visibility is consulted. Rewriting the URL to HTTPS would have fixed the auth failure while still copying 1 MB of internal identity data onto every user's disk, so the submodule is removed instead — see Removed.
+
 - Action pin comments now state the version actually pinned:
   `actions/checkout` was pinned to v7.0.1's SHA but labelled `# v4` in
   seven places. The SHA is the security control, but the comment is the
   only part a human reads — a wrong one hides a stale pin from every
   review, which is how `gh-action-pypi-publish` broke punt-kit's 0.12.0
   release. No SHA changed.
+
+### Removed
+
+- **The `.punt-labs/ethos` git submodule**, and with it the 247 files of the org identity registry — identities, personalities, writing styles, roles, teams — that every plugin install was copying onto the user's machine. The org-wide convention that each project mounts `punt-labs/team` there does not apply to a repo that is cloned onto strangers' machines, the same exception `punt-labs/claude-plugins` already carries. Identity resolves from the global `~/.punt-labs/ethos/` at runtime, and the repo-local pointer `.punt-labs/ethos.yaml` (`agent: claude`, `team: formal-methods`) is kept — 35 bytes of this project's own configuration, not the roster. The mount path is gitignored so a later `ethos` run cannot re-commit it.
+
+- **Eighteen `.claude/agents/*.md` files for specialists who do no work here** — the Go, Swift, Kubernetes and product agents ethos deposits into every repo it touches. `.gitignore` has documented a per-agent allowlist since the agent files were added, naming z-spec's own team; the list of names it introduces was never actually present, because the canonical rollout owns that block and its blanket `!.claude/agents/` was what took effect. The rule the comment describes now exists, below the repo-specific marker where the rollout will not clobber it: `adb`, `adt`, `dna`, `edt`, `gvr`, `jms`, `jra`, `mdm`, `rmh` — the delegation table in `CLAUDE.md` exactly. The files stay on disk where ethos put them; they are only untracked.
 
 ### Added
 
