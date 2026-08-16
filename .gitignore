@@ -197,14 +197,27 @@ node_modules/
 # someone reviews, not in a file that silently differs per machine.
 #
 # The allowlist is per-agent, not the whole directory. ethos deposits every
-# specialist it knows about into every repo it touches, so un-ignoring
-# .claude/agents/ wholesale leaves eighteen Go, Swift, Kubernetes and product
-# agents permanently untracked here — noise that hides a real change to the
-# roster. The names below are punt-labs/z-spec's team, from
-# .punt-labs/ethos/teams/formal-methods.yaml, less the two with no agent file:
-# jfreeman, who is human, and claude, who leads rather than specialises.
-# Adding a specialist to this repo means adding a line here, which is the
-# review the comment above asks for.
+# specialist it knows about into every repo it touches, so the canonical
+# block's blanket `!.claude/agents/` tracked eighteen Go, Swift, Kubernetes
+# and product agents that have no work here — noise that hides a real change
+# to the roster, published to every machine that installs the plugin. Re-ignore
+# the directory's contents and name the members instead. The names below are
+# punt-labs/z-spec's team, matching the delegation table in CLAUDE.md, less
+# the two with no agent file: jfreeman, who is human, and claude, who leads
+# rather than specialises. Adding a specialist to this repo means adding a
+# line here, which is the review the comment above asks for. The deposited
+# files stay on disk for whoever ethos put them there for; they are simply
+# not this repo's to publish.
+.claude/agents/*
+!.claude/agents/adb.md
+!.claude/agents/adt.md
+!.claude/agents/dna.md
+!.claude/agents/edt.md
+!.claude/agents/gvr.md
+!.claude/agents/jms.md
+!.claude/agents/jra.md
+!.claude/agents/mdm.md
+!.claude/agents/rmh.md
 
 # Local-only files (machine-specific, per-user)
 
