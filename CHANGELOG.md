@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-08-19
+
 ### Fixed
 
 - **Installing the plugin no longer requires a GitHub SSH key.** z-spec ships through the Punt Labs marketplace, and `claude plugin install` clones the plugin repo *with submodules*. `.gitmodules` mounted the org identity registry `punt-labs/team` at `.punt-labs/ethos/` over the SSH URL `git@github.com:punt-labs/team.git`, so a user without a key got `fatal: clone of 'git@github.com:punt-labs/team.git' into submodule path ... failed` / `Failed to clone '.punt-labs/ethos' a second time, aborting`, and the install stopped there. `punt-labs/team` being a public repo does not help: SSH authentication fails before repo visibility is consulted. Rewriting the URL to HTTPS would have fixed the auth failure while still copying 1 MB of internal identity data onto every user's disk, so the submodule is removed instead — see Removed.
