@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **The plugin failed to load: `plugin.json` redundantly declared `hooks`**
+  --- `.claude-plugin/plugin.json` carried `"hooks": "./hooks/hooks.json"`,
+  but Claude Code auto-loads every plugin's `hooks/hooks.json` by convention
+  with no manifest reference needed; the `hooks` field is for *additional*
+  hook files only. Pointing it at the same file Claude Code already loaded
+  made `claude plugin list` report `z-spec@punt-labs` as failed to load,
+  taking every slash command and hook down with it — the CLI and MCP server
+  were unaffected, since they don't go through plugin load. Closes #106.
+
 - Action pin comments now state the version actually pinned:
   `actions/checkout` was pinned to v7.0.1's SHA but labelled `# v4` in
   seven places. The SHA is the security control, but the comment is the
