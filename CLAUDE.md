@@ -292,6 +292,20 @@ uses ethos missions; **dispatch is two operations** — `ethos mission create`
 writes the contract, a separate `Agent(..., run_in_background=true)` starts the
 worker.
 
+**This repo does not mount the `punt-labs/team` submodule, and must not.** The
+org-wide rule in `../CLAUDE.md` — every project adds it at `.punt-labs/ethos/`
+— assumes a repo only the team clones. z-spec is a marketplace plugin, and
+`claude plugin install` clones it *with submodules*, so the SSH URL in
+`.gitmodules` aborted the install for every user without a GitHub key, and an
+HTTPS URL would have pushed the whole org roster onto their disk instead. Two
+things stand in for it: `.punt-labs/ethos.yaml`, which is tracked and names
+this repo's agent and team, and the global `~/.punt-labs/ethos/`, which ethos
+resolves identities, personalities, and talents from at runtime. The mount path
+is gitignored. Vendor an individual file here only if it is z-spec's own and
+z-spec needs it; never the registry. The `.claude/agents/` allowlist in
+`.gitignore` follows the same test — this repo's nine specialists, not the
+roster.
+
 **The COO does not write code.** The only files the leader edits directly:
 `CHANGELOG.md`, `CLAUDE.md`, `README.md`, `TESTING.md`, `docs/WORKFLOW.md`,
 design docs, and plan files. **The COO must not read implementation files before
