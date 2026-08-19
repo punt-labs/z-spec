@@ -38,12 +38,12 @@ SPEC_NAMES := $(notdir $(basename $(SPECS)))
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_%-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
+# The shellcheck line is byte-identical to lint.yml's, so a shell fault fails
+# here rather than on the PR. plugin/hooks/*.sh is in scope: it ships to users.
 lint: ## Lint markdown, Python, and shell
 	npx markdownlint-cli2 "**/*.md" "#node_modules"
 	uv run ruff check .
 	uv run ruff format --check .
-	# Same command CI runs (lint.yml), so a shell fault fails here first rather
-	# than on the PR. plugin/hooks/*.sh is in scope: it ships to users.
 	shellcheck -x scripts/*.sh install.sh plugin/hooks/*.sh
 
 type: type-py $(addprefix type-z-,$(SPEC_NAMES)) ## Type-check Python and Z specs
