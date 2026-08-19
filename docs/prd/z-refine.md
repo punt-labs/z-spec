@@ -53,14 +53,14 @@ valid concrete states `c`.
 
 ### In Scope
 
-- New `commands/refine.md` skill prompt
+- New `plugin/commands/refine.md` skill prompt
 - Abstraction function scaffold generation (Swift, TypeScript, Python,
   Kotlin) with guided prompts for each state field mapping
 - Commutativity test generation for init and all operations
 - Property-based commutativity tests using random inputs
 - Optional `--lean` flag for Lean 4 refinement proof generation
 - Applicability correctness: preconditions lift through abstraction
-- Updates to `commands/help.md` and `README.md`
+- Updates to `plugin/commands/help.md` and `README.md`
 
 ### Out of Scope
 

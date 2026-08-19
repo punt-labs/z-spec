@@ -40,14 +40,14 @@ For each specification, the command generates:
 
 ### In Scope
 
-- New `commands/oracle.md` skill prompt
+- New `plugin/commands/oracle.md` skill prompt
 - Lean 4 oracle executable generation (JSON stdin/stdout protocol)
 - Abstraction function scaffolds for Swift, TypeScript, Python, Kotlin
 - PBT driver generation using idiomatic libraries per language
 - Operation sequence generators with precondition filtering
 - State comparison via abstraction function after each operation
 - Shrinking support for failing sequences
-- Updates to `commands/help.md` and `README.md`
+- Updates to `plugin/commands/help.md` and `README.md`
 
 ### Out of Scope
 

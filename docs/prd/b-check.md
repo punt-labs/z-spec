@@ -17,7 +17,7 @@ the output, and reports errors with actionable fixes.
 
 ### In Scope
 
-- New `commands/b-check.md` and `commands/b-check-dev.md` skill prompts
+- New `plugin/commands/b-check.md` and `plugin/commands/b-check-dev.md` skill prompts
 - Type-checking `.mch`, `.ref`, and `.imp` files with probcli
 - Error interpretation with fix suggestions
 - Auto-discovery of B files in `specs/`

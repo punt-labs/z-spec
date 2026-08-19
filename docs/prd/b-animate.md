@@ -18,7 +18,7 @@ and model-check. Reports results in a structured table.
 
 ### In Scope
 
-- New `commands/b-animate.md` and `commands/b-animate-dev.md` skill prompts
+- New `plugin/commands/b-animate.md` and `plugin/commands/b-animate-dev.md` skill prompts
 - Full probcli validation sequence for `.mch` files
 - Structured result reporting (same table format as `/z-spec:test`)
 - Refinement checking when `.ref` file provided alongside `.mch`

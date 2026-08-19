@@ -40,7 +40,7 @@ the concrete values that violated it.
 
 ### In Scope
 
-- New `commands/contracts.md` skill prompt
+- New `plugin/commands/contracts.md` skill prompt
 - Assertion code generation for Swift, TypeScript, Python, Kotlin
 - `--wrap` flag for operation wrapper generation
 - `--strip` flag to emit no-op stubs for production builds
@@ -48,7 +48,7 @@ the concrete values that violated it.
 - Predicate-to-expression translation for target language
 - Frame condition checks (unchanged variables verified in postcondition)
 - Clear violation messages with predicate name and failing values
-- Updates to `commands/help.md` and `README.md`
+- Updates to `plugin/commands/help.md` and `README.md`
 
 ### Out of Scope
 

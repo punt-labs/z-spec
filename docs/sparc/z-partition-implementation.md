@@ -64,25 +64,25 @@ FOR each operation schema (has \Delta or \Xi):
 
 ### Files to Create
 
-- `commands/partition.md` - Main skill prompt (the command implementation)
+- `plugin/commands/partition.md` - Main skill prompt (the command implementation)
 
 ### Files to Modify
 
-- `commands/help.md` - Add partition to command table + examples
+- `plugin/commands/help.md` - Add partition to command table + examples
 - `README.md` - Add partition to features, commands, workflow sections
 
 ### Design Decisions
 
 1. **No new reference files**: The partition command reuses
-   `reference/z-notation.md` for Z syntax, `reference/test-patterns.md`
-   for language-specific assertions, `reference/schema-patterns.md` for
+   `plugin/reference/z-notation.md` for Z syntax, `plugin/reference/test-patterns.md`
+   for language-specific assertions, `plugin/reference/schema-patterns.md` for
    pattern recognition.
 2. **No external tools**: The `allowed-tools` header will be
    `Read, Glob, Grep, Write` only. No fuzz or probcli needed - this
    is purely analytical.
 3. **Code generation reuses model2code patterns**: The `--code` flag
    follows the same type mappings and test framework conventions as
-   `commands/model2code.md`.
+   `plugin/commands/model2code.md`.
 
 ## R - Refinement
 
@@ -109,15 +109,15 @@ FOR each operation schema (has \Delta or \Xi):
 
 ### Task Breakdown
 
-1. Create `commands/partition.md` - the skill prompt
-2. Update `commands/help.md` - add to command table
+1. Create `plugin/commands/partition.md` - the skill prompt
+2. Update `plugin/commands/help.md` - add to command table
 3. Update `README.md` - add to features, commands, workflow
 4. Run markdownlint quality gate
 5. Test by reviewing output structure against a sample spec
 
 ### Definition of Done
 
-- [ ] `commands/partition.md` exists with complete skill prompt
+- [ ] `plugin/commands/partition.md` exists with complete skill prompt
 - [ ] Help lists the partition command
 - [ ] README documents the partition command
 - [ ] `npx markdownlint-cli2 "**/*.md" "#node_modules"` passes

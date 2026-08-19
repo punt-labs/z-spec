@@ -44,13 +44,13 @@ For each operation schema, the command:
 
 ### In Scope
 
-- New `commands/partition.md` skill prompt
+- New `plugin/commands/partition.md` skill prompt
 - Partition table output (markdown, default)
 - Optional `--code` flag to generate executable test code
 - Language auto-detection (reuses model2code's detection)
 - Integration point: partition output feeds into `/z-spec:audit` for
   coverage tracking
-- Updates to `commands/help.md` and `README.md`
+- Updates to `plugin/commands/help.md` and `README.md`
 
 ### Out of Scope
 

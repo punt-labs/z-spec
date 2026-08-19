@@ -51,14 +51,14 @@ community. Key advantages:
 
 ### In Scope
 
-- New `commands/prove.md` and `commands/prove-dev.md` skill prompts
-- New `reference/lean4-patterns.md` reference file for Z-to-Lean mappings
+- New `plugin/commands/prove.md` and `plugin/commands/prove-dev.md` skill prompts
+- New `plugin/reference/lean4-patterns.md` reference file for Z-to-Lean mappings
 - Lean 4 project generation (lakefile.toml, lean-toolchain, .lean files)
 - Type mappings: Z types to Lean 4 types (with Mathlib)
 - Proof obligation generation for init + operations
 - Integration with `/z-spec:setup` (elan/lean/lake installation)
 - Integration with `/z-spec:doctor` (lean/lake health checks)
-- Updates to `commands/help.md` and `README.md`
+- Updates to `plugin/commands/help.md` and `README.md`
 
 ### Out of Scope
 
