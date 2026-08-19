@@ -53,6 +53,18 @@ p.write_text(json.dumps(d, indent=2) + '\n')
 "
 
 # Remove the -dev command twins.
+
+# A process substitution's exit status is invisible to `set -e`: if
+# COMMANDS_DIR is wrong, find fails, the loop reads nothing, and the empty
+# `dev_files` below reads as "this tree has no twins to strip" — a prod release
+# tagged with every *-dev.md still in it. Demonstrated with COMMANDS_DIR set to
+# a nonexistent path: the script printed "No -dev commands found" and carried on
+# to commit. The directory is a precondition, so assert it before the find.
+if [[ ! -d "$COMMANDS_DIR" ]]; then
+  echo "release-plugin: no ${COMMANDS_DIR}/ in $(pwd); cannot tell 'no twins' from 'wrong path'" >&2
+  exit 1
+fi
+
 dev_files=()
 while IFS= read -r -d '' f; do
   dev_files+=("$f")

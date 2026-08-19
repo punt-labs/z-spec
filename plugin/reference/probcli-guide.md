@@ -153,8 +153,14 @@ probcli model.tex -card USERID 3 -model_check
 
 Specifications that pass `fuzz -t` can still fail silently in probcli. These
 7 patterns cause hangs, timeouts, or incorrect results during animation and
-model checking. See `examples/animation-hints-good.tex` and
-`examples/animation-hints-bad.tex` for complete working examples.
+model checking. Complete working examples, good and bad, live in the z-spec
+repository's spec corpus:
+[`examples/animation-hints-good.tex`](https://github.com/punt-labs/z-spec/blob/main/examples/animation-hints-good.tex)
+and
+[`examples/animation-hints-bad.tex`](https://github.com/punt-labs/z-spec/blob/main/examples/animation-hints-bad.tex).
+They are cited as URLs rather than paths because the corpus is gated by the
+repository's `make check` and is deliberately not shipped with the plugin — a
+bare `examples/…` here would name a file no user has.
 
 ### 1. Cardinality Bounds Are Mandatory
 

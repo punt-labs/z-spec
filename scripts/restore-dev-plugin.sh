@@ -67,9 +67,14 @@ if [[ -z "$parent_commands" ]]; then
   echo "restore-dev-plugin: ${RELEASE_PREP_COMMIT:0:12}^ has no ${COMMANDS_DIR}/; wrong release-prep commit for this layout" >&2
   exit 1
 fi
+# The `git add` of the commands directory belongs to the branch that restored
+# it: staged unconditionally, it succeeds whether or not a checkout happened, so
+# a restore that quietly recovered nothing still commits and looks like a
+# success. Staged here, an empty index is the loud signal — `git commit` refuses.
 if grep -q -e '-dev\.md' <<<"$parent_commands"; then
   git checkout "${RELEASE_PREP_COMMIT}^" -- "$COMMANDS_DIR/"
+  git add "$COMMANDS_DIR/"
 fi
 
-git add "$PLUGIN_JSON" "$COMMANDS_DIR/"
+git add "$PLUGIN_JSON"
 git commit --no-verify -m "chore: restore dev plugin state"
