@@ -176,7 +176,7 @@ cheaper than discovering it as an unreachable initial state.
 % ============================================================
 
 The model under test is the account of the running example in
-\texttt{commands/oracle.md}: a balance, and a minimum the balance may not
+\texttt{plugin/commands/oracle.md}: a balance, and a minimum the balance may not
 fall below. Only two things about it matter here. It has a precondition
 worth violating, so there is something to reject; and it admits an
 operation that is accepted and yet changes nothing, so acceptance and
@@ -432,7 +432,7 @@ $amount? : \nat$.
 \section{Correspondence With the Wire}
 % ============================================================
 
-The Z above and the JSON of \texttt{commands/oracle.md} are the same
+The Z above and the JSON of \texttt{plugin/commands/oracle.md} are the same
 object in two notations. The correspondence:
 
 \begin{center}
@@ -461,7 +461,7 @@ is diagnostic, enforced by making the only thing it can tell you the
 thing $ok$ already told you.
 
 Serialisation of Z types into JSON values is tabulated in
-\texttt{commands/oracle.md}; it is a matter of encoding and carries no
+\texttt{plugin/commands/oracle.md}; it is a matter of encoding and carries no
 obligations that this specification does not already impose.
 
 Two rules of the wire are outside the model, and are recorded here so
