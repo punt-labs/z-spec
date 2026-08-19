@@ -71,7 +71,7 @@ The post's "Built at vs Designed for" table classifies whole tools
 for L4"; PR/FAQ, langlearn-tts and Dungeon are "L4 applications". z-spec fits
 neither row. It is built at L1 *and* at L4, in one repository, shipped in one
 wheel and one plugin: `src/punt_zspec/` is deterministic Python with an exact
-oracle, and `commands/` is 21 agentic programs with none. A single label for
+oracle, and `plugin/commands/` is 21 agentic programs with none. A single label for
 the tool would be a lie in one direction or the other.
 
 This is not a z-spec quirk. It is the general case for any repository that
@@ -332,8 +332,9 @@ Ordered by ratio of verifiability bought to work required.
    change in the document.
 
    **The absent-compiler ruling, because "mandatory" would be a regression.**
-   Both prompts target `swift, typescript, python, kotlin` (`model2code.md:3,19`;
-   `contracts.md:3,26`), and `plugin/commands/setup.md` installs `fuzz`, `probcli` and
+   Both prompts target `swift, typescript, python, kotlin`
+   (`plugin/commands/model2code.md:3,19`; `plugin/commands/contracts.md:3,26`),
+   and `plugin/commands/setup.md` installs `fuzz`, `probcli` and
    Lean 4 and no compiler for any of those four. A mandatory build step would
    therefore make `model2code` *fail* on a typical machine where it currently
    succeeds — a user-facing regression bought in the name of verification. The
@@ -1050,7 +1051,7 @@ contracts are available across all 21 today, and the first is the valuable one:
    to `_blocks(path, lang)`, so a JSON example in an untagged fence is silently
    unchecked — §12.2's failure arriving through the data instead of the
    parametrisation.
-3. **Cross-references resolve.** A prompt naming `plugin/reference/z-notation.md`, a
+3. **Cross-references resolve.** A prompt naming `reference/z-notation.md`, a
    `zspec` tool, or a sibling command must name one that exists.
 
 What is *not* available corpus-wide is a contract on what the prose says, and
@@ -1163,7 +1164,12 @@ Numbered in punt-kit style so promotion is mechanical. All of these generalise;
    covering `commands/**/*.md`, `skills/**/*.md`, `agents/**/*.md` and
    `hooks/**`, carrying PL-VT-3, PL-VT-4 and PL-VT-5. This is the
    mechanically important one: it is what makes an agent editing a prompt see
-   the discipline at all.
+   the discipline at all. Those globs name the surfaces as the org-wide
+   convention places them; a repo that has moved its shippable surface into a
+   subdirectory needs the prefixed form too, or the rule silently matches
+   nothing there. z-spec is already such a repo — its prompts and hook live
+   under `plugin/` — so the pattern list must cover `plugin/commands/**/*.md`
+   and `plugin/hooks/**`.
 
    **Operator ruling: this file is built now, not after the first
    release-profile run.** It is the one item in §13 that does not depend on a
