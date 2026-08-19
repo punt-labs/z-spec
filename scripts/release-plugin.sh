@@ -10,8 +10,10 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 # Pathspecs are repo-relative: git rejects absolute pathspecs on some versions.
-PLUGIN_JSON=".claude-plugin/plugin.json"
-COMMANDS_DIR="commands"
+# The shippable surface lives under plugin/ so the marketplace can install it
+# with a git-subdir source; both paths are inside that directory.
+PLUGIN_JSON="plugin/.claude-plugin/plugin.json"
+COMMANDS_DIR="plugin/commands"
 
 # Preflight: abort if the repo has uncommitted changes to tracked files.
 if [[ -n "$(git status --porcelain -uno)" ]]; then
@@ -24,7 +26,7 @@ fi
 # rewrites would break the `git rm` of the twins; reject those specifically.
 untracked_in_scope="$(git ls-files --others --exclude-standard -- "$COMMANDS_DIR" "$PLUGIN_JSON")"
 if [[ -n "$untracked_in_scope" ]]; then
-  echo "release-plugin: untracked files under ${COMMANDS_DIR}/ or .claude-plugin/; commit or remove them first:" >&2
+  echo "release-plugin: untracked files under ${COMMANDS_DIR}/ or plugin/.claude-plugin/; commit or remove them first:" >&2
   echo "$untracked_in_scope" >&2
   exit 1
 fi

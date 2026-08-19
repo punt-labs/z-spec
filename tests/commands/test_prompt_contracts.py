@@ -1,6 +1,6 @@
 """Contracts the shipped command prompts must satisfy.
 
-`commands/*.md` is the largest surface this project ships and, until now, the
+`plugin/commands/*.md` is the largest surface this project ships and, until now, the
 only untested one: `make check` gated the Python and the Z corpus, while
 `check-dev-commands` verified that each `-dev` twin *matched* its prod source.
 Two identical copies of a wrong protocol satisfy that gate perfectly — it tests
@@ -42,7 +42,10 @@ from typing import cast, final
 import pytest
 
 _ROOT = Path(__file__).resolve().parents[2]
-COMMANDS = _ROOT / "commands"
+# The prompts live inside the shippable plugin/ directory, which is what the
+# marketplace installs; docs/prd stays at the repo root, which it does not.
+PLUGIN = _ROOT / "plugin"
+COMMANDS = PLUGIN / "commands"
 DOCS_PRD = _ROOT / "docs" / "prd"
 
 # The tag group is `\w*`, not `\w+`: an untagged fence is a fence, and a pattern
@@ -196,7 +199,7 @@ def _tree_is_dev() -> bool:
     declares dev and has lost its twins fails the population check instead of
     quietly reducing what the suite examines.
     """
-    manifest = json.loads((_ROOT / ".claude-plugin" / "plugin.json").read_text())
+    manifest = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())
     return bool(manifest["name"].endswith("-dev"))
 
 

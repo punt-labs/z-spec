@@ -1,3 +1,16 @@
 {
-  "ignores": [".beads/", ".claude/", ".venv/", ".tmp/", ".punt-labs/"]
+  // ".worktrees/" and "**/.venv/" are not this repo's markdown: a git worktree
+  // is another branch of it (its files are linted on their own branch) and a
+  // nested virtualenv is third-party package documentation. Without them, the
+  // `**/*.md` glob in `make lint` fails on dependency READMEs the moment anyone
+  // creates a worktree, so the gate stops matching CI, where neither exists.
+  "ignores": [
+    ".beads/",
+    ".claude/",
+    ".venv/",
+    "**/.venv/",
+    ".worktrees/",
+    ".tmp/",
+    ".punt-labs/"
+  ]
 }

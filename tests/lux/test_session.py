@@ -193,14 +193,15 @@ def test_default_manifest_prefers_plugin_root(
 def test_default_manifest_falls_back_to_dev_checkout(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.delenv("ZSPEC_PLUGIN_ROOT", raising=False)
     # Dev src-layout: with no env var, resolve relative to the package — three
-    # parents up from src/punt_zspec/lux/session.py is the repo root.
-    expected = (
-        Path(session_mod.__file__).resolve().parents[3]
-        / "tutorials"
-        / "intro"
-        / "manifest.toml"
-    )
+    # parents up from src/punt_zspec/lux/session.py is the repo root, and the
+    # tutorials live inside the shippable plugin/ directory under it.
+    repo_root = Path(session_mod.__file__).resolve().parents[3]
+    expected = repo_root / "plugin" / "tutorials" / "intro" / "manifest.toml"
 
     resolved = ZSpecLuxSession._default_tutorial_manifest()  # pyright: ignore[reportPrivateUsage]
 
     assert resolved == expected
+    # The path is only worth resolving if it names the manifest this repo ships:
+    # an assertion that mirrors the implementation would survive a move of the
+    # tutorials and leave the Tutorial menu entry silently empty.
+    assert resolved.is_file()

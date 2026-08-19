@@ -38,10 +38,13 @@ SPEC_NAMES := $(notdir $(basename $(SPECS)))
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_%-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
-lint: ## Lint markdown and Python
+lint: ## Lint markdown, Python, and shell
 	npx markdownlint-cli2 "**/*.md" "#node_modules"
 	uv run ruff check .
 	uv run ruff format --check .
+	# Same command CI runs (lint.yml), so a shell fault fails here first rather
+	# than on the PR. plugin/hooks/*.sh is in scope: it ships to users.
+	shellcheck -x scripts/*.sh install.sh plugin/hooks/*.sh
 
 type: type-py $(addprefix type-z-,$(SPEC_NAMES)) ## Type-check Python and Z specs
 
@@ -71,11 +74,11 @@ check: lint type test check-oo check-coupling check-suppressions check-dev-comma
 
 # ── Dev/prod plugin namespace ───────────────────────────────
 
-gen-dev-commands: ## Regenerate commands/*-dev.md twins from prod sources
-	uv run python tools/gen_dev_commands.py commands
+gen-dev-commands: ## Regenerate plugin/commands/*-dev.md twins from prod sources
+	uv run python tools/gen_dev_commands.py plugin/commands
 
 check-dev-commands: ## Fail if any -dev twin is missing or out of sync
-	uv run python tools/gen_dev_commands.py commands --check
+	uv run python tools/gen_dev_commands.py plugin/commands --check
 
 # ── OO gate suite (ratchet against committed baselines) ─────
 # Base-comparison flags injected by CI (e.g. --base-ref <merge-base>). Empty

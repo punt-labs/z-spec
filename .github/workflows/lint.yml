@@ -29,7 +29,9 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy src/ tests/
       - run: uv run pyright src/ tests/
-      - run: shellcheck -x scripts/*.sh install.sh
+      # Mirrors `make lint`'s shellcheck line exactly; plugin/hooks/*.sh ships
+      # to users, so it is linted with the release scripts and the installer.
+      - run: shellcheck -x scripts/*.sh install.sh plugin/hooks/*.sh
       # Every prod slash command has a generated -dev twin; drift means the dev
       # plugin and the shipped plugin disagree.
       - run: make check-dev-commands
