@@ -117,18 +117,37 @@ trees and know nothing about transport.
 
 ### Plugin structure
 
+Everything the plugin ships lives under `plugin/`, and nothing else does. The
+marketplace installs that directory with Claude Code's `git-subdir` source
+(`"source": "git-subdir"`, `"path": "plugin"`) — a blobless partial clone plus
+`git sparse-checkout set --cone plugin` — so an install never fetches `src/`,
+`tests/`, `tools/`, `docs/`, `examples/`, `research/`, or this repo's own
+`.punt-labs/` and `.claude/` working state. Cone mode always materializes the
+repo-root *files*, so the root documents (`prfaq.pdf`, `README.md`, …) still
+travel with an install; only whole directories are excluded.
+
 | Path | Responsibility |
 |------|---------------|
-| `.claude-plugin/plugin.json` | Manifest; dev tree carries `"name": "z-spec-dev"`, MCP server `zspec` runs `uv run --directory ${CLAUDE_PLUGIN_ROOT} z-spec mcp` |
-| `commands/` | Slash commands — each prod command has a generated `-dev` twin (`make gen-dev-commands`, gated by `make check-dev-commands`) |
-| `hooks/` | Session hooks |
-| `examples/` | The spec corpus — type-checked and model-checked by `make check` |
-| `templates/preamble.tex` | Minimal LaTeX preamble for new specs |
-| `tutorials/` | Tutorial lesson collections |
+| `plugin/.claude-plugin/plugin.json` | Manifest; dev tree carries `"name": "z-spec-dev"`, MCP server `zspec` runs `uv run --directory ${CLAUDE_PLUGIN_ROOT} z-spec mcp` |
+| `plugin/commands/` | Slash commands — each prod command has a generated `-dev` twin (`make gen-dev-commands`, gated by `make check-dev-commands`) |
+| `plugin/hooks/` | Session hooks |
+| `plugin/reference/` | The Z/B reference library the commands cite as `reference/<name>.md` — plugin-root-relative, so it ships with them |
+| `plugin/templates/preamble.tex` | Minimal LaTeX preamble for new specs |
+| `plugin/tutorials/` | Tutorial lesson collections |
+| `examples/` | NOT shipped: the spec corpus, type-checked and model-checked by `make check` |
 
-`ZSPEC_PLUGIN_ROOT` resolves the tutorial manifest in an installed plugin; a
-standalone wheel install needs `importlib.resources` packaging (bead
-`z-spec-9v6`).
+Two rules follow, and both are load-bearing:
+
+- **The plugin surface must not reach outside itself at runtime.** A command or
+  hook may name a path under the plugin root or under the *consumer's* repo; it
+  may not name a file elsewhere in this repo, because that file is absent from
+  an installed plugin. `${CLAUDE_PLUGIN_ROOT}` is `plugin/`.
+- **A dev session loads `--plugin-dir plugin`, not `.`**, so `CLAUDE_PLUGIN_ROOT`
+  is the same directory a real install checks out.
+
+`ZSPEC_PLUGIN_ROOT` (= `CLAUDE_PLUGIN_ROOT`) resolves the tutorial manifest in an
+installed plugin; a standalone wheel install needs `importlib.resources`
+packaging (bead `z-spec-9v6`).
 
 ## Code Quality
 
@@ -334,7 +353,7 @@ evaluator are distinct; Claude is the leader, never the evaluator.
 | Refinement / B-method / proof obligations | `jra` | `jms` |
 | Typing rules / fuzz type-checker semantics | `jms` | `jra` |
 | ProB-compatibility constraints (bounded ints, flat schemas) | `jra` | `jms` |
-| Skill prompts (`skills/`, `commands/`) | `jms` | `adt` (Hopper) |
+| Skill prompts (`plugin/commands/`) | `jms` | `adt` (Hopper) |
 | Python: parsing, binary wrappers, report I/O, commands | `rmh` (Hettinger) | `gvr` (van Rossum) |
 | MCP tool surface (`server.py`) | `rmh` | `mdm` (Pike) |
 | CLI surface (`__main__.py`) | `mdm` | `rmh` |
@@ -358,7 +377,7 @@ plugin uses dev/prod namespace isolation — the working tree carries
 
 ```bash
 uv tool install --force --editable .   # editable install (z-spec = working tree)
-claude --plugin-dir .                   # load dev plugin as z-spec-dev
+claude --plugin-dir plugin              # load dev plugin as z-spec-dev
 ```
 
 Release scripts: `scripts/release-plugin.sh` (swap `z-spec-dev` → `z-spec`),
