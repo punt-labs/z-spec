@@ -1,16 +1,18 @@
 """Generate and verify the ``*-dev.md`` command twins.
 
-Each prod command (``commands/<c>.md``, excluding ``*-dev.md``) has a dev twin
-(``commands/<c>-dev.md``) that is identical except it lives in the ``z-spec-dev``
-plugin namespace: MCP tool references gain the ``-dev`` plugin suffix and every
-``/z-spec:<cmd>`` self-reference becomes ``/z-spec-dev:<cmd>-dev``.
+Each prod command (``plugin/commands/<c>.md``, excluding ``*-dev.md``) has a dev
+twin (``plugin/commands/<c>-dev.md``) that is identical except it lives in the
+``z-spec-dev`` plugin namespace: MCP tool references gain the ``-dev`` plugin
+suffix and every ``/z-spec:<cmd>`` self-reference becomes
+``/z-spec-dev:<cmd>-dev``.
 
 Run as ``python tools/gen_dev_commands.py <commands-dir> [--check]``:
 ``--write`` (default) rewrites the twins; ``--check`` exits 1 if any committed
 twin differs from what the current prod source would produce (drift).
 
 The dev plugin name carries a hyphen (``z-spec`` -> ``z-spec-dev``), matching the
-``hooks/hooks.json`` PostToolUse matcher ``mcp__(plugin_z-spec(-dev)?_)?zspec__.*``
+``plugin/hooks/hooks.json`` PostToolUse matcher
+``mcp__(plugin_z-spec(-dev)?_)?zspec__.*``
 and the working ``biff-dev`` reference. An underscore would break that matcher.
 """
 

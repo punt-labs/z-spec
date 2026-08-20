@@ -156,13 +156,16 @@ class ZSpecLuxSession:
         """Return the shipped ``tutorials/intro/manifest.toml``.
 
         The installed plugin runs the MCP server from site-packages, where the
-        source tree's ``parents[3]`` holds no ``tutorials/``. plugin.json injects
+        source tree holds no tutorials at all. plugin.json injects
         ``ZSPEC_PLUGIN_ROOT`` (= ``CLAUDE_PLUGIN_ROOT``, the plugin checkout that
-        ships the tutorials) into the server env; prefer it. Fall back to the
-        src-layout resolution for a dev checkout where the env var is unset. An
-        absent manifest under either root is tolerated at click time — the
-        Tutorial command reports ``spec_not_found`` and renders an error scene.
+        ships the tutorials) into the server env; prefer it, and the tutorials sit
+        directly under it because the whole shippable surface — manifest, commands,
+        hooks, tutorials — lives in one ``plugin/`` directory. Fall back to that
+        same directory inside a dev checkout (``parents[3]`` is the repo root) when
+        the env var is unset. An absent manifest under either root is tolerated at
+        click time — the Tutorial command reports ``spec_not_found`` and renders an
+        error scene.
         """
         root = os.environ.get("ZSPEC_PLUGIN_ROOT")
-        base = Path(root) if root else Path(__file__).resolve().parents[3]
+        base = Path(root) if root else Path(__file__).resolve().parents[3] / "plugin"
         return base / "tutorials" / "intro" / "manifest.toml"

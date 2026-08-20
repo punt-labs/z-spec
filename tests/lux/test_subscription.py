@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from punt_zspec.lux.command_ports import ClickCommand, ClickOutcome
     from punt_zspec.lux.ports import HubListener, ListenerFactory
 
-_MANIFEST = Path("tutorials/intro/manifest.toml")
+_MANIFEST = Path("plugin/tutorials/intro/manifest.toml")
 _PROJECT = Path("/work/repo")
 
 # A real CommandResult (PickerResult satisfies JsonObject) stands in for a

@@ -20,7 +20,7 @@ A new `/z-spec:b-create` command with two modes:
 1. **Description mode** --- create a B machine from a natural language description
    (same UX as `/z-spec:code2model` but targeting `.mch` output)
 2. **Translation mode** --- translate an existing Z spec (`.tex`) to an equivalent
-   B machine, applying the Z-to-B mapping rules from `reference/b-machine-patterns.md`
+   B machine, applying the Z-to-B mapping rules from `plugin/reference/b-machine-patterns.md`
 
 Both modes produce a `.mch` file in `specs/` and type-check it with `probcli`.
 
@@ -28,11 +28,11 @@ Both modes produce a `.mch` file in `specs/` and type-check it with `probcli`.
 
 ### In Scope
 
-- New `commands/b-create.md` and `commands/b-create-dev.md` skill prompts
+- New `plugin/commands/b-create.md` and `plugin/commands/b-create-dev.md` skill prompts
 - Description-to-machine generation with probcli validation
 - Z-to-B translation for `.tex` files
 - `specs/` directory creation and `.gitignore` updates
-- Updates to `commands/help.md` and `README.md`
+- Updates to `plugin/commands/help.md` and `README.md`
 
 ### Out of Scope
 

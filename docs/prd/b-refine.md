@@ -25,12 +25,12 @@ A new `/z-spec:b-refine` command with two modes:
 
 ### In Scope
 
-- New `commands/b-refine.md` and `commands/b-refine-dev.md` skill prompts
+- New `plugin/commands/b-refine.md` and `plugin/commands/b-refine-dev.md` skill prompts
 - Refinement machine (`.ref`) scaffold generation
 - Implementation machine (`.imp`) scaffold generation
 - Gluing invariant guidance (user defines the data mapping)
 - Refinement verification via probcli (`-refcheck`)
-- Updates to `commands/help.md` and `README.md`
+- Updates to `plugin/commands/help.md` and `README.md`
 
 ### Out of Scope
 

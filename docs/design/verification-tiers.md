@@ -14,7 +14,7 @@ Measured on this tree:
 | Body of shipped behaviour | Size | Gated by |
 |---|---|---|
 | Python engine, `src/punt_zspec/` | 6,099 lines across 52 modules | `make check` tiers 1–4 |
-| Command prompts, `commands/*.md` (21 prod) | 8,750 lines / 34,513 words / 255,116 bytes | `check-dev-commands`, plus `tests/commands/test_prompt_contracts.py` |
+| Command prompts, `plugin/commands/*.md` (21 prod) | 8,750 lines / 34,513 words / 255,116 bytes | `check-dev-commands`, plus `tests/commands/test_prompt_contracts.py` |
 | `-dev` twins of the same | another 8,750 lines | `check-dev-commands` |
 | Z corpus, `examples/*.tex` | 8 specs | `make type` + `make test` |
 
@@ -25,7 +25,7 @@ directory, `check-dev-commands` (`Makefile:63`), asserts each `-dev` twin
 *matches* its prod source. Two identical copies of a wrong protocol satisfy it
 perfectly; it tests synchronisation, not correctness.
 
-The defect that prompted this design is the proof. `commands/oracle.md`
+The defect that prompted this design is the proof. `plugin/commands/oracle.md`
 specified a wire protocol in which a rejected operation and a no-op success
 were byte-identical, so the property-based driver could not assert the one
 property the harness exists for. `make check` was green throughout and always
@@ -71,7 +71,7 @@ The post's "Built at vs Designed for" table classifies whole tools
 for L4"; PR/FAQ, langlearn-tts and Dungeon are "L4 applications". z-spec fits
 neither row. It is built at L1 *and* at L4, in one repository, shipped in one
 wheel and one plugin: `src/punt_zspec/` is deterministic Python with an exact
-oracle, and `commands/` is 21 agentic programs with none. A single label for
+oracle, and `plugin/commands/` is 21 agentic programs with none. A single label for
 the tool would be a lie in one direction or the other.
 
 This is not a z-spec quirk. It is the general case for any repository that
@@ -127,7 +127,7 @@ So a second axis, three values, and it is this axis the tier selection reads:
 |---|---|---|
 | **Exact** | a deterministic checker exists, is installed, and decides the whole artifact | `fuzz -t` on a `.tex`; `lake build` on `proofs/`; `partition_from_dict` on a report (`src/punt_zspec/commands/partition.py:66`) |
 | **Structural** | deterministic predicates decide part of it; the rest is undecided | "the emitted Swift parses"; "every declared operation appears in the generated file" |
-| **Rubric** | only a judge, human or model, can score it | the narrative in an elaborated spec; `commands/help.md` |
+| **Rubric** | only a judge, human or model, can score it | the narrative in an elaborated spec; `plugin/commands/help.md` |
 
 **Rule: the verification method is chosen by the oracle strength of the output,
 not by the control level of the producer.** §5 turns this into a design
@@ -198,7 +198,7 @@ nothing decides that the scene *renders*. `TESTING.md` records the divergence
 Structural oracle on a Level 1 surface — further evidence that the two axes are
 independent — and it is why tier 5 is a human at a screen.
 
-### 3.6 The 21 command prompts — `commands/*.md`
+### 3.6 The 21 command prompts — `plugin/commands/*.md`
 
 Twenty of the 21 are Level 4 by control: a model drives, calling deterministic
 tools — including `elaborate.md`, which reads a spec and a design document and
@@ -332,8 +332,9 @@ Ordered by ratio of verifiability bought to work required.
    change in the document.
 
    **The absent-compiler ruling, because "mandatory" would be a regression.**
-   Both prompts target `swift, typescript, python, kotlin` (`model2code.md:3,19`;
-   `contracts.md:3,26`), and `commands/setup.md` installs `fuzz`, `probcli` and
+   Both prompts target `swift, typescript, python, kotlin`
+   (`plugin/commands/model2code.md:3,19`; `plugin/commands/contracts.md:3,26`),
+   and `plugin/commands/setup.md` installs `fuzz`, `probcli` and
    Lean 4 and no compiler for any of those four. A mandatory build step would
    therefore make `model2code` *fail* on a typical machine where it currently
    succeeds — a user-facing regression bought in the name of verification. The
@@ -420,7 +421,7 @@ between them bounds the product's claim as much as it bounds this design.
 
 ### 6.1 A command prompt has three parts, and they are not alike
 
-Taking `commands/oracle.md` as the specimen:
+Taking `plugin/commands/oracle.md` as the specimen:
 
 **Part 1 — control flow and preconditions.** `oracle.md:31-68`: verify `lean`
 and `lake` are on `PATH`; if absent, stop with this message; verify
@@ -490,8 +491,8 @@ What that buys, in order of value:
    test does not change; what changes is that it stops being one engineer's
    reading of a paragraph.
 3. **The prompt and the PRD get a single source.** The protocol is currently
-   stated twice, in `commands/oracle.md:1151-1167` and
-   `docs/prd/z-oracle.md:60-92`, plus once more in `commands/oracle-dev.md`.
+   stated twice, in `plugin/commands/oracle.md:1151-1167` and
+   `docs/prd/z-oracle.md:60-92`, plus once more in `plugin/commands/oracle-dev.md`.
    Three prose copies is how the first divergence happened.
 
 I would like the prompt-contract assertions to be *generated* from the Z spec
@@ -558,7 +559,7 @@ Tier 6, spelled out to the level `PL-TT-1` does not reach:
 - **What it asserts.** One statement, with three parameters that must appear in
   the result: *prompt version × fixture × model version → k of n*. A result
   without all three is not a result.
-- **What it costs.** `commands/oracle.md` is 47,908 bytes ≈ 12,000 tokens of
+- **What it costs.** `plugin/commands/oracle.md` is 47,908 bytes ≈ 12,000 tokens of
   prompt before the model reads a single file. A realistic run also reads the
   fixture spec, reads `proofs/ZSpec/State.lean` and `Operations.lean`, writes
   three or four files, and runs `lake build` — on the order of ten turns with
@@ -617,7 +618,7 @@ three would be answering the wrong question with the right arithmetic.
 
 | Purpose | When | *n* | Derived from | Bar | On failure |
 |---|---|---|---|---|---|
-| **Prompt-change evidence** | by hand, before a PR that touches `commands/*.md`, per changed command | 10 | confidence: a clean run bounds the rate at 25.89% — weak, and priced accordingly | zero failures | escalate to the release profile before concluding anything (§8.3); **does not block the PR** |
+| **Prompt-change evidence** | by hand, before a PR that touches `plugin/commands/*.md`, per changed command | 10 | confidence: a clean run bounds the rate at 25.89% — weak, and priced accordingly | zero failures | escalate to the release profile before concluding anything (§8.3); **does not block the PR** |
 | **Release evidence** | on the release tag, before publishing to PyPI and the marketplace | 60 | confidence: zero failures bounds the rate at 4.87%, clearing the published 5% bar | zero failures → "failure rate under 5%, 95% confidence" | blocks the *release*, not any merge |
 | **Drift alarm** | scheduled weekly, and on any model-version change | 30 | **power: 95.8% to see at least one failure if the rate has moved to 10%** | at least one failure, against a release baseline of zero | files a bead; blocks nothing |
 
@@ -829,7 +830,7 @@ the free ones, which is the correct arrangement.
 
 **The blocker to name.** No Lean toolchain is installed here, and `elan` plus a
 Lean 4 toolchain is a multi-minute, several-hundred-megabyte install.
-`commands/setup.md` handles it for users. For the test tier it means the tier 6
+`plugin/commands/setup.md` handles it for users. For the test tier it means the tier 6
 job is a separate workflow with its own toolchain step, never a job in
 `test.yml`, whose `specs` job already carries a fuzz build from source and a
 ProB download (`.github/workflows/test.yml:59-95`).
@@ -1084,7 +1085,7 @@ There is no `punt-kit/standards/testing.md`. Testing guidance lives in
 `../.claude/rules/python-testing.md` (`PL-TT-1` through `PL-TT-6`).
 
 That rules file is scoped `paths: **/*.py`. **The scoping is itself the
-defect**: the guidance never loads when an agent edits `commands/*.md`,
+defect**: the guidance never loads when an agent edits `plugin/commands/*.md`,
 `skills/*.md`, `agents/*.md` or `hooks/`. The one directory where the guidance
 is most needed is the one directory it cannot reach. And the problem is not
 Python's: vox ships hooks, biff ships slash commands, quarry and lux ship
@@ -1163,7 +1164,12 @@ Numbered in punt-kit style so promotion is mechanical. All of these generalise;
    covering `commands/**/*.md`, `skills/**/*.md`, `agents/**/*.md` and
    `hooks/**`, carrying PL-VT-3, PL-VT-4 and PL-VT-5. This is the
    mechanically important one: it is what makes an agent editing a prompt see
-   the discipline at all.
+   the discipline at all. Those globs name the surfaces as the org-wide
+   convention places them; a repo that has moved its shippable surface into a
+   subdirectory needs the prefixed form too, or the rule silently matches
+   nothing there. z-spec is already such a repo — its prompts and hook live
+   under `plugin/` — so the pattern list must cover `plugin/commands/**/*.md`
+   and `plugin/hooks/**`.
 
    **Operator ruling: this file is built now, not after the first
    release-profile run.** It is the one item in §13 that does not depend on a
@@ -1201,7 +1207,7 @@ with one worked example.
 Listed in descending order of how much a wrong guess would cost the
 implementation mission.
 
-1. **Can the Agent SDK invoke a `commands/*.md` slash command as such?** A
+1. **Can the Agent SDK invoke a `plugin/commands/*.md` slash command as such?** A
    command file is resolved by Claude Code's plugin loader, with its frontmatter
    `allowed-tools` honoured. If the SDK exposes the same resolution, tier 6
    tests the artifact users run. If it does not, the harness must inline the

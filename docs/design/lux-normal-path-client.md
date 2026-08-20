@@ -120,7 +120,7 @@ Each session registers **both** callbacks on its one app client:
 
 | Callback id | Label | Content source |
 |-------------|-------|----------------|
-| `z-spec-tutorial` | `z-spec Tutorial · <repo> · #<pid>` | shipped `tutorials/intro/manifest.toml` (uniform) |
+| `z-spec-tutorial` | `z-spec Tutorial · <repo> · #<pid>` | shipped `plugin/tutorials/intro/manifest.toml` (uniform) |
 | `z-spec-browse` | `z-spec Browse · <repo> · #<pid>` | `.tex` specs discovered in the session's working directory (repo-specific) |
 
 **Two-axis labeling is mandatory and operator-confirmed.** The label carries the
@@ -392,7 +392,7 @@ async def _raise_scene(scene_id):
 ```
 
 - **Tutorial** re-uses the existing `BrowseCommand` (`commands/browse.py`) against
-  the shipped `tutorials/intro/manifest.toml` — identical to what the `browse`
+  the shipped `plugin/tutorials/intro/manifest.toml` — identical to what the `browse`
   MCP tool does (`server.py:208-217`), only with a fixed manifest path.
 - **Browse** needs a **new `PickerCommand`** that discovers the working
   directory's `.tex` specs and renders `build_spec_picker`
@@ -568,7 +568,7 @@ They are the same menu work; one implementation mission closes both.
      use `(SpecModel, Path)` (`commands/browse.py:27`). `PickerCommand` must pass
      `(path, model)`, not `(model, path)`.
    - **Discovery must filter non-spec `.tex`.** A cwd `**/*.tex` glob picks up
-     `templates/preamble.tex` and any LaTeX include that is not a Z spec; these
+     `plugin/templates/preamble.tex` and any LaTeX include that is not a Z spec; these
      fail `parse_spec`. Discovery must skip the preamble/template files (and any
      `.tex` that does not parse) rather than error the whole picker.
 

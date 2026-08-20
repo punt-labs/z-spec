@@ -31,7 +31,7 @@ class EnablementGate:
     """Gate the MCP tool surface on the repo's ``enabled`` marker (§2.3).
 
     This is the only gate. The lux menu registration lives in the server's
-    FastMCP lifespan and the sole entry in ``hooks/hooks.json`` matches
+    FastMCP lifespan and the sole entry in ``plugin/hooks/hooks.json`` matches
     ``mcp__…zspec__.*``, so both are downstream of the server: gating it gates
     them. The CLI is deliberately *not* gated — a shell invocation is explicit
     by definition, and the standard governs plugin presence.
