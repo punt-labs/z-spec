@@ -5,14 +5,14 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Protocol, Self, cast, final
 
+from punt_lux import HubUnavailableError, LuxClient
 from punt_lux.operations import OpError, RenderRequest, SceneShown
 from punt_lux.operations.models.render import FrameSpec
-from punt_lux.rest_client import LuxRestClient
-from punt_lux.rest_transport import HubUnavailableError
 
 from punt_zspec.commands.show import DisplayError
 
 if TYPE_CHECKING:
+    from punt_lux.operations import Scope
     from punt_lux.protocol import Element
 
 logger = logging.getLogger(__name__)
@@ -21,39 +21,34 @@ logger = logging.getLogger(__name__)
 class HubRenderer(Protocol):
     """Publish a whole scene to the lux Hub, returning a typed result."""
 
-    def render(self, request: RenderRequest) -> SceneShown | OpError: ...
+    def render(
+        self, request: RenderRequest, *, scope: Scope
+    ) -> SceneShown | OpError: ...
 
 
 class HubConnector(Protocol):
-    """Locate luxd and return a Hub renderer, raising when luxd is unreachable."""
+    """Locate luxd and return a ``LuxClient``, raising when luxd is unreachable."""
 
-    def __call__(self) -> HubRenderer: ...
+    def __call__(self) -> LuxClient: ...
 
 
 @final
 class LuxDisplay:
-    """Publish a scene to the 0.21 lux Hub over its REST surface.
-
-    Each render locates luxd's port and PUTs the scene to ``/scenes/{id}``; the
-    Hub becomes the scene's authority and replicates it to the display. In 0.21
-    the display socket is Hub-internal — a scene reaches the window only through
-    the Hub, never a direct socket send — so this is the sole publishing path.
-    """
+    """Publish a scene to the lux Hub over its REST surface."""
 
     _connect: HubConnector
     __slots__ = ("_connect",)
 
     def __new__(cls, connect: HubConnector | None = None) -> Self:
-        # HubConnector | None (PY-TS-14): None = "use the real LuxRestClient
-        # connector" — the CLI/server default; a concrete mode, not a missing value.
+        # None (PY-TS-14): use the real LuxClient connector — a concrete default.
         self = super().__new__(cls)
         self._connect = connect if connect is not None else LuxDisplay._default_connect
         return self
 
     @staticmethod
-    def _default_connect() -> HubRenderer:
-        """Connect to luxd over REST, raising HubUnavailableError if it is down."""
-        return LuxRestClient.connect()
+    def _default_connect() -> LuxClient:
+        """Connect to luxd, raising HubUnavailableError if it is down."""
+        return LuxClient.connect()
 
     def show(self, scene: object, *, frame_id: str, frame_title: str) -> None:
         """Publish ``scene`` to the Hub; raise DisplayError if it cannot land."""
@@ -67,7 +62,8 @@ class LuxDisplay:
             frame=FrameSpec(frame_id=frame_id, frame_title=frame_title),
         )
         try:  # PY-EH-5 exception: locating and reaching luxd is an I/O boundary
-            result = self._connect().render(request)
+            client = self._connect()
+            result = client.sync.render(request, scope=client.scope)
         except (HubUnavailableError, OSError) as exc:
             logger.warning("Lux Hub unreachable: %s", exc)
             raise DisplayError(str(exc)) from exc

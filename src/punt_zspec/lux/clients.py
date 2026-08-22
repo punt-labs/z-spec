@@ -8,12 +8,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Self, final
 
-from punt_lux import LuxHubClient, LuxRestClient
+from punt_lux import LuxClient
 
 from punt_zspec.lux.identity import ZSpecLuxIdentity
 
 if TYPE_CHECKING:
     from punt_lux import CallbackHandler, EventHandler
+    from punt_lux.client._sync_ops import SyncOps
     from punt_lux.hub_client import ConnectHandler
 
     from punt_zspec.lux.ports import HubListener
@@ -37,14 +38,26 @@ class ZSpecLuxClients:
         )
         return self
 
-    def rest(self) -> LuxRestClient:
-        """Build a REST client under the applet identity, or raise if luxd is down.
+    def rest(self) -> SyncOps:
+        """Return the ``SyncOps`` surface under the applet identity, or raise.
 
         Callers invoke this lazily/under a guard: ``for_identity`` raises
-        ``HubUnavailableError`` when luxd is not running, and the render path and
-        the menu registrar both swallow that so the tool surface survives.
+        ``HubUnavailableError`` when luxd is not running, and the menu registrar
+        and frame raiser both swallow that so the tool surface survives. The
+        returned ``SyncOps`` is ``LuxClient.sync`` — the same transport typed as
+        a Protocol, so ``register_callback(id, label)`` and ``raise_frame(id)``
+        keep the sync shapes ``asyncio.to_thread`` wraps.
         """
-        return LuxRestClient.for_identity(self._identity.client_identity)
+        return LuxClient.for_identity(self._identity.client_identity).sync
+
+    def lux_client(self) -> LuxClient:
+        """Build a ``LuxClient`` under the applet identity, or raise if luxd is down.
+
+        The one caller — :class:`~punt_zspec.display.LuxDisplay` — needs the
+        client itself, not the ``SyncOps`` alias, because the render callsite
+        pairs ``client.sync.render(request, ...)`` with ``scope=client.scope``.
+        """
+        return LuxClient.for_identity(self._identity.client_identity)
 
     def listen(
         self,
@@ -61,8 +74,7 @@ class ZSpecLuxClients:
         ``/ws`` leg and luxd refuses the registration). Raises
         ``HubUnavailableError`` when luxd is down; the run loop retries.
         """
-        return LuxHubClient.connect(
-            self._identity.client_identity,
+        return LuxClient.for_identity(self._identity.client_identity).listener(
             on_callback=on_callback,
             on_event=on_event,
             on_connect=on_connect,

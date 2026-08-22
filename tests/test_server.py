@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from punt_lux.rest_transport import HubUnavailableError
+from punt_lux import HubUnavailableError
 
 from punt_zspec.commands.enablement import RepoEnablement
 from punt_zspec.gate import EnablementGate
@@ -148,7 +148,7 @@ x \leq 10
     )
     mock_client = MagicMock()
     with patch(
-        "punt_zspec.lux.clients.LuxRestClient.for_identity", return_value=mock_client
+        "punt_zspec.lux.clients.LuxClient.for_identity", return_value=mock_client
     ):
         result = json.loads(show_z_spec(str(tex)))
     assert result["ok"] is True
@@ -171,7 +171,7 @@ x : \nat
 """
     )
     with patch(
-        "punt_zspec.lux.clients.LuxRestClient.for_identity",
+        "punt_zspec.lux.clients.LuxClient.for_identity",
         side_effect=HubUnavailableError("lux not running"),
     ):
         result = json.loads(show_z_spec(str(tex)))
@@ -323,7 +323,7 @@ x : \nat
 
     mock_client = MagicMock()
     with patch(
-        "punt_zspec.lux.clients.LuxRestClient.for_identity", return_value=mock_client
+        "punt_zspec.lux.clients.LuxClient.for_identity", return_value=mock_client
     ):
         result = json.loads(browse(str(manifest)))
     assert result["ok"] is True
@@ -571,7 +571,7 @@ def test_the_menu_follows_the_project_marker_without_a_reconnect(
     while every tool had already opened.
     """
     monkeypatch.setattr(
-        "punt_zspec.lux.clients.LuxRestClient.for_identity",
+        "punt_zspec.lux.clients.LuxClient.for_identity",
         MagicMock(side_effect=HubUnavailableError("luxd not running")),
     )
     project = _bare_repo(tmp_path / "project")

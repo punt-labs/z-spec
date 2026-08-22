@@ -18,7 +18,7 @@ from punt_zspec.lux.subscription import ZSpecSubscription
 if TYPE_CHECKING:
     from pytest import LogCaptureFixture, MonkeyPatch
 
-_FOR_IDENTITY = "punt_zspec.lux.clients.LuxRestClient.for_identity"
+_FOR_IDENTITY = "punt_zspec.lux.clients.LuxClient.for_identity"
 
 
 def _luxd_down(*_a: object, **_k: object) -> object:
