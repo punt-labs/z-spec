@@ -327,10 +327,10 @@
   "src/punt_zspec/display.py": {
     "method_ratio": 1.0,
     "encapsulation_ratio": 1.0,
-    "avg_params": 1.2,
+    "avg_params": 1.0,
     "max_complexity": 3.0,
-    "avg_complexity": 1.4,
-    "module_size": 54.0,
+    "avg_complexity": 1.5,
+    "module_size": 48.0,
     "classes_per_module": 1.0,
     "class_to_func_ratio": 1.0,
     "init_violations": 0.0,

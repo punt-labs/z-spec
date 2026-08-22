@@ -6,24 +6,15 @@ import logging
 from typing import TYPE_CHECKING, Protocol, Self, cast, final
 
 from punt_lux import HubUnavailableError, LuxClient
-from punt_lux.operations import OpError, RenderRequest, SceneShown
+from punt_lux.operations import OpError, RenderRequest
 from punt_lux.operations.models.render import FrameSpec
 
 from punt_zspec.commands.show import DisplayError
 
 if TYPE_CHECKING:
-    from punt_lux.operations import Scope
     from punt_lux.protocol import Element
 
 logger = logging.getLogger(__name__)
-
-
-class HubRenderer(Protocol):
-    """Publish a whole scene to the lux Hub, returning a typed result."""
-
-    def render(
-        self, request: RenderRequest, *, scope: Scope
-    ) -> SceneShown | OpError: ...
 
 
 class HubConnector(Protocol):
