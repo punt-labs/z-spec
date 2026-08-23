@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **PR/FAQ updated to reflect the current product (v0.19.0, 21 commands, shipped on PyPI + marketplace).** Version citations moved off `v0.2.0` / `15 commands` on the Press Release dateline, the Competitors FAQ moat sizing, the Validation checklist item, the Technical/Timeline claim ("Z Spec is at v0.19.0 with 21 commands shipped, on PyPI as `punt-z-spec` and on the Punt Labs plugin marketplace"), and the Feasibility risk row. Feature Appendix reclassified: the Should Do lane is tagged inline as **Shipped** for the six items that have landed (`model2code`, `audit`, `prove`, `oracle`, `refine`, B-Method) and **Open** for Tutor mode (beads `z-spec-p4a`, `z-spec-yfv`); `elaborate` was added; the standalone CLI + MCP is now a shipped Should Do item; and the "Standalone operation outside Claude Code" Won't Do entry was struck because the CLI now runs standalone via `--no-plugin`. The Feasibility risk was bumped from Green/Low to Amber/Medium: performance on a single-user machine and the unmapped hardware-to-scale equation are called out, along with the observation that a hosted deployment has not been evaluated. The Revenue model FAQ was corrected — the sibling Punt Labs tools (Quarry, Biff, Vox, Lux) are not commercial products today. The scaling FAQ example was corrected to a 5-mode state machine and the "first tool to explore Z + LLMs" claim was softened. Working Backwards document version bumped to v2.1.
+
 ## [0.19.0] - 2026-08-23
 
 ### Changed

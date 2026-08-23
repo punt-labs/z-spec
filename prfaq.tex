@@ -77,7 +77,7 @@
 
 % ── Document version ─────────────────────────────────────────────────────────
 \newcommand{\prfaqversion}[2]{\def\theprfaqmajor{#1}\def\theprfaqminor{#2}}
-\prfaqversion{2}{0}
+\prfaqversion{2}{1}
 
 % ── Header/footer ────────────────────────────────────────────────────────────
 \usepackage{fancyhdr}
@@ -173,7 +173,7 @@
 
 \section*{Press Release}
 
-SAN FRANCISCO --- September 2026 --- Punt Labs today released Z Spec, a free Claude Code plugin that brings formal mathematical specifications to AI-assisted software development. Unlike natural-language specification tools that produce documents humans interpret, Z Spec generates specifications in Z notation --- an ISO standard (13568:2002) backed by 45~years of academic research~\cite{iso13568,spivey1992zrm} --- that are machine-checked for internal consistency by fuzz and explored for reachable states by ProB. Z Spec supports three workflows: writing the spec first to create new systems without bugs, deriving exhaustive test suites for existing code, and modeling running systems to find defects that testing alone cannot reach (see \faqref{faq:differentiator}).
+SAN FRANCISCO --- August 2026 --- Punt Labs today released Z Spec, a free Claude Code plugin that brings formal mathematical specifications to AI-assisted software development. Unlike natural-language specification tools that produce documents humans interpret, Z Spec generates specifications in Z notation --- an ISO standard (13568:2002) backed by 45~years of academic research~\cite{iso13568,spivey1992zrm} --- that are machine-checked for internal consistency by fuzz and explored for reachable states by ProB. Z Spec supports three workflows: writing the spec first to create new systems without bugs, deriving exhaustive test suites for existing code, and modeling running systems to find defects that testing alone cannot reach (see \faqref{faq:differentiator}).
 
 \prsection{Problem}
 
@@ -340,14 +340,14 @@ This is a bottoms-up estimate with wide uncertainty at the ``stateful systems'' 
 
 \textbf{Funded competitors} (Tessl): Raised \$125M (Series~A, Index Ventures and Accel) for spec-driven development infrastructure. Focus is natural-language specifications, not formal verification. Strength: capital and enterprise distribution. Weakness: same ambiguity limitation as GitHub Spec Kit and Amazon Kiro --- structured prose cannot be machine-checked.
 
-\textbf{Competitive response:} The category is attracting serious capital (\$125M from Tessl alone) and distribution advantages (GitHub/Microsoft, Amazon/AWS). If these players moved toward formal verification, they could integrate existing tools (Dafny, Alloy, or even Z/ProB) faster than 6--12 months. Our differentiation is formal-verification depth (15~commands, three workflows from one specification) in a niche that large players are unlikely to prioritize near-term. The structural moat is thin --- the defensible value is in execution quality and being first to demonstrate the workflow.
+\textbf{Competitive response:} The category is attracting serious capital (\$125M from Tessl alone) and distribution advantages (GitHub/Microsoft, Amazon/AWS). If these players moved toward formal verification, they could integrate existing tools (Dafny, Alloy, or even Z/ProB) faster than 6--12 months. Our differentiation is formal-verification depth (21~commands, three workflows from one specification) in a niche that large players are unlikely to prioritize near-term. The structural moat is thin --- the defensible value is in execution quality and being first to demonstrate the workflow.
 \end{faqpair}
 
 \begin{faqpair}{What is our next step to validate the vision?}\label{faq:validation}
 Ship the plugin publicly and measure organic adoption. Specifically:
 
 \begin{enumerate}[nosep]
-\item Release v1.0 on the Punt Labs marketplace (already at v0.2.0).
+\item Release v1.0 on the Punt Labs marketplace (already at v0.19.0, shipped end-to-end on PyPI and via the plugin marketplace).
 \item Track installs, active usage (\texttt{create}, \texttt{code2model}, \texttt{partition}, and \texttt{test} invocations), and GitHub stars over 90~days. Track which workflow each user enters through.
 \item Interview 5--10 developers who try the plugin to understand: what triggered them to try it, which workflow they used (spec-first, test coverage, or bug finding), whether they continued using it, and why or why not.
 \item Decision threshold: if fewer than 50 developers use the tool in 90~days, the hypothesis that ``AI makes formal methods accessible'' is not validated for this market and format.
@@ -387,11 +387,13 @@ Z Spec runs locally, so the scaling constraint is not infrastructure --- it is s
 
 The critical skill is \emph{finding the right slices}. A system with 200 state variables cannot be specified as a single flat schema. The developer must identify which subsystems have interesting invariants --- the authentication state machine, the payment workflow, the UI coordination logic --- and specify each one at the abstraction level where ProB can explore the full state space. This is analogous to choosing what to unit-test: you do not test every line, you test the boundaries that matter.
 
-The plugin does not yet guide this decomposition. Multi-spec coordination (specifications that reference each other across modules) is on the roadmap (\faqref{faq:timeline}) but not shipped. Until then, the practical ceiling is single-module specifications with bounded state, which covers the use cases demonstrated so far (6-mode state machine, 8-invariant UI panel).
+The plugin does not yet guide this decomposition. Multi-spec coordination (specifications that reference each other across modules) is on the roadmap (\faqref{faq:timeline}) but not shipped. Until then, the practical ceiling is single-module specifications with bounded state, which covers the use cases demonstrated so far (5-mode state machine, 8-invariant UI panel).
+
+\emph{Performance and single-user hardware.} A second scaling dimension is real: the underlying engine (fuzz and ProB) is designed to scale, but the RAM and CPU on a typical developer laptop become the binding constraint before specification complexity does. Some real specifications from internal projects run comfortably; larger state spaces stress the machine before ProB itself runs out of room. The hardware-to-scale equation at each level is not yet mapped, and a hosted evaluation deployment has not been tried at meaningful scale. This is called out under Feasibility in the Risk Assessment.
 \end{faqpair}
 
 \begin{faqpair}{What is the estimated development timeline?}\label{faq:timeline}
-Z Spec is already at v0.2.0 with 15 commands shipped. Development priorities in delivery order:
+Z Spec is at v0.19.0 with 21 commands shipped, on PyPI as \texttt{punt-z-spec} and on the Punt Labs plugin marketplace. Development priorities in delivery order:
 
 \begin{enumerate}[nosep]
 \item \textbf{Stabilize and document} --- polish existing commands, improve error messages, write tutorials for all three workflows (spec-first, test coverage, bug finding). This unblocks public adoption.
@@ -407,7 +409,7 @@ If scope compresses, items 3--5 are cut first. Item 1 is the minimum for public 
 \subsubsection*{Business}
 
 \begin{faqpair}{What is the revenue model?}\label{faq:revenue}
-Free and open source. Z Spec is a plugin in the Punt Labs ecosystem, which includes commercial products (Quarry, Biff, TTS). The plugin serves three strategic purposes:
+Free and open source. Z Spec sits in the Punt Labs ecosystem of developer tools (Quarry, Biff, Vox, Lux) --- none of which are monetized today. The plugin serves three strategic purposes:
 
 \begin{enumerate}[nosep]
 \item \textbf{Ecosystem growth} --- every Z Spec user installs the Punt Labs marketplace, increasing exposure to paid tools. Z Spec also anchors the prfaq $\to$ use-cases $\to$ z-spec pipeline (\faqref{faq:pipeline}), creating pull-through for the other plugins.
@@ -442,7 +444,7 @@ Two shifts converged:
 
 \textbf{LLMs became capable of drafting formal specifications.} Research in 2024--2026 demonstrated that LLMs can generate correct formal annotations in Dafny (98.2\% with feedback loop~\cite{faria2026dafny}), repair buggy Alloy specifications, and produce properties that find real vulnerabilities~\cite{liu2025propertygpt}. The key finding across this literature is that the productive architecture is LLM generation verified by a formal tool --- not the LLM verifying itself~\cite{jin2025overcorrection,kleppmann2025fvmainstream}.
 
-Z notation is an ISO standard with a mature type-checker (fuzz, since 1988) and a mature animator (ProB, since 2003). These tools existed before LLMs. What was missing was an accessible way to \emph{write} the specifications. The LLM provides that. No 2023--2026 paper has studied Z specifically with LLMs~\cite{ferrari2025roadmap} --- this is an open gap, not a validated approach. Z Spec is the first tool to explore it.
+Z notation is an ISO standard with a mature type-checker (fuzz, since 1988) and a mature animator (ProB, since 2003). These tools existed before LLMs. What was missing was an accessible way to \emph{write} the specifications. The LLM provides that. No 2023--2026 paper has studied Z specifically with LLMs~\cite{ferrari2025roadmap} --- this is an open gap, not a validated approach. Z Spec is an early tool to explore it; we do not claim to be the first.
 \end{faqpair}
 
 \begin{faqpair}{How does Z Spec fit into the broader Punt Labs pipeline?}\label{faq:pipeline}
@@ -471,7 +473,7 @@ This pipeline is a hypothesis. The \texttt{use-cases} plugin is in early develop
 \midrule
 Value      & \textcolor{RiskAmber}{Medium} & Three problems are real and growing: new systems built without blueprints, existing code with shallow test coverage, and running systems with latent defects. Whether developers will adopt a formal-specification tool to address them --- and which workflow drives adoption --- is unproven. The math-notation barrier may limit adoption to developers who already value correctness. See \faqref{faq:evidence}. \\
 Usability  & \textcolor{RiskAmber}{Medium} & Three-command onboarding is simple, but tool installation (compiling fuzz from source, Tcl/Tk for ProB) creates friction. Z notation is unfamiliar to most developers, even with LLM-generated explanations. The tutor mode (\faqref{faq:timeline}) is the primary mitigation. \\
-Feasibility & \textcolor{RiskGreen}{Low}    & The product exists at v0.2.0 with 15~commands. fuzz and ProB are proven tools. The primary technical risk is LLM spec quality (\faqref{faq:tech-risks}), mitigated by the iterative feedback loop and derived test cases. \\
+Feasibility & \textcolor{RiskAmber}{Medium} & The product exists at v0.19.0 with 21~commands, on PyPI and the plugin marketplace. fuzz and ProB are proven tools, so the core mathematics is not in question. Two feasibility concerns are live: (a) LLM spec quality (\faqref{faq:tech-risks}) --- a well-typed spec can still describe the wrong system; and (b) performance on a single-user machine (\faqref{faq:scaling}) --- the engine scales, but RAM and CPU on a typical developer laptop bind before ProB does, and the hardware-to-scale equation at each specification size is not yet mapped. Stability work is ongoing; the deployment story beyond a personal laptop has not been evaluated. \\
 Viability  & \textcolor{RiskGreen}{Low}    & Free, open-source plugin with no infrastructure costs. Strategic value to the Punt Labs ecosystem. No regulatory, legal, or brand risks. The only viability question is opportunity cost --- is this the best use of development time? \\
 \bottomrule
 \end{tabularx}
@@ -504,16 +506,18 @@ Features essential for the three core workflows. Without these, the product does
 
 \subsection*{Should Do}
 
-Features that deepen the verification chain or extend the core workflows. Not required for the spec-first, test-coverage, or bug-finding loops but significantly increase value.
+Features that deepen the verification chain or extend the core workflows. Not required for the spec-first, test-coverage, or bug-finding loops but significantly increase value. All items marked \textcolor{RiskGreen}{\textbf{shipped}} are already available in v0.19.0.
 
 \begin{enumerate}[nosep,leftmargin=2.5em]
-  \featureitem{Code generation from specs}{\texttt{/z-spec:model2code} --- generates implementation code and tests from a specification, completing the spec-first workflow}\label{feat:model2code}
-  \featureitem{Automated audit}{\texttt{/z-spec:audit} --- runs the full model-check-test-report chain in one command for rapid bug finding across existing systems}\label{feat:audit}
-  \featureitem{Lean~4 proof obligations}{\texttt{/z-spec:prove} --- machine-checked proofs that invariants hold universally, not just for tested inputs}\label{feat:prove}
-  \featureitem{Property-based test oracle}{\texttt{/z-spec:oracle} --- uses Lean~4 model as ground truth for randomized testing}\label{feat:oracle}
-  \featureitem{Refinement verification}{\texttt{/z-spec:refine} --- verifies that implementation code refines the specification via abstraction function commutativity}\label{feat:refine}
-  \featureitem{B-Method support}{\texttt{/z-spec:b-create}, \texttt{b-check}, \texttt{b-animate}, \texttt{b-refine} --- deterministic refinement chain from spec to provably correct code}\label{feat:b-method}
-  \featureitem{Tutor mode}{adaptive learning that teaches Z notation as the developer uses the tool, reducing the adoption barrier}\label{feat:tutor}
+  \featureitem{Code generation from specs}{\texttt{/z-spec:model2code} --- generates implementation code and tests from a specification, completing the spec-first workflow. \textcolor{RiskGreen}{\textbf{Shipped.}}}\label{feat:model2code}
+  \featureitem{Automated audit}{\texttt{/z-spec:audit} --- runs the full model-check-test-report chain in one command for rapid bug finding across existing systems. \textcolor{RiskGreen}{\textbf{Shipped.}}}\label{feat:audit}
+  \featureitem{Lean~4 proof obligations}{\texttt{/z-spec:prove} --- machine-checked proofs that invariants hold universally, not just for tested inputs. \textcolor{RiskGreen}{\textbf{Shipped.}}}\label{feat:prove}
+  \featureitem{Property-based test oracle}{\texttt{/z-spec:oracle} --- uses Lean~4 model as ground truth for randomized testing. \textcolor{RiskGreen}{\textbf{Shipped.}}}\label{feat:oracle}
+  \featureitem{Refinement verification}{\texttt{/z-spec:refine} --- verifies that implementation code refines the specification via abstraction function commutativity. \textcolor{RiskGreen}{\textbf{Shipped.}}}\label{feat:refine}
+  \featureitem{B-Method support}{\texttt{/z-spec:b-create}, \texttt{b-check}, \texttt{b-animate}, \texttt{b-refine} --- deterministic refinement chain from spec to provably correct code. \textcolor{RiskGreen}{\textbf{Shipped (alpha).}}}\label{feat:b-method}
+  \featureitem{Spec elaboration}{\texttt{/z-spec:elaborate} --- enhances a bare spec with narrative from adjacent design documentation, so the same file reads as both a mathematical model and a design brief. \textcolor{RiskGreen}{\textbf{Shipped.}}}\label{feat:elaborate}
+  \featureitem{Standalone CLI + MCP}{\texttt{z-spec} on \texttt{PATH} with no Claude Code plugin, installed via \texttt{--no-plugin}. Every deterministic capability --- \texttt{check}, \texttt{test}, \texttt{partition}, \texttt{audit}, \texttt{show} --- is reachable from a shell, a script, or an agent that is not the Claude plugin (Codex, Cursor, a plain terminal). \textcolor{RiskGreen}{\textbf{Shipped.}}}\label{feat:standalone}
+  \featureitem{Tutor mode}{adaptive learning that teaches Z notation as the developer uses the tool, reducing the adoption barrier. \textcolor{RiskAmber}{\textbf{Open}} (\texttt{z-spec-p4a}, \texttt{z-spec-yfv}).}\label{feat:tutor}
 \end{enumerate}
 
 \subsection*{Won't Do}
@@ -524,7 +528,6 @@ Features explicitly excluded to maintain focus and identity.
   \featureitem{Custom specification language}{Z is an ISO standard with established tooling. Inventing a new DSL would sacrifice the ecosystem (fuzz, ProB, textbooks, university courses) for marginal syntax improvement.}\label{feat:no-custom-lang}
   \featureitem{Visual specification editor}{Z Spec is a Claude Code plugin. The interaction model is conversational (natural language in, spec out), not graphical. A GUI would be a different product.}\label{feat:no-gui}
   \featureitem{Runtime execution or deployment}{Specifications describe \emph{what} a system does, not \emph{how}. Z Spec generates artifacts (tests, contracts, proofs) that inform implementation but does not execute code or manage deployments.}\label{feat:no-runtime}
-  \featureitem{Standalone operation outside Claude Code}{The plugin depends on LLM capabilities for spec generation, explanation, and iteration. A CLI without LLM integration would be fuzz and ProB with a wrapper --- tools that already exist.}\label{feat:no-standalone}
 \end{enumerate}
 
 % ══════════════════════════════════════════════════════════════════════════════
