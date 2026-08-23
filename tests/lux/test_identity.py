@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from punt_lux.connection_identity import connection_for
+from punt_lux.domain.hub import applet_name_format
 
 from punt_zspec.lux.identity import ZSpecLuxIdentity
 
@@ -31,14 +32,17 @@ def test_luxd_labels_the_client_from_the_repo_not_the_declared_name() -> None:
     assert identity.menu_label == "my-repo"
 
 
-def test_the_name_is_the_connection_token_carrying_this_process_pid() -> None:
-    # The name is hashed into the connection id with kind, repo, and agent. The
-    # pid is what keeps two sessions on one repository off a single connection,
-    # where the second would take the listener slot and clear the first's
-    # callbacks. It is this process's own — a pid naming another would lie.
+def test_the_name_is_the_four_part_shape_the_domain_helper_writes() -> None:
+    # ClientIdentity's applet validator rejects any name not matching
+    # ``lux · <repo> · #<pid> · <program>`` (DES-067). Delegating to
+    # applet_name_format.format_name keeps the writer aligned with the reader —
+    # a format change upstream fails here as a signature mismatch, not silently.
     identity = ZSpecLuxIdentity(_PROJECT).client_identity
 
-    assert identity.name == f"z-spec #{os.getpid()}"
+    expected = applet_name_format.format_name(
+        repo_name="my-repo", session_pid=os.getpid(), program="z-spec"
+    )
+    assert identity.name == expected
 
 
 def test_two_sessions_on_one_repo_own_distinct_connections(
@@ -48,7 +52,7 @@ def test_two_sessions_on_one_repo_own_distinct_connections(
 
     luxd hashes (kind, name, repo, agent) into the connection id, and a second
     arrival on one connection takes the listener slot and clears the callbacks
-    the first registered. The pid in the name is what stops that.
+    the first registered. The pid embedded in the name is what stops that.
     """
     monkeypatch.setattr(os, "getpid", lambda: 111)
     first = ZSpecLuxIdentity(_PROJECT).client_identity
@@ -61,12 +65,11 @@ def test_two_sessions_on_one_repo_own_distinct_connections(
 
 
 def test_no_lease_is_declared_so_the_applet_kind_length_applies() -> None:
-    """Absent is luxd's "use my kind's length", which for an applet is 60s.
+    """Absent is luxd's "use my kind's length" — the documented default.
 
     An applet's length is already written for a client that lives and dies with a
-    session: the listen leg renews every 15s, so four beats may be lost before the
-    entries go. Declaring the number would copy a constant luxd owns. The 30s this
-    replaces came from voxd, a machine-wide daemon with a different lifetime.
+    session. Declaring a number would copy a constant luxd owns and pin us to
+    today's value of it.
     """
     identity = ZSpecLuxIdentity(_PROJECT).client_identity
 
@@ -86,7 +89,7 @@ def test_for_session_declares_this_pid(monkeypatch: MonkeyPatch) -> None:
 
     identity = ZSpecLuxIdentity.for_session().client_identity
 
-    assert identity.name == f"z-spec #{os.getpid()}"
+    assert applet_name_format.session_pid_from_name(identity.name) == os.getpid()
 
 
 def test_for_session_prefers_project_dir_env_over_cwd(

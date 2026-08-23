@@ -23,7 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "mcp>=1.0.0",
-    "punt-lux>=0.23,<0.24",
+    "punt-lux>=0.29,<0.30",
     "typer>=0.24.1",
 ]
 

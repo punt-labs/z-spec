@@ -68,7 +68,7 @@ class ZSpecLuxSession:
         self = super().__new__(cls)
         # Every render path shares this applet-identity display, so pushes and the
         # listen stream resolve to one session — the callback-delivery precondition.
-        self._display = LuxDisplay(connect=lux.rest)
+        self._display = LuxDisplay(connect=lux.lux_client)
         self._is_enabled = is_enabled
         self._subscription = ZSpecSubscription(
             entries=ZSpecMenuEntries.of(

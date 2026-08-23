@@ -18,7 +18,13 @@ if TYPE_CHECKING:
     from punt_lux.hub_client import ConnectHandler
     from punt_lux.operations import FrameRaise, Ok
 
-__all__ = ["FrameRaiseClient", "HubListener", "ListenerFactory", "MenuClient"]
+__all__ = [
+    "FrameRaiseClient",
+    "HubListener",
+    "ListenerFactory",
+    "LuxRestClient",
+    "MenuClient",
+]
 
 
 @runtime_checkable
@@ -54,6 +60,16 @@ class FrameRaiseClient(Protocol):
     def raise_frame(self, frame_id: str) -> FrameRaise | OpError:
         """Raise a frame, reporting whether it was raised or a typed error."""
         ...
+
+
+@runtime_checkable
+class LuxRestClient(MenuClient, FrameRaiseClient, Protocol):
+    """The subset of ``LuxClient.sync`` z-spec consumes over REST.
+
+    Structural union of :class:`MenuClient` and :class:`FrameRaiseClient`, kept
+    here so the receive leg never types against ``punt_lux.client._sync_ops`` —
+    a private punt-lux module path.
+    """
 
 
 @runtime_checkable

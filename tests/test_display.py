@@ -5,32 +5,52 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from punt_lux.operations import OpError, RenderRequest, SceneShown
+from punt_lux import HubUnavailableError
+from punt_lux.domain.ids import ConnectionId
+from punt_lux.operations import OpError, RenderRequest, SceneShown, Scope
 from punt_lux.protocol import TextElement
 
 from punt_zspec.commands.show import DisplayError
 from punt_zspec.display import LuxDisplay
 
+_SCOPE = Scope(connection_id=ConnectionId("test-scope"))
 
-def _recording_connector(requests: list[RenderRequest]) -> Any:
+
+def _client_stub(renderer: Any) -> Any:
+    class _Client:
+        sync = renderer
+        scope = _SCOPE
+
+    return _Client()
+
+
+def _recording_connector(requests: list[tuple[RenderRequest, Scope]]) -> Any:
     class _Renderer:
-        def render(self, request: RenderRequest) -> SceneShown | OpError:
-            requests.append(request)
+        def render(
+            self, request: RenderRequest, *, scope: Scope
+        ) -> SceneShown | OpError:
+            requests.append((request, scope))
             return SceneShown(scene_id=request.scene_id)
 
+    stub = _client_stub(_Renderer())
+
     def connect() -> Any:
-        return _Renderer()
+        return stub
 
     return connect
 
 
 def _op_error_connector(reason: str) -> Any:
     class _Renderer:
-        def render(self, request: RenderRequest) -> SceneShown | OpError:
+        def render(
+            self, request: RenderRequest, *, scope: Scope
+        ) -> SceneShown | OpError:
             return OpError(code="display_unavailable", reason=reason)
 
+    stub = _client_stub(_Renderer())
+
     def connect() -> Any:
-        return _Renderer()
+        return stub
 
     return connect
 
@@ -47,13 +67,13 @@ def _scene() -> TextElement:
 
 
 def test_show_publishes_scene_to_hub() -> None:
-    requests: list[RenderRequest] = []
+    requests: list[tuple[RenderRequest, Scope]] = []
     display = LuxDisplay(connect=_recording_connector(requests))
 
     display.show(_scene(), frame_id="z-spec", frame_title="Z-Spec: s.tex")
 
     assert len(requests) == 1
-    req = requests[0]
+    req, scope = requests[0]
     assert req.scene_id == "z-spec"
     assert len(req.elements) == 1
     assert req.elements[0]["kind"] == "text"
@@ -61,11 +81,12 @@ def test_show_publishes_scene_to_hub() -> None:
     assert req.frame is not None
     assert req.frame.frame_id == "z-spec"
     assert req.frame.frame_title == "Z-Spec: s.tex"
+    # The Hub scopes writes; LuxDisplay must pass client.scope through with the
+    # RenderRequest, not drop it — a bare render at 0.29 raises at the Protocol.
+    assert scope is _SCOPE
 
 
 def test_show_raises_display_error_when_hub_unavailable() -> None:
-    from punt_lux.rest_transport import HubUnavailableError
-
     display = LuxDisplay(connect=_raising_connector(HubUnavailableError("luxd down")))
 
     with pytest.raises(DisplayError, match="luxd down"):

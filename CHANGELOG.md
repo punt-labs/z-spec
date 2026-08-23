@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **`punt-lux` pin advanced to `>=0.29,<0.30` and the render/menu paths migrated to `LuxClient.sync`.** The 0.28→0.29 release deleted `punt_lux/rest_client.py`; `LuxRestClient` is gone from every path, so the `from punt_lux.rest_client import LuxRestClient` import in `display.py` no longer resolves. `ZSpecLuxClients.rest()` now returns `LuxClient.for_identity(...).sync` — the same underlying transport typed as the `SyncOps` Protocol — and a new `ZSpecLuxClients.lux_client()` returns the `LuxClient` itself so `LuxDisplay` can pair `client.sync.render(request, scope=client.scope)` directly on the concrete client. `HubUnavailableError` imports standardize on `from punt_lux import HubUnavailableError` everywhere. Ports, commands, CLI verbs, and the `asyncio.to_thread` wraps in `click.py`, `menu.py`, and `subscription.py` are unchanged: the sync surface is preserved end to end.
+
+- **The applet name shown in luxd's Details pane now carries a hex PID rather than decimal**, per the four-part `lux · <repo> · #<pid-hex> · <program>` shape `punt_lux.domain.hub.applet_name_format.format_name` enforces (`f"{prefix}{pid:x}"`, with the regex accepting hex only). z-spec cannot work around this without breaking the format's own regex. Anyone who used to run `ps -p <pid-from-Details-pane>` needs `printf '%d' 0x<pid>` first.
+
 ## [0.18.2] - 2026-08-20
 
 ### Changed
