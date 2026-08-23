@@ -92,7 +92,7 @@ in Lux.
 ## Quick Start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/0d0cbbf/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/92ff573/install.sh | sh
 ```
 
 This installs the `z-spec` CLI and the Claude Code plugin. To install the CLI
@@ -101,10 +101,10 @@ policy blocks plugin installation — skip the plugin with `--no-plugin`:
 
 ```bash
 # flag form (passed through the pipe with sh -s --)
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/0d0cbbf/install.sh | sh -s -- --no-plugin
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/92ff573/install.sh | sh -s -- --no-plugin
 
 # env form (for argument-hostile contexts: templated CI, proxies)
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/0d0cbbf/install.sh | ZSPEC_NO_PLUGIN=1 sh
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/92ff573/install.sh | ZSPEC_NO_PLUGIN=1 sh
 ```
 
 The CLI-only install still sets up uv, Python, the `z-spec` binary, PATH, and
@@ -128,7 +128,7 @@ z-spec doctor
 <summary>Verify before running</summary>
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/0d0cbbf/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/92ff573/install.sh -o install.sh
 shasum -a 256 install.sh
 cat install.sh
 sh install.sh
