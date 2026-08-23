@@ -33,7 +33,7 @@ _AUTO_HOOKS_ALIASES: Final[frozenset[str]] = frozenset(
 
 def test_manifest_exists_and_parses() -> None:
     assert _MANIFEST.is_file(), f"plugin manifest missing: {_MANIFEST}"
-    json.loads(_MANIFEST.read_text())
+    json.loads(_MANIFEST.read_text(encoding="utf-8"))
 
 
 def test_manifest_does_not_redeclare_auto_loaded_hooks() -> None:
@@ -48,7 +48,7 @@ def test_manifest_does_not_redeclare_auto_loaded_hooks() -> None:
     """
     if not _AUTO_HOOKS.is_file():
         return
-    manifest = json.loads(_MANIFEST.read_text())
+    manifest = json.loads(_MANIFEST.read_text(encoding="utf-8"))
     hooks_field = manifest.get("hooks")
     assert hooks_field not in _AUTO_HOOKS_ALIASES, (
         f"plugin.json declares hooks={hooks_field!r}, which redeclares the "
