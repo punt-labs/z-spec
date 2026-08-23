@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from typer.core import TyperGroup
 from typer.main import get_command
 
 from punt_zspec.__main__ import app
@@ -15,11 +16,10 @@ _CLI_ONLY: frozenset[str] = frozenset({"mcp"})
 
 def _cli_verbs() -> set[str]:
     group = get_command(app)
-    commands = getattr(group, "commands", None)
-    assert commands is not None, (
-        f"a multi-command Typer app should expose .commands; got {type(group).__name__}"
+    assert isinstance(group, TyperGroup), (
+        f"a multi-command Typer app should be a TyperGroup; got {type(group).__name__}"
     )
-    return set(commands.keys())
+    return set(group.commands.keys())
 
 
 def _mcp_tools() -> set[str]:
