@@ -6,7 +6,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/punt-labs/z-spec/test.yml?label=CI)](https://github.com/punt-labs/z-spec/actions/workflows/test.yml)
 [![PyPI](https://img.shields.io/pypi/v/punt-z-spec)](https://pypi.org/project/punt-z-spec/)
 [![Python](https://img.shields.io/pypi/pyversions/punt-z-spec)](https://pypi.org/project/punt-z-spec/)
-[![Working Backwards](https://img.shields.io/badge/Working_Backwards-hypothesis-lightgrey)](./prfaq.pdf)
+[![Working Backwards](https://img.shields.io/badge/Working_Backwards-hypothesis-lightgrey)](https://github.com/punt-labs/z-spec/blob/main/prfaq.pdf)
 
 **Platforms:** macOS, Linux
 
