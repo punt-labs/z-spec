@@ -14,10 +14,9 @@ from punt_zspec.lux.identity import ZSpecLuxIdentity
 
 if TYPE_CHECKING:
     from punt_lux import CallbackHandler, EventHandler
-    from punt_lux.client._sync_ops import SyncOps
     from punt_lux.hub_client import ConnectHandler
 
-    from punt_zspec.lux.ports import HubListener
+    from punt_zspec.lux.ports import HubListener, LuxRestClient
 
 __all__ = ["ZSpecLuxClients"]
 
@@ -38,15 +37,15 @@ class ZSpecLuxClients:
         )
         return self
 
-    def rest(self) -> SyncOps:
-        """Return the ``SyncOps`` surface under the applet identity, or raise.
+    def rest(self) -> LuxRestClient:
+        """Return the REST surface under the applet identity, or raise.
 
         Callers invoke this lazily/under a guard: ``for_identity`` raises
         ``HubUnavailableError`` when luxd is not running, and the menu registrar
         and frame raiser both swallow that so the tool surface survives. The
-        returned ``SyncOps`` is ``LuxClient.sync`` — the same transport typed as
-        a Protocol, so ``register_callback(id, label)`` and ``raise_frame(id)``
-        keep the sync shapes ``asyncio.to_thread`` wraps.
+        returned client is ``LuxClient.sync``, typed here against the local
+        :class:`LuxRestClient` Protocol — the subset z-spec actually consumes,
+        namely ``register_callback(id, label)`` and ``raise_frame(id)``.
         """
         return LuxClient.for_identity(self._identity.client_identity).sync
 
