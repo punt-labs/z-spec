@@ -469,11 +469,11 @@ Generated specs follow this structure:
 
 ## Documentation
 
-[Development](docs/development.md) |
-[Workflow](docs/WORKFLOW.md) |
-[Testing](TESTING.md) |
-[Design docs](docs/design/) |
-[Changelog](CHANGELOG.md)
+- [Development](docs/development.md) — dev/prod plugin swap, release flow, project layout
+- [Workflow](docs/WORKFLOW.md) — the three-loop development process
+- [Testing](TESTING.md) — the five-tier testing pyramid
+- [Design docs](docs/design/) — ADRs and architectural decisions
+- [Changelog](CHANGELOG.md) — release history
 
 ## Development
 

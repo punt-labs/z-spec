@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- **README restructured to match the org [README standard](https://github.com/punt-labs/punt-kit/blob/main/standards/readme.md).** Added PyPI + Python badges and pointed the CI badge at `test.yml`, added a one-paragraph description before the "What is Z?" preamble, dropped in-prose punt-lux version numbers (`punt_lux 0.22.1+`, `punt_lux 0.21+`), and moved the contributor-facing content — the dev-vs-prod plugin swap, release flow, and project structure — out of `README.md` into `docs/development.md` so the README stays user-facing. Added a `## Documentation` index pointing at `docs/development.md`, `docs/WORKFLOW.md`, `TESTING.md`, `docs/design/`, and `CHANGELOG.md`.
+- **README restructured to match the org [README standard](https://github.com/punt-labs/punt-kit/blob/main/standards/readme.md).** Added PyPI + Python badges and pointed the CI badge at `test.yml`, added a one-paragraph description before the "What is Z?" preamble, dropped in-prose punt-lux version numbers (`punt-lux 0.22.1+`, `punt-lux 0.21+`), and moved the contributor-facing content — the dev-vs-prod plugin swap, release flow, and project structure — out of `README.md` into `docs/development.md` so the README stays user-facing. Added a `## Documentation` index pointing at `docs/development.md`, `docs/WORKFLOW.md`, `TESTING.md`, `docs/design/`, and `CHANGELOG.md`.
 
 ### Removed
 

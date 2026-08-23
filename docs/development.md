@@ -9,7 +9,7 @@ For quality-gate commands, see the [Development section of the README](../README
 
 ## Dev/prod namespace isolation
 
-The working tree is the dev plugin: `plugin.json` has `name: "z-spec-dev"` and
+The working tree is the dev plugin: `plugin/.claude-plugin/plugin.json` has `name: "z-spec-dev"` and
 its MCP server runs the working tree via
 `uv run --directory ${CLAUDE_PLUGIN_ROOT} z-spec mcp`. The marketplace release
 is the prod plugin: `name: "z-spec"` with the MCP server invoking the installed
@@ -39,7 +39,7 @@ From the repo root, with the working tree in dev state:
 ```bash
 uv sync                     # 1. install the working-tree z-spec into the project venv
 claude --plugin-dir plugin  # 2. launch Claude Code loading z-spec-dev alongside z-spec
-/z-spec-dev:check-dev docs/account.tex   # 3. run a dev command against the working tree
+/z-spec-dev:check-dev examples/oracle-protocol.tex   # 3. run a dev command against the working tree
 ```
 
 `plugin`, not `.`: the plugin root is the `plugin/` directory, so that is the
@@ -59,7 +59,7 @@ only for that session.
 (`z-spec-dev` → `z-spec`), the MCP server command (`uv run` working tree → the
 installed `z-spec` binary, so marketplace users without a uv project can run
 it), and it strips the `-dev` command twins. `restore-dev-plugin.sh` restores
-all three by checking out `plugin.json` and `plugin/commands/` from the parent
+all three by checking out `plugin/.claude-plugin/plugin.json` and `plugin/commands/` from the parent
 of the release-prep commit.
 
 ```bash
