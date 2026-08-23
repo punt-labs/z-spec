@@ -3,10 +3,19 @@
 > Formal Z specifications and B machines that type-check, animate, and refine --- from English to math to code.
 
 [![License](https://img.shields.io/github/license/punt-labs/z-spec)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/punt-labs/z-spec/docs.yml?label=CI)](https://github.com/punt-labs/z-spec/actions/workflows/docs.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/punt-labs/z-spec/test.yml?label=CI)](https://github.com/punt-labs/z-spec/actions/workflows/test.yml)
+[![PyPI](https://img.shields.io/pypi/v/punt-z-spec)](https://pypi.org/project/punt-z-spec/)
+[![Python](https://img.shields.io/pypi/pyversions/punt-z-spec)](https://pypi.org/project/punt-z-spec/)
 [![Working Backwards](https://img.shields.io/badge/Working_Backwards-hypothesis-lightgrey)](./prfaq.pdf)
 
 **Platforms:** macOS, Linux
+
+z-spec is a formal-specification toolkit for Z and the B-method, exposed as a
+`z-spec` CLI and an MCP server (`zspec`), with an optional Claude Code plugin
+that layers authoring commands on top. The engine type-checks specs with
+[fuzz](https://spivey.oriel.ox.ac.uk/mike/fuzz/), animates and model-checks
+them with [ProB](https://prob.hhu.de/), and renders results in a Lux window
+when one is running.
 
 ## What is Z?
 
@@ -223,7 +232,7 @@ renders each result as a concise panel rather than raw JSON in the conversation.
 
 ### Interactive Lux menu
 
-When the MCP server runs alongside a lux Hub (punt_lux 0.22.1+), each session
+When the MCP server runs alongside a running lux Hub, each session
 registers two right-click menu entries in the lux window: **Tutorial** (opens the
 shipped `tutorials/intro` collection) and **Browse** (renders the `.tex` specs in
 the session's working directory — the same content as the `pick` tool). Both
@@ -247,7 +256,7 @@ All reports are gitignored (generated artifacts). `show_z_spec` loads whichever 
 
 ### Tutorial Browser
 
-The `browse` tool provides a lesson-by-lesson tutorial experience. All lessons render upfront as tabs — one per lesson — in the Lux window (requires a running lux Hub, punt_lux 0.21+). Define a `manifest.toml` with ordered lessons:
+The `browse` tool provides a lesson-by-lesson tutorial experience. All lessons render upfront as tabs — one per lesson — in the Lux window (requires a running lux Hub). Define a `manifest.toml` with ordered lessons:
 
 ```toml
 [collection]
@@ -458,126 +467,27 @@ Generated specs follow this structure:
 
 </details>
 
+## Documentation
+
+[Development](docs/development.md) |
+[Workflow](docs/WORKFLOW.md) |
+[Testing](TESTING.md) |
+[Design docs](docs/design/) |
+[Changelog](CHANGELOG.md)
+
 ## Development
 
-<details>
-<summary>Dev/prod namespace isolation</summary>
-
-The working tree is the dev plugin: `plugin.json` has `name: "z-spec-dev"` and
-its MCP server runs the working tree via
-`uv run --directory ${CLAUDE_PLUGIN_ROOT} z-spec mcp`. The marketplace release is
-the prod plugin: `name: "z-spec"` with the MCP server invoking the installed
-`z-spec` binary. The two names differ, so both load at once — you get production
-commands and working-tree commands side by side.
-
-| Source | Commands | MCP tools | What they run |
-|--------|----------|-----------|---------------|
-| Marketplace `z-spec` | `/z-spec:check`, `/z-spec:test`, ... | `mcp__plugin_z-spec_zspec__*` | Installed `z-spec` binary |
-| Local `z-spec-dev` | `/z-spec-dev:check-dev`, `/z-spec-dev:test-dev`, ... | `mcp__plugin_z-spec-dev_zspec__*` | Working tree (`uv run`) |
-
-The `-dev` command twins are generated, not hand-written. Every prod command
-`plugin/commands/<c>.md` has a `plugin/commands/<c>-dev.md` twin identical except its
-MCP tool references gain the `-dev` plugin suffix and its `/z-spec:<cmd>`
-self-references become `/z-spec-dev:<cmd>-dev`. Regenerate them after editing any
-prod command:
-
 ```bash
-make gen-dev-commands     # rewrite the twins from prod sources
-make check-dev-commands   # fail if any twin is missing or stale (part of `make check`)
+uv sync                        # Install dependencies
+make lint                      # ruff check + format --check + markdownlint
+make type                      # mypy + pyright + fuzz on every spec
+make test                      # pytest + probcli on every spec
+make check                     # Full gate: lint, type, test, ratchets
+make uat                       # Build the wheel and install the CLI for acceptance testing
 ```
 
-**Local test.** From the repo root, with the working tree in dev state:
-
-```bash
-uv sync                     # 1. install the working-tree z-spec into the project venv
-claude --plugin-dir plugin  # 2. launch Claude Code loading z-spec-dev alongside z-spec
-/z-spec-dev:check-dev docs/account.tex   # 3. run a dev command against the working tree
-```
-
-`plugin`, not `.`: the plugin root is the `plugin/` directory, so that is the
-directory `CLAUDE_PLUGIN_ROOT` must name — the same one a marketplace install
-checks out. The dev manifest's `uv run --directory ${CLAUDE_PLUGIN_ROOT}` still
-finds this project because uv discovers a project by walking up from the
-directory it is given, and `plugin/`'s parent is the repo root.
-
-`/z-spec-dev:*` commands and their `mcp__plugin_z-spec-dev_zspec__*` tools exercise
-the code in the working tree; the marketplace `/z-spec:*` commands stay on the
-installed release. Nothing is published — the dev plugin is loaded only for that
-session.
-
-</details>
-
-<details>
-<summary>Release flow</summary>
-
-`release-plugin.sh` performs three swaps in one commit: the plugin name
-(`z-spec-dev` → `z-spec`), the MCP server command (`uv run` working tree → the
-installed `z-spec` binary, so marketplace users without a uv project can run it),
-and it strips the `-dev` command twins. `restore-dev-plugin.sh` restores all three
-by checking out `plugin.json` and `plugin/commands/` from the parent of the
-release-prep commit.
-
-```bash
-# 1. Prepare release (swaps name + MCP command to prod, removes -dev commands)
-bash scripts/release-plugin.sh
-
-# 2. Tag the release — the tag must point at the prod-named commit
-git tag v0.1.0
-git push origin v0.1.0
-
-# 3. Restore dev state on main
-bash scripts/restore-dev-plugin.sh
-git push origin main
-```
-
-Both scripts abort if the working tree has uncommitted changes.
-
-</details>
-
-<details>
-<summary>Project structure</summary>
-
-Everything the Claude Code plugin ships lives under `plugin/`, and nothing else
-does. The marketplace installs that one directory with Claude Code's
-`git-subdir` source, so an install never fetches `src/`, `tests/`, `docs/`, or
-the spec corpus.
-
-```
-plugin/                 # THE SHIPPED SURFACE — a marketplace install gets this
-  .claude-plugin/
-    plugin.json         # Plugin manifest (name: z-spec-dev in working tree)
-  commands/
-    check.md            # /z-spec:check (prod)
-    check-dev.md        # /z-spec-dev:check-dev (dev)
-    b-check.md          # /z-spec:b-check (prod, B-Method)
-    b-check-dev.md      # /z-spec-dev:b-check-dev (dev, B-Method)
-    ...                 # One prod + one dev variant per command
-  hooks/
-    hooks.json          # PostToolUse registration
-    suppress-output.sh  # Renders each tool result as a panel
-  reference/
-    z-notation.md       # Z notation cheat sheet
-    schema-patterns.md  # Common patterns and ProB tips
-    probcli-guide.md    # probcli command reference
-    b-notation.md       # B-Method notation reference
-    b-machine-patterns.md  # B machine patterns and Z-to-B translation
-  templates/
-    preamble.tex        # LaTeX preamble for generated specs
-  tutorials/intro/      # The lesson collection the Tutorial menu entry opens
-scripts/                # Not shipped: release tooling
-  release-plugin.sh     # Swap to prod name + MCP command, remove -dev commands
-  restore-dev-plugin.sh # Restore dev state after tagging
-tools/
-  gen_dev_commands.py   # Generate/verify the plugin/commands/*-dev.md twins
-```
-
-The commands cite their reference documents as `reference/<name>.md` — paths
-relative to the plugin root, which is why the reference library, the templates,
-and the tutorials sit inside `plugin/` rather than beside it. `examples/` does
-not: it is the spec corpus `make check` type-checks and model-checks, not
-plugin content.
-
-</details>
+Contributor content — dev-vs-prod plugin swap, release flow, project layout —
+is in [`docs/development.md`](docs/development.md).
 
 ## Thanks
 
