@@ -23,6 +23,8 @@ jobs:
         with:
           sparse-checkout: .punt-labs/biff
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true  # v10 disables cache by default on workflow_run; the job's `event == 'push'` filter makes poisoning risk low
       - env:
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
           BRANCH: ${{ github.event.workflow_run.head_branch }}
