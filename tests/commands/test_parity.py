@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import click
 import pytest
+from typer.core import TyperGroup
 from typer.main import get_command
 
 from punt_zspec.__main__ import app
@@ -16,7 +16,9 @@ _CLI_ONLY: frozenset[str] = frozenset({"mcp"})
 
 def _cli_verbs() -> set[str]:
     group = get_command(app)
-    assert isinstance(group, click.Group)  # a multi-command app is a click.Group
+    assert isinstance(group, TyperGroup), (
+        f"a multi-command Typer app should be a TyperGroup; got {type(group).__name__}"
+    )
     return set(group.commands.keys())
 
 
