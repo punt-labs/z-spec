@@ -2,7 +2,7 @@
 
 > Formal Z specifications and B machines that type-check, animate, and refine --- from English to math to code.
 
-[![License](https://img.shields.io/github/license/punt-labs/z-spec)](LICENSE)
+[![License](https://img.shields.io/github/license/punt-labs/z-spec)](https://github.com/punt-labs/z-spec/blob/main/LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/punt-labs/z-spec/test.yml?label=CI)](https://github.com/punt-labs/z-spec/actions/workflows/test.yml)
 [![PyPI](https://img.shields.io/pypi/v/punt-z-spec)](https://pypi.org/project/punt-z-spec/)
 [![Python](https://img.shields.io/pypi/pyversions/punt-z-spec)](https://pypi.org/project/punt-z-spec/)
@@ -227,7 +227,7 @@ Every tool returns `{"ok": true, ...}` on success or `{"ok": false, "error": ...
 on failure, with an optional `hint` carrying the remediation when there is one —
 one convention across all twelve. `enablement` is the single tool that answers in
 a repo with no marker, since the door cannot sit behind the lock it opens; every
-other tool declines there. A [PostToolUse hook](plugin/hooks/hooks.json)
+other tool declines there. A [PostToolUse hook](https://github.com/punt-labs/z-spec/blob/main/plugin/hooks/hooks.json)
 renders each result as a concise panel rather than raw JSON in the conversation.
 
 ### Interactive Lux menu
@@ -330,7 +330,7 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 
 `show_z_spec` displays the spec directly in a Lux window via `LuxClient` with a Spec tab and, when a valid ProB report is available, also adds ProB and (if a counter-example was found) Counter-Example tabs. The Spec tab renders the Z model with collapsible section headers. The ProB tab shows states explored, transitions covered, checks passed, and operation coverage. If a counter-example is found, a third tab shows the trace as a step-by-step table with state values and the violated invariant. If Lux is not running, it degrades gracefully with an error status.
 
-![Z Spec model-check results displayed in Lux](docs/Z-Spec-Lux-Screenshot.png)
+![Z Spec model-check results displayed in Lux](https://github.com/punt-labs/z-spec/raw/main/docs/Z-Spec-Lux-Screenshot.png)
 
 *A Z specification rendered in Lux --- collapsible sections for state schemas, invariants, and global constants. The display updates live as the spec evolves.*
 
@@ -469,11 +469,11 @@ Generated specs follow this structure:
 
 ## Documentation
 
-- [Development](docs/development.md) — dev/prod plugin swap, release flow, project layout
-- [Workflow](docs/WORKFLOW.md) — the three-loop development process
-- [Testing](TESTING.md) — the five-tier testing pyramid
-- [Design docs](docs/design/) — ADRs and architectural decisions
-- [Changelog](CHANGELOG.md) — release history
+- [Development](https://github.com/punt-labs/z-spec/blob/main/docs/development.md) — dev/prod plugin swap, release flow, project layout
+- [Workflow](https://github.com/punt-labs/z-spec/blob/main/docs/WORKFLOW.md) — the three-loop development process
+- [Testing](https://github.com/punt-labs/z-spec/blob/main/TESTING.md) — the five-tier testing pyramid
+- [Design docs](https://github.com/punt-labs/z-spec/tree/main/docs/design) — ADRs and architectural decisions
+- [Changelog](https://github.com/punt-labs/z-spec/blob/main/CHANGELOG.md) — release history
 
 ## Development
 
@@ -487,7 +487,7 @@ make uat                       # Build the wheel and install the CLI for accepta
 ```
 
 Contributor content — dev-vs-prod plugin swap, release flow, project layout —
-is in [`docs/development.md`](docs/development.md).
+is in [`docs/development.md`](https://github.com/punt-labs/z-spec/blob/main/docs/development.md).
 
 ## Thanks
 
@@ -495,4 +495,4 @@ is in [`docs/development.md`](docs/development.md).
 
 ## License
 
-MIT License --- see [LICENSE](LICENSE)
+MIT License --- see [LICENSE](https://github.com/punt-labs/z-spec/blob/main/LICENSE)
