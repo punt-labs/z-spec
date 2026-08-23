@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import click
 import pytest
 from typer.main import get_command
 
@@ -16,8 +15,11 @@ _CLI_ONLY: frozenset[str] = frozenset({"mcp"})
 
 def _cli_verbs() -> set[str]:
     group = get_command(app)
-    assert isinstance(group, click.Group)  # a multi-command app is a click.Group
-    return set(group.commands.keys())
+    commands = getattr(group, "commands", None)
+    assert commands is not None, (
+        f"a multi-command Typer app should expose .commands; got {type(group).__name__}"
+    )
+    return set(commands.keys())
 
 
 def _mcp_tools() -> set[str]:
