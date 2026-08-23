@@ -423,6 +423,7 @@ from typing import Any
 @dataclass
 class AbstractState:
     """Abstract state matching the Lean model."""
+
     # One field per state schema variable
     # <field1>: <pyType1>
     # <field2>: <pyType2>
@@ -624,20 +625,27 @@ const operationArb: fc.Arbitrary<Operation> = fc.oneof(
 ```python
 from hypothesis import strategies as st
 
+
 # One strategy per operation
 def operation_strategy():
     return st.one_of(
-        st.fixed_dictionaries({
-            "op": st.just("deposit"),
-            "amount": st.integers(min_value=1, max_value=10000),
-        }),
-        st.fixed_dictionaries({
-            "op": st.just("withdraw"),
-            "amount": st.integers(min_value=1, max_value=10000),
-        }),
-        st.fixed_dictionaries({
-            "op": st.just("get_balance"),
-        }),
+        st.fixed_dictionaries(
+            {
+                "op": st.just("deposit"),
+                "amount": st.integers(min_value=1, max_value=10000),
+            }
+        ),
+        st.fixed_dictionaries(
+            {
+                "op": st.just("withdraw"),
+                "amount": st.integers(min_value=1, max_value=10000),
+            }
+        ),
+        st.fixed_dictionaries(
+            {
+                "op": st.just("get_balance"),
+            }
+        ),
         # ... one per operation
     )
 ```

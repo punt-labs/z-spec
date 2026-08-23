@@ -186,31 +186,24 @@ describe('IntervalCalculator', () => {
 
 ```python
 class TestIntervalCalculator:
-
     # Testing upper bound: interval <= 30
     def test_max_interval_capped_30_days(self):
         result = calculate_next_interval(
-            current_interval=20,
-            accuracy=0.95,
-            days_since_start=30
+            current_interval=20, accuracy=0.95, days_since_start=30
         )
         assert result <= 30
 
     # Testing precondition: accuracy >= 90%
     def test_exactly_90_percent_doubles_interval(self):
         result = calculate_next_interval(
-            current_interval=2,
-            accuracy=0.90,
-            days_since_start=30
+            current_interval=2, accuracy=0.90, days_since_start=30
         )
         assert result == 4
 
     # Testing effect: interval resets to 1
     def test_low_accuracy_resets_to_daily(self):
         result = calculate_next_interval(
-            current_interval=8,
-            accuracy=0.65,
-            days_since_start=30
+            current_interval=8, accuracy=0.65, days_since_start=30
         )
         assert result == 1
 ```

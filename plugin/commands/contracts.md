@@ -224,10 +224,12 @@ func assertAccountInvariant(_ state: Account) {
 ```python
 # Generated from Z schema Account
 def assert_account_invariant(state: Account) -> None:
-    assert state.balance >= 0 or state.status == Status.SUSPENDED, \
-        'Invariant: balance >= 0 \\/ status = suspended'
-    assert state.status != Status.CLOSED or state.balance == 0, \
-        'Invariant: status = closed => balance = 0'
+    assert state.balance >= 0 or state.status == Status.SUSPENDED, (
+        "Invariant: balance >= 0 \\/ status = suspended"
+    )
+    assert state.status != Status.CLOSED or state.balance == 0, (
+        "Invariant: status = closed => balance = 0"
+    )
 ```
 
 **Kotlin:**
@@ -278,8 +280,8 @@ func assertDepositPre(_ state: Account, amount: Int) {
 ```python
 # Generated from Z schema Deposit
 def assert_deposit_pre(state: Account, amount: int) -> None:
-    assert amount > 0, 'Pre: amount > 0 (nat_1)'
-    assert state.status == Status.ACTIVE, 'Pre: status = active'
+    assert amount > 0, "Pre: amount > 0 (nat_1)"
+    assert state.status == Status.ACTIVE, "Pre: status = active"
 ```
 
 **Kotlin:**
@@ -342,15 +344,11 @@ func assertDepositPost(before: Account, after: Account, amount: Int) {
 
 ```python
 # Generated from Z schema Deposit
-def assert_deposit_post(
-    before: Account, after: Account, amount: int
-) -> None:
+def assert_deposit_post(before: Account, after: Account, amount: int) -> None:
     # Effects
-    assert after.balance == before.balance + amount, \
-        "Post: balance' = balance + amount"
+    assert after.balance == before.balance + amount, "Post: balance' = balance + amount"
     # Frame conditions
-    assert after.status == before.status, \
-        "Frame: status' = status (unchanged)"
+    assert after.status == before.status, "Frame: status' = status (unchanged)"
 ```
 
 **Kotlin:**

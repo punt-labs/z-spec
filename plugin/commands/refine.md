@@ -526,7 +526,6 @@ final class RefinementInitTests: XCTestCase {
 
 ```python
 class TestRefinementInit:
-
     def test_concrete_init_abstracts_to_abstract_init(self):
         """Init commutativity: abstract(init_concrete) = init_abstract"""
         concrete = ConcreteAccount()
@@ -649,7 +648,6 @@ final class RefinementDepositTests: XCTestCase {
 
 ```python
 class TestRefinementDeposit:
-
     def test_deposit_commutes_with_abstract_deposit(self):
         """Commutativity: abstract(deposit(c)) = absDeposit(abstract(c))"""
         concrete = ConcreteAccount(balance=100, status_code="A")
@@ -755,15 +753,13 @@ func testDeposit_commutesForAllValidInputs() {
 from hypothesis import given, assume
 import hypothesis.strategies as st
 
-class TestRefinementDepositProperty:
 
+class TestRefinementDepositProperty:
     @given(
         balance=st.integers(min_value=0, max_value=1000000),
         amount=st.integers(min_value=1, max_value=1000000),
     )
-    def test_deposit_commutes_for_all_valid_inputs(
-        self, balance: int, amount: int
-    ):
+    def test_deposit_commutes_for_all_valid_inputs(self, balance: int, amount: int):
         concrete = ConcreteAccount(balance=balance, status_code="A")
         abstract_before = abstract(concrete)
         assume(deposit_precondition(abstract_before, amount))
