@@ -336,7 +336,6 @@ Example (Python/pytest):
 
 ```python
 class TestAdvanceLevel:
-
     def test_advance_level_happy_path_1(self):
         """Partition 1: accuracy=95, level=5 -> level'=6"""
         state = State(level=5, attempts=10, correct=8)
