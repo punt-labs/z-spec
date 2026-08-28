@@ -1,7 +1,7 @@
 ---
 description: Install and configure fuzz, probcli, and lean dependencies
 argument-hint: "[check|fuzz|probcli|lean|all]"
-allowed-tools: Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash($PROBCLI_BIN:*), Bash($FUZZ:*), Bash($FUZZ_BIN:*), Bash($lean_tool:*), Bash(~/.elan/bin/elan:*), Bash(~/.elan/bin/lean:*), Bash(~/.elan/bin/lake:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
+allowed-tools: Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash($PROBCLI_BIN:*), Bash($FUZZ:*), Bash($FUZZ_BIN:*), Bash($lean_tool:*), Bash(~/.elan/bin/elan:*), Bash(~/.elan/bin/lean:*), Bash(~/.elan/bin/lake:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(cat:*), Bash(xattr:*), Bash(~/Applications/ProB/probcli:*), Bash(~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
 ---
 
 # Setup Z Specification Tools
