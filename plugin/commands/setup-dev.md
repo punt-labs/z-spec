@@ -1,7 +1,7 @@
 ---
 description: Install and configure fuzz, probcli, and lean dependencies
 argument-hint: "[check|fuzz|probcli|lean|all]"
-allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(sh ~/elan-init.sh:*), Bash(rm ~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
+allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(sh ~/elan-init.sh:*), Bash(rm ~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
 ---
 
 # Setup Z Specification Tools
@@ -583,14 +583,33 @@ Resolve each tool the way the engine does, rather than by bare name. The
 profile — they are not in effect in the session that just ran the install, so a
 bare `fuzz` or `probcli` on the very next line after a clean install reports
 `command not found` and makes a working installation look like a failed one.
-`$FUZZ` and `$PROBCLI` take precedence, exactly as they do for every
-`/z-spec:*` command, so a spec verified here is verified against the same
-binary the tools will use. Each block resolves them again, because each is a
-separate shell invocation.
+`$FUZZ` and `$PROBCLI` take precedence, as they do in the engine, so a spec
+verified here is verified against the binary the tools will use. Each block
+resolves them again, because each is a separate shell invocation.
+
+The two resolvers differ, and the difference matters. `resolve_probcli()` falls
+back to `~/Applications/ProB/probcli` when nothing else names one;
+`resolve_fuzz()` has no such fallback — it is `$FUZZ`, then `PATH`, and nothing
+else. A fuzz binary reachable only by its full path is one `/z-spec-dev:check-dev` will
+not find, so this block declines to find it either.
 
 ```bash
-FUZZ_BIN="${FUZZ:-$(command -v fuzz || echo "$HOME/Applications/fuzz/fuzz")}"
-PROBCLI_BIN="${PROBCLI:-$(command -v probcli || echo "$HOME/Applications/ProB/probcli")}"
+if [ -n "${FUZZ:-}" ] && [ -f "$FUZZ" ]; then
+  FUZZ_BIN="$FUZZ"
+else
+  FUZZ_BIN="$(command -v fuzz 2>/dev/null)"
+fi
+
+test -n "$FUZZ_BIN" || {
+  echo "ERROR: fuzz is not on PATH and \$FUZZ does not name it — see step 3" >&2
+  exit 1
+}
+
+if [ -n "${PROBCLI:-}" ] && [ -f "$PROBCLI" ]; then
+  PROBCLI_BIN="$PROBCLI"
+else
+  PROBCLI_BIN="$(command -v probcli 2>/dev/null || echo "$HOME/Applications/ProB/probcli")"
+fi
 
 # Test fuzz
 mkdir -p .tmp
@@ -609,8 +628,22 @@ echo '\begin{zed}[X]\end{zed}' > .tmp/test.tex
 Create a simple test spec and run both tools:
 
 ```bash
-FUZZ_BIN="${FUZZ:-$(command -v fuzz || echo "$HOME/Applications/fuzz/fuzz")}"
-PROBCLI_BIN="${PROBCLI:-$(command -v probcli || echo "$HOME/Applications/ProB/probcli")}"
+if [ -n "${FUZZ:-}" ] && [ -f "$FUZZ" ]; then
+  FUZZ_BIN="$FUZZ"
+else
+  FUZZ_BIN="$(command -v fuzz 2>/dev/null)"
+fi
+
+test -n "$FUZZ_BIN" || {
+  echo "ERROR: fuzz is not on PATH and \$FUZZ does not name it — see step 3" >&2
+  exit 1
+}
+
+if [ -n "${PROBCLI:-}" ] && [ -f "$PROBCLI" ]; then
+  PROBCLI_BIN="$PROBCLI"
+else
+  PROBCLI_BIN="$(command -v probcli 2>/dev/null || echo "$HOME/Applications/ProB/probcli")"
+fi
 
 mkdir -p .tmp
 cat > .tmp/test_spec.tex << 'EOF'
@@ -643,7 +676,11 @@ EOF
 Test probcli with a B machine:
 
 ```bash
-PROBCLI_BIN="${PROBCLI:-$(command -v probcli || echo "$HOME/Applications/ProB/probcli")}"
+if [ -n "${PROBCLI:-}" ] && [ -f "$PROBCLI" ]; then
+  PROBCLI_BIN="$PROBCLI"
+else
+  PROBCLI_BIN="$(command -v probcli 2>/dev/null || echo "$HOME/Applications/ProB/probcli")"
+fi
 
 mkdir -p .tmp
 cat > .tmp/test_machine.mch << 'EOF'
