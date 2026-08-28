@@ -1,7 +1,7 @@
 ---
 description: Install and configure fuzz, probcli, and lean dependencies
 argument-hint: "[check|fuzz|probcli|lean|all]"
-allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(mktemp:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Read, Glob
+allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Read, Glob
 ---
 
 # Setup Z Specification Tools
@@ -129,11 +129,18 @@ export PATH="$HOME/Applications/fuzz:$PATH"
 
 probcli is the ProB command-line interface for animating and model-checking Z specifications.
 
-Both platforms follow the same three steps — download the release archive,
-**verify it is the archive it claims to be**, then unpack it — and both end at
-`~/Applications/ProB/probcli`, already executable. Only the unpack command
-differs: the Linux tarball carries a top-level `ProB/` directory, the macOS zip
-does not, so the zip is unpacked into that directory explicitly.
+Both platforms follow the same four steps — download the release archive,
+**verify it is the archive it claims to be**, unpack it, then **confirm probcli
+actually landed** — and both end at `~/Applications/ProB/probcli`, already
+executable. Only the archive format differs: a zip on macOS, a gzipped tarball
+on Linux.
+
+Neither block assumes how the archive is packed inside. Each reads the archive's
+own listing first and picks the extraction directory from it, so that an archive
+carrying a top-level `ProB/` and a flat one both put `probcli` at that same
+path. Upstream has changed packaging before; a spec toolchain that reports a
+successful install and leaves nothing behind is the failure this whole section
+exists to prevent, so the layout is checked rather than believed.
 
 #### Choosing a version
 
@@ -167,7 +174,10 @@ PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
 PROB_URL="$PROB_BASE/$PROB_VERSION/ProB.macos.zip"
 ARCHIVE=~/Applications/ProB.macos.zip
 
-mkdir -p ~/Applications/ProB
+mkdir -p ~/Applications/ProB || {
+  echo "ERROR: could not create ~/Applications/ProB" >&2
+  exit 1
+}
 
 # -f makes curl exit nonzero on 404/5xx instead of saving the error page as
 # if it were the archive.
@@ -182,13 +192,38 @@ unzip -tq "$ARCHIVE" || {
   exit 1
 }
 
+# Read the layout out of the archive instead of assuming it: a zip that carries
+# its own top-level ProB/ is extracted one level up, a flat one into ProB/
+# itself. Either way probcli ends up at ~/Applications/ProB/probcli.
+if unzip -Z1 "$ARCHIVE" | grep -q '^ProB/'; then
+  DEST=~/Applications
+else
+  DEST=~/Applications/ProB
+fi
+
 # -o overwrites without asking: this is the command you re-run after a failed
 # install, and unzip's "replace probcli?" prompt would hang waiting on input.
-# The macOS zip is packed flat, so name the destination directory.
-unzip -oq "$ARCHIVE" -d ~/Applications/ProB
+unzip -oq "$ARCHIVE" -d "$DEST" || {
+  echo "ERROR: could not extract $ARCHIVE into $DEST" >&2
+  exit 1
+}
+
+# A partial or misdirected extract leaves a stale binary answering -version, so
+# check the path before trusting it.
+test -x ~/Applications/ProB/probcli || {
+  echo "ERROR: extracted $ARCHIVE but there is no executable probcli at" >&2
+  echo "       ~/Applications/ProB/probcli. The archive layout is not what" >&2
+  echo "       this command expects — see 'Common Issues' below." >&2
+  exit 1
+}
 
 # Verify
-~/Applications/ProB/probcli -version
+~/Applications/ProB/probcli -version || {
+  echo "ERROR: ~/Applications/ProB/probcli is installed but would not run." >&2
+  echo "       See 'Common Issues' below — missing Tcl/Tk libraries and macOS" >&2
+  echo "       quarantine are the usual causes." >&2
+  exit 1
+}
 ```
 
 **Full ProB with GUI**: the desktop application, which bundles the GUI and all
@@ -205,7 +240,10 @@ PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
 PROB_URL="$PROB_BASE/$PROB_VERSION/ProB.linux64.tar.gz"
 ARCHIVE=~/Applications/ProB.linux64.tar.gz
 
-mkdir -p ~/Applications
+mkdir -p ~/Applications/ProB || {
+  echo "ERROR: could not create ~/Applications/ProB" >&2
+  exit 1
+}
 
 # -f makes curl exit nonzero on 404/5xx instead of saving the error page as
 # if it were the archive.
@@ -220,10 +258,36 @@ tar -tzf "$ARCHIVE" > /dev/null || {
   exit 1
 }
 
-tar -xzf "$ARCHIVE" -C ~/Applications   # creates ~/Applications/ProB/
+# Read the layout out of the archive instead of assuming it: a tarball that
+# carries its own top-level ProB/ is extracted one level up, a flat one into
+# ProB/ itself. Either way probcli ends up at ~/Applications/ProB/probcli.
+if tar -tzf "$ARCHIVE" | grep -q '^ProB/'; then
+  DEST=~/Applications
+else
+  DEST=~/Applications/ProB
+fi
+
+tar -xzf "$ARCHIVE" -C "$DEST" || {
+  echo "ERROR: could not extract $ARCHIVE into $DEST" >&2
+  exit 1
+}
+
+# A partial or misdirected extract leaves a stale binary answering -version, so
+# check the path before trusting it.
+test -x ~/Applications/ProB/probcli || {
+  echo "ERROR: extracted $ARCHIVE but there is no executable probcli at" >&2
+  echo "       ~/Applications/ProB/probcli. The archive layout is not what" >&2
+  echo "       this command expects — see 'Common Issues' below." >&2
+  exit 1
+}
 
 # Verify
-~/Applications/ProB/probcli -version
+~/Applications/ProB/probcli -version || {
+  echo "ERROR: ~/Applications/ProB/probcli is installed but would not run." >&2
+  echo "       See 'Common Issues' below — missing Tcl/Tk libraries are the" >&2
+  echo "       usual cause." >&2
+  exit 1
+}
 ```
 
 #### Tcl/Tk Dependency
@@ -277,6 +341,15 @@ file ~/Applications/ProB.linux64.tar.gz   # Linux
 "HTML document" means the URL was wrong, not the archive. Confirm the pinned version's directory is still present at https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/ — releases have been withdrawn before. The `-f` flag and the `unzip -tq` / `tar -tzf` checks above exist to make this abort loudly rather than leave a broken install behind.
 
 **`coverage: failed — probcli printed no coverage census`**: you are running ProB 1.16.0 or newer, whose coverage census z-spec cannot read. Confirm with `~/Applications/ProB/probcli -version`, then reinstall 1.15.1 using the block for your platform above. The model check itself is unaffected — only the coverage tier fails — and the reason is under "Choosing a version" above. Tracked as bead `z-spec-v0m`.
+
+**"extracted ... but there is no executable probcli at ~/Applications/ProB/probcli"**: the archive downloaded and unpacked, but upstream repackaged it into a shape the install block does not recognise. List what you actually got and find the binary:
+
+```bash
+unzip -Z1 ~/Applications/ProB.macos.zip | head -20        # macOS
+tar -tzf ~/Applications/ProB.linux64.tar.gz | head -20    # Linux
+```
+
+The install block handles a flat archive and one wrapped in a single top-level `ProB/`; a deeper or differently-named wrapper needs the extracted tree moved so that `probcli` sits directly in `~/Applications/ProB/`. The nine other `/z-spec:*` commands default to that exact path, so leaving the binary where it landed and pointing `$PROBCLI` at it fixes this command and breaks the rest.
 
 **"probcli: cannot execute binary file"**: Wrong platform archive — `ProB.macos.zip` on Linux or `ProB.linux64.tar.gz` on macOS. A single macOS archive serves both Intel and Apple Silicon, so this is never an Intel-vs-arm64 mismatch.
 
