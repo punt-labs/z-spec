@@ -363,9 +363,46 @@ export PROB_HOME="$HOME/Applications/ProB"
 xattr -d com.apple.quarantine ~/Applications/ProB/probcli
 ```
 
-### 5. Verify Installation
+### 5. Install Lean 4
 
-After installation, verify everything works:
+Lean 4 is the theorem prover used by `/z-spec:prove` to generate
+machine-checked proof obligations from Z specifications. It is optional: fuzz
+and probcli cover type-checking and model-checking without it.
+
+#### Install elan (Lean version manager)
+
+```bash
+curl https://elan.lean-lang.org/elan-init.sh -sSf | sh
+```
+
+This installs `elan`, `lean`, and `lake` (the build system).
+
+After installation, source the environment:
+
+```bash
+source "$HOME/.elan/env"
+```
+
+#### Add to PATH
+
+If `lean` isn't in PATH after installing elan:
+
+```bash
+# Add to shell profile (~/.zshrc or ~/.bashrc)
+export PATH="$HOME/.elan/bin:$PATH"
+```
+
+#### Common Issues
+
+**"elan: command not found" after install**: Run `source "$HOME/.elan/env"` or restart your terminal.
+
+**Slow first build**: The first `lake build` in a Mathlib project downloads precompiled dependencies (~2 GB). Run `lake exe cache get` first to fetch the cache.
+
+**"no toolchain installed"**: Run `elan default leanprover/lean4:stable` to set the default toolchain.
+
+### 6. Verify Installation
+
+Everything is installed; now confirm each tool answers:
 
 ```bash
 # Test fuzz
@@ -375,6 +412,11 @@ fuzz -t .tmp/test.tex
 
 # Test probcli with Z
 probcli -version
+
+# Test the Lean toolchain — skip if you did not install it in step 5
+elan --version
+lean --version
+lake --version
 ```
 
 Create a simple test spec and run both tools:
@@ -427,11 +469,15 @@ probcli .tmp/test_machine.mch -init && echo "probcli B: OK"
 
 **Note**: probcli handles both Z specifications (`.tex`) and B machines (`.mch`, `.ref`, `.imp`). No additional tools are needed for B-Method work.
 
-### 6. Report Results
+### 7. Report Results
 
-Summarize what was done and current status:
+Summarize what was done and the resulting status. Report only the tools you
+actually installed and verified — a row claiming success for a step that was
+skipped or that failed is the one thing this command must never print.
 
-```
+The report to emit, verbatim backticks and all:
+
+````text
 ## Setup Complete
 
 | Tool | Status | Location |
@@ -439,78 +485,19 @@ Summarize what was done and current status:
 | fuzz | ✓ Installed | ~/Applications/fuzz/fuzz |
 | fuzz.sty | ✓ Installed | /usr/local/texlive/.../fuzz.sty |
 | probcli | ✓ Installed | ~/Applications/ProB/probcli |
+| elan, lean, lake | ✓ Installed | ~/.elan/bin/ |
 
 ## Shell Configuration
 
 Add to ~/.zshrc:
+
 ```bash
-export PATH="$HOME/Applications/fuzz:$HOME/Applications/ProB:$PATH"
+export PATH="$HOME/Applications/fuzz:$HOME/Applications/ProB:$HOME/.elan/bin:$PATH"
 export PROBCLI="$HOME/Applications/ProB/probcli"
 ```
 
 Run `source ~/.zshrc` or restart your terminal.
-```
-
-### 5. Install Lean 4
-
-Lean 4 is the theorem prover used by `/z-spec:prove` to generate
-machine-checked proof obligations from Z specifications.
-
-#### Install elan (Lean version manager)
-
-```bash
-curl https://elan.lean-lang.org/elan-init.sh -sSf | sh
-```
-
-This installs `elan`, `lean`, and `lake` (the build system).
-
-After installation, source the environment:
-
-```bash
-source "$HOME/.elan/env"
-```
-
-#### Verify
-
-```bash
-elan --version
-lean --version
-lake --version
-```
-
-#### Add to PATH
-
-If `lean` isn't in PATH after installing elan:
-
-```bash
-# Add to shell profile (~/.zshrc or ~/.bashrc)
-export PATH="$HOME/.elan/bin:$PATH"
-```
-
-#### Common Issues
-
-**"elan: command not found" after install**: Run `source "$HOME/.elan/env"` or restart your terminal.
-
-**Slow first build**: The first `lake build` in a Mathlib project downloads precompiled dependencies (~2 GB). Run `lake exe cache get` first to fetch the cache.
-
-**"no toolchain installed"**: Run `elan default leanprover/lean4:stable` to set the default toolchain.
-
-### 6. Verify Installation
-
-After installation, verify everything works:
-
-```bash
-# Test fuzz
-mkdir -p .tmp
-echo '\begin{zed}[X]\end{zed}' > .tmp/test.tex
-fuzz -t .tmp/test.tex
-
-# Test probcli
-probcli -version
-
-# Test lean (if installed)
-lean --version && lake --version
-```
+````
 
 ## Interactive Guidance
 
