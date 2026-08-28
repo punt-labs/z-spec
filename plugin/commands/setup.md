@@ -1,7 +1,7 @@
 ---
 description: Install and configure fuzz, probcli, and lean dependencies
 argument-hint: "[check|fuzz|probcli|lean|all]"
-allowed-tools: Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash($PROBCLI_BIN:*), Bash($FUZZ:*), Bash($FUZZ_BIN:*), Bash($lean_tool:*), Bash(~/.elan/bin/elan:*), Bash(~/.elan/bin/lean:*), Bash(~/.elan/bin/lake:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(cat:*), Bash(xattr:*), Bash(~/Applications/ProB/probcli:*), Bash(~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
+allowed-tools: Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash($PROBCLI_BIN:*), Bash($FUZZ:*), Bash($FUZZ_BIN:*), Bash($lean_tool:*), Bash($LEAN_BIN:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(cat:*), Bash(xattr:*), Bash(~/Applications/ProB/probcli:*), Bash(~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
 ---
 
 # Setup Z Specification Tools
@@ -581,14 +581,20 @@ chmod +x ~/elan-init.sh || {
 # install that produced elan alone would otherwise be reported as success, and
 # /z-spec:prove needs lean and lake, not elan.
 for lean_tool in elan lean lake; do
-  test -x ~/.elan/bin/"$lean_tool" || {
+  # Resolve into a variable and invoke that, rather than invoking the path
+  # directly: a command whose text is a fixed path with a variable embedded in
+  # it cannot be named by an allowed-tools entry, because the entry would have
+  # to match text the variable has not been substituted into yet.
+  LEAN_BIN=~/.elan/bin/"$lean_tool"
+
+  test -x "$LEAN_BIN" || {
     echo "ERROR: the elan installer reported success but there is no" >&2
-    echo "       executable at ~/.elan/bin/$lean_tool" >&2
+    echo "       executable at $LEAN_BIN" >&2
     exit 1
   }
 
-  LEAN_OUT="$(~/.elan/bin/"$lean_tool" --version 2>&1)" || {
-    echo "ERROR: ~/.elan/bin/$lean_tool is installed but would not run:" >&2
+  LEAN_OUT="$("$LEAN_BIN" --version 2>&1)" || {
+    echo "ERROR: $LEAN_BIN is installed but would not run:" >&2
     printf '%s\n' "$LEAN_OUT" >&2
     exit 1
   }
