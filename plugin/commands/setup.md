@@ -1,7 +1,7 @@
 ---
 description: Install and configure fuzz, probcli, and lean dependencies
 argument-hint: "[check|fuzz|probcli|lean|all]"
-allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash($PROBCLI_BIN:*), Bash($FUZZ:*), Bash($FUZZ_BIN:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
+allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash($PROBCLI_BIN:*), Bash($FUZZ:*), Bash($FUZZ_BIN:*), Bash($lean_tool:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
 ---
 
 # Setup Z Specification Tools
@@ -47,9 +47,11 @@ else
   FUZZ_BIN="$(command -v fuzz 2>/dev/null)"
 fi
 
-if [ -n "$FUZZ_BIN" ]; then
+if test -x "$FUZZ_BIN"; then
   echo "fuzz: $FUZZ_BIN"
   "$FUZZ_BIN" -version
+elif test -e "$FUZZ_BIN"; then
+  echo "fuzz: NOT EXECUTABLE at $FUZZ_BIN"
 else
   echo "fuzz: NOT FOUND (not on PATH, and \$FUZZ does not name it)"
 fi
@@ -613,8 +615,10 @@ else
   FUZZ_BIN="$(command -v fuzz 2>/dev/null)"
 fi
 
-test -n "$FUZZ_BIN" || {
-  echo "ERROR: fuzz is not on PATH and \$FUZZ does not name it — see step 3" >&2
+test -x "$FUZZ_BIN" || {
+  echo "ERROR: no runnable fuzz. Resolved to '${FUZZ_BIN:-nothing}' — it is" >&2
+  echo "       not on PATH, or \$FUZZ names something that is missing or not" >&2
+  echo "       executable. See step 3." >&2
   exit 1
 }
 
@@ -623,6 +627,11 @@ if [ -n "${PROBCLI:-}" ] && [ -f "$PROBCLI" ]; then
 else
   PROBCLI_BIN="$(command -v probcli 2>/dev/null || echo "$HOME/Applications/ProB/probcli")"
 fi
+
+test -x "$PROBCLI_BIN" || {
+  echo "ERROR: no runnable probcli at '$PROBCLI_BIN' — see step 4." >&2
+  exit 1
+}
 
 # Test fuzz
 mkdir -p .tmp
@@ -640,14 +649,14 @@ echo '\begin{zed}[X]\end{zed}' > .tmp/test.tex
 # /z-spec:prove looks on PATH and nowhere else — no $LEAN override, no ~/.elan
 # fallback — so a binary reachable only at ~/.elan/bin is one prove will not
 # find.
-for tool in elan lean lake; do
-  if command -v "$tool" >/dev/null 2>&1; then
-    "$tool" --version
-  elif [ -x ~/.elan/bin/"$tool" ]; then
-    echo "$tool: at ~/.elan/bin but NOT on PATH — /z-spec:prove will not see" >&2
-    echo "      it until you run source \"\$HOME/.elan/env\"." >&2
+for lean_tool in elan lean lake; do
+  if command -v "$lean_tool" >/dev/null 2>&1; then
+    "$lean_tool" --version
+  elif [ -x ~/.elan/bin/"$lean_tool" ]; then
+    echo "$lean_tool: at ~/.elan/bin but NOT on PATH — /z-spec:prove will not" >&2
+    echo "      see it until you run source \"\$HOME/.elan/env\"." >&2
   else
-    echo "$tool: not installed (optional)"
+    echo "$lean_tool: not installed (optional)"
   fi
 done
 ```
@@ -661,8 +670,10 @@ else
   FUZZ_BIN="$(command -v fuzz 2>/dev/null)"
 fi
 
-test -n "$FUZZ_BIN" || {
-  echo "ERROR: fuzz is not on PATH and \$FUZZ does not name it — see step 3" >&2
+test -x "$FUZZ_BIN" || {
+  echo "ERROR: no runnable fuzz. Resolved to '${FUZZ_BIN:-nothing}' — it is" >&2
+  echo "       not on PATH, or \$FUZZ names something that is missing or not" >&2
+  echo "       executable. See step 3." >&2
   exit 1
 }
 
@@ -671,6 +682,11 @@ if [ -n "${PROBCLI:-}" ] && [ -f "$PROBCLI" ]; then
 else
   PROBCLI_BIN="$(command -v probcli 2>/dev/null || echo "$HOME/Applications/ProB/probcli")"
 fi
+
+test -x "$PROBCLI_BIN" || {
+  echo "ERROR: no runnable probcli at '$PROBCLI_BIN' — see step 4." >&2
+  exit 1
+}
 
 mkdir -p .tmp
 cat > .tmp/test_spec.tex << 'EOF'
@@ -708,6 +724,11 @@ if [ -n "${PROBCLI:-}" ] && [ -f "$PROBCLI" ]; then
 else
   PROBCLI_BIN="$(command -v probcli 2>/dev/null || echo "$HOME/Applications/ProB/probcli")"
 fi
+
+test -x "$PROBCLI_BIN" || {
+  echo "ERROR: no runnable probcli at '$PROBCLI_BIN' — see step 4." >&2
+  exit 1
+}
 
 mkdir -p .tmp
 cat > .tmp/test_machine.mch << 'EOF'
