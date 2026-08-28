@@ -485,7 +485,7 @@ The install block handles a flat archive and one wrapped in a single top-level `
 export PROBCLI="$HOME/Applications/ProB/ProB/probcli"   # wherever it really is
 ```
 
-That is the supported override, not a workaround, and it is honoured everywhere: `resolve_probcli()` in the engine checks `$PROBCLI` before `PATH` and before the conventional path, and every `/z-spec:*` command that reaches probcli resolves it as `PROBCLI="${PROBCLI:-$HOME/Applications/ProB/probcli}"`, so the environment variable wins. `~/Applications/ProB/probcli` is only the default for when nothing says otherwise. Moving the extracted tree by hand also works, but it is the more laborious of the two and nothing requires it.
+That is the supported override, not a workaround, and it is honoured on both routes to probcli. Commands that go through the engine — `/z-spec:test`, `/z-spec:doctor` — reach it via `resolve_probcli()`, which checks `$PROBCLI` before `PATH` and before the conventional path. The `b-*` commands, which shell out to probcli directly, resolve it as `PROBCLI="${PROBCLI:-$HOME/Applications/ProB/probcli}"`. Either way the environment variable wins. `~/Applications/ProB/probcli` is only the default for when nothing says otherwise. Moving the extracted tree by hand also works, but it is the more laborious of the two and nothing requires it.
 
 **"probcli: cannot execute binary file"**: Wrong platform archive — `ProB.macos.zip` on Linux or `ProB.linux64.tar.gz` on macOS. A single macOS archive serves both Intel and Apple Silicon, so this is never an Intel-vs-arm64 mismatch.
 
