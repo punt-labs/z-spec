@@ -681,8 +681,25 @@ mkdir -p .tmp
 echo '\begin{zed}[X]\end{zed}' > .tmp/test.tex
 "$FUZZ_BIN" -t .tmp/test.tex
 
-# Test probcli with Z
-"$PROBCLI_BIN" -version
+# Test probcli with Z. Assert the version, as step 4 does: printing the banner
+# and moving on would pass a 1.16.x, which runs everything here and then fails
+# the coverage tier of every specification.
+PROB_OUT="$("$PROBCLI_BIN" -version 2>&1)" || {
+  echo "ERROR: $PROBCLI_BIN would not run:" >&2
+  printf '%s\n' "$PROB_OUT" >&2
+  exit 1
+}
+
+PROB_VER="$(printf '%s\n' "$PROB_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+
+test "$PROB_VER" = "1.15.1" || {
+  echo "ERROR: expected ProB 1.15.1, but $PROBCLI_BIN reports:" >&2
+  printf '%s\n' "$PROB_OUT" >&2
+  echo "       See 'Choosing a version' in step 4." >&2
+  exit 1
+}
+
+printf '%s\n' "$PROB_OUT"
 
 # Test the Lean toolchain. It is optional — only /z-spec-dev:prove-dev needs it — so
 # absence is not a failure, but say which state each tool is in rather than
