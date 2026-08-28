@@ -619,10 +619,23 @@ echo '\begin{zed}[X]\end{zed}' > .tmp/test.tex
 # Test probcli with Z
 "$PROBCLI_BIN" -version
 
-# Test the Lean toolchain — skip if you did not install it in step 5
-~/.elan/bin/elan --version
-~/.elan/bin/lean --version
-~/.elan/bin/lake --version
+# Test the Lean toolchain. It is optional, so absence is not a failure — but
+# say which of the three states you are in rather than leaving it to a
+# command-not-found. /z-spec-dev:prove-dev looks for lean on PATH and nowhere else:
+# there is no $LEAN override and no ~/.elan fallback, so PATH is the thing
+# worth checking, and a lean only reachable at ~/.elan/bin is one prove will
+# not find.
+if command -v lean >/dev/null 2>&1; then
+  elan --version
+  lean --version
+  lake --version
+elif [ -x ~/.elan/bin/lean ]; then
+  echo "lean: installed at ~/.elan/bin, but NOT on PATH." >&2
+  echo "      /z-spec-dev:prove-dev will report LEAN_NOT_FOUND until you run" >&2
+  echo "      source \"\$HOME/.elan/env\", or open a new shell." >&2
+else
+  echo "lean: not installed — skipped. Only /z-spec-dev:prove-dev needs it."
+fi
 ```
 
 Create a simple test spec and run both tools:
