@@ -1,7 +1,7 @@
 ---
 description: Install and configure fuzz, probcli, and lean dependencies
 argument-hint: "[check|fuzz|probcli|lean|all]"
-allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(sh:*), Bash(rm:*), Read, Glob
+allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(sh:*), Bash(rm:*), Bash(head:*), Read, Glob
 ---
 
 # Setup Z Specification Tools
@@ -40,8 +40,21 @@ Always start by checking what's already installed:
 # Check fuzz
 which fuzz && fuzz -version
 
-# Check probcli
-which probcli || test -x "$HOME/Applications/ProB/probcli" && echo "probcli found"
+# Check probcli, and report which version. Presence alone is not enough: a
+# 1.16.x install answers every check in this section and still fails the
+# coverage tier of every specification, so a bare "found" here would send the
+# user off to discover that one command later with nothing pointing back.
+PROBCLI_BIN="$(which probcli 2>/dev/null || echo "$HOME/Applications/ProB/probcli")"
+
+if test -x "$PROBCLI_BIN"; then
+  PROB_VER="$("$PROBCLI_BIN" -version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+  echo "probcli: $PROBCLI_BIN (version ${PROB_VER:-unreadable})"
+  test "$PROB_VER" = "1.15.1" || echo "  WARNING: z-spec needs 1.15.1 — see 'Choosing a version' below"
+elif test -e "$PROBCLI_BIN"; then
+  echo "probcli: NOT EXECUTABLE at $PROBCLI_BIN"
+else
+  echo "probcli: NOT FOUND"
+fi
 
 # Check fuzz.sty in TeX path
 kpsewhich fuzz.sty
@@ -55,7 +68,9 @@ which lean && lean --version
 which lake && lake --version
 ```
 
-Report status clearly:
+Report status clearly, and give probcli's version rather than a bare tick — an
+installed-but-unusable version is the one status a reader must not have to
+infer:
 
 ```text
 ## Current Status
@@ -64,12 +79,17 @@ Report status clearly:
 |------|--------|
 | fuzz | ✓ Installed (version X) |
 | fuzz.sty | ✓ Found in TeX path |
-| probcli | ✗ Not found |
+| probcli | ⚠ Installed 1.16.0 — z-spec needs 1.15.1 |
 | Tcl/Tk | ✓ Available |
 | elan | ✓ Installed (version X) |
 | lean | ✓ Installed (version X) |
 | lake | ✓ Installed (version X) |
 ```
+
+probcli has three states to distinguish, not two: absent, installed at 1.15.1,
+and installed at some other version. The third reads as success everywhere
+except the coverage tier, so name it here and point at "Choosing a version"
+below.
 
 ### 3. Install fuzz
 
@@ -419,21 +439,28 @@ export PATH="$HOME/.elan/bin:$PATH"
 
 ### 6. Verify Installation
 
-Everything is installed; now confirm each tool answers:
+Everything is installed; now confirm each tool answers.
+
+Call each tool by its absolute path here, exactly as step 4 does. The
+`export PATH` lines in the steps above are instructions to paste into a shell
+profile — they are not in effect in the session that just ran the install, so a
+bare `fuzz` or `probcli` on the very next line after a clean install reports
+`command not found` and makes a working installation look like a failed one.
+Once you have opened a new shell, the bare names work and are the nicer form.
 
 ```bash
 # Test fuzz
 mkdir -p .tmp
 echo '\begin{zed}[X]\end{zed}' > .tmp/test.tex
-fuzz -t .tmp/test.tex
+~/Applications/fuzz/fuzz -t .tmp/test.tex
 
 # Test probcli with Z
-probcli -version
+~/Applications/ProB/probcli -version
 
 # Test the Lean toolchain — skip if you did not install it in step 5
-elan --version
-lean --version
-lake --version
+~/.elan/bin/elan --version
+~/.elan/bin/lean --version
+~/.elan/bin/lake --version
 ```
 
 Create a simple test spec and run both tools:
@@ -463,8 +490,8 @@ count' = 0
 \end{document}
 EOF
 
-fuzz -t .tmp/test_spec.tex && echo "fuzz: OK"
-probcli .tmp/test_spec.tex -init && echo "probcli: OK"
+~/Applications/fuzz/fuzz -t .tmp/test_spec.tex && echo "fuzz: OK"
+~/Applications/ProB/probcli .tmp/test_spec.tex -init && echo "probcli: OK"
 ```
 
 Test probcli with a B machine:
@@ -481,7 +508,7 @@ OPERATIONS
 END
 EOF
 
-probcli .tmp/test_machine.mch -init && echo "probcli B: OK"
+~/Applications/ProB/probcli .tmp/test_machine.mch -init && echo "probcli B: OK"
 ```
 
 **Note**: probcli handles both Z specifications (`.tex`) and B machines (`.mch`, `.ref`, `.imp`). No additional tools are needed for B-Method work.
