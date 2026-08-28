@@ -137,10 +137,11 @@ does not, so the zip is unpacked into that directory explicitly.
 
 #### Choosing a version
 
-```bash
-PROB_VERSION=1.15.1
-PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
-```
+Install **1.15.1**, from
+`https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/1.15.1/`. Run only
+the block for your platform below; each one sets the version and base URL
+itself, because every block is a separate shell invocation and nothing assigned
+outside it survives.
 
 **Install this version, not the newest one.** ProB 1.16.0 changed the layout of
 the coverage census that `-coverage` prints, from a single bracketed line to a
@@ -152,7 +153,8 @@ still fires and the model check still runs, but z-spec reports
 There is also no `latest` alias to substitute: `releases/current_version.txt` is
 stale (it still reports 1.9.3-final, dated 2020) and a `releases/latest/` path
 404s. Browse https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/ to see
-what exists, but do not move the pin ahead of the parser.
+what exists, but do not move the pin ahead of the parser — that is bead
+`z-spec-v0m`, and this whole paragraph goes away when it closes.
 
 #### macOS Installation
 
@@ -160,8 +162,11 @@ One universal archive covers both Intel and Apple Silicon — there is no separa
 `aarch64` download.
 
 ```bash
+PROB_VERSION=1.15.1
+PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
 PROB_URL="$PROB_BASE/$PROB_VERSION/ProB.macos.zip"
-ARCHIVE="$(mktemp -d)/ProB.macos.zip"
+ARCHIVE=~/Applications/ProB.macos.zip
+
 mkdir -p ~/Applications/ProB
 
 # -f makes curl exit nonzero on 404/5xx instead of saving the error page as
@@ -177,8 +182,10 @@ unzip -tq "$ARCHIVE" || {
   exit 1
 }
 
+# -o overwrites without asking: this is the command you re-run after a failed
+# install, and unzip's "replace probcli?" prompt would hang waiting on input.
 # The macOS zip is packed flat, so name the destination directory.
-unzip -q "$ARCHIVE" -d ~/Applications/ProB
+unzip -oq "$ARCHIVE" -d ~/Applications/ProB
 
 # Verify
 ~/Applications/ProB/probcli -version
@@ -193,8 +200,11 @@ alone is enough for `/z-spec:test`.
 The Linux release is a gzipped tarball, not a zip.
 
 ```bash
+PROB_VERSION=1.15.1
+PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
 PROB_URL="$PROB_BASE/$PROB_VERSION/ProB.linux64.tar.gz"
-ARCHIVE="$(mktemp -d)/ProB.linux64.tar.gz"
+ARCHIVE=~/Applications/ProB.linux64.tar.gz
+
 mkdir -p ~/Applications
 
 # -f makes curl exit nonzero on 404/5xx instead of saving the error page as
@@ -212,25 +222,32 @@ tar -tzf "$ARCHIVE" > /dev/null || {
 
 tar -xzf "$ARCHIVE" -C ~/Applications   # creates ~/Applications/ProB/
 
-# Install Tcl/Tk if needed
-sudo apt-get install tcl tk
-
 # Verify
 ~/Applications/ProB/probcli -version
 ```
 
 #### Tcl/Tk Dependency
 
-probcli may require Tcl/Tk libraries even in CLI mode. On macOS:
+probcli may need Tcl/Tk libraries even in CLI mode. Install them only if the
+verify step above failed with a missing-library error — a working `-version` is
+proof you do not need this, and both commands below want a password or a
+package-manager lock.
+
+macOS:
 
 ```bash
-# Install via Homebrew
 brew install tcl-tk
 
 # Add to shell profile if needed
 export PATH="/opt/homebrew/opt/tcl-tk/bin:$PATH"
 export LDFLAGS="-L/opt/homebrew/opt/tcl-tk/lib"
 export CPPFLAGS="-I/opt/homebrew/opt/tcl-tk/include"
+```
+
+Debian/Ubuntu:
+
+```bash
+sudo apt-get install tcl tk
 ```
 
 #### Add to PATH
@@ -253,10 +270,13 @@ sudo ln -s ~/Applications/ProB/probcli /usr/local/bin/probcli
 **Setup reported success but `probcli` is missing, or the archive is a few hundred bytes**: the download returned an HTTP error page and it was saved under the archive's name. `curl -L -o` without `-f` exits 0 on a 404, so the error body lands on disk looking like a download that worked, and `z-spec doctor` later reports `probcli: NOT FOUND` with nothing pointing back at the cause. Check what you actually got:
 
 ```bash
-file "$ARCHIVE"   # "HTML document" means the URL is wrong, not the archive
+file ~/Applications/ProB.macos.zip        # macOS
+file ~/Applications/ProB.linux64.tar.gz   # Linux
 ```
 
-Then confirm the pinned version's directory is still present at https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/ — releases have been withdrawn before. The `-f` flag and the `unzip -tq` / `tar -tzf` checks above exist to make this abort loudly rather than leave a broken install behind.
+"HTML document" means the URL was wrong, not the archive. Confirm the pinned version's directory is still present at https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/ — releases have been withdrawn before. The `-f` flag and the `unzip -tq` / `tar -tzf` checks above exist to make this abort loudly rather than leave a broken install behind.
+
+**`coverage: failed — probcli printed no coverage census`**: you are running ProB 1.16.0 or newer, whose coverage census z-spec cannot read. Confirm with `~/Applications/ProB/probcli -version`, then reinstall 1.15.1 using the block for your platform above. The model check itself is unaffected — only the coverage tier fails — and the reason is under "Choosing a version" above. Tracked as bead `z-spec-v0m`.
 
 **"probcli: cannot execute binary file"**: Wrong platform archive — `ProB.macos.zip` on Linux or `ProB.linux64.tar.gz` on macOS. A single macOS archive serves both Intel and Apple Silicon, so this is never an Intel-vs-arm64 mismatch.
 
