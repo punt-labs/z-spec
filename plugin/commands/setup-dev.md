@@ -1,7 +1,7 @@
 ---
 description: Install and configure fuzz, probcli, and lean dependencies
 argument-hint: "[check|fuzz|probcli|lean|all]"
-allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(sh:*), Bash(rm:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
+allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash($PROBCLI_BIN:*), Bash($FUZZ:*), Bash($FUZZ_BIN:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
 ---
 
 # Setup Z Specification Tools
@@ -524,7 +524,16 @@ curl -fsSL -o ~/elan-init.sh https://elan.lean-lang.org/elan-init.sh || {
   exit 1
 }
 
-sh ~/elan-init.sh -y || {
+chmod +x ~/elan-init.sh || {
+  echo "ERROR: could not make the elan installer executable" >&2
+  exit 1
+}
+
+# Run the script directly rather than through `sh`. This command needs no
+# general shell interpreter to be reachable, only this one downloaded file,
+# and alongside the curl grant a bare `sh` would compose into a
+# fetch-then-execute-anything pair.
+~/elan-init.sh -y || {
   echo "ERROR: the elan installer failed; lean and lake are not installed" >&2
   exit 1
 }
@@ -541,9 +550,13 @@ test -x ~/.elan/bin/elan || {
   echo "ERROR: ~/.elan/bin/elan is installed but would not run" >&2
   exit 1
 }
-
-rm ~/elan-init.sh
 ```
+
+The installer stays at `~/elan-init.sh`; nothing here deletes it. Remove it by
+hand once Lean works — `rm ~/elan-init.sh` — or leave it, which costs a few
+kilobytes and gives you something to re-run. Deleting it automatically would
+mean this command holds a grant to run `rm`, and a one-line convenience is not
+worth that.
 
 This installs `elan`, `lean`, and `lake` (the build system).
 
@@ -566,7 +579,7 @@ export PATH="$HOME/.elan/bin:$PATH"
 
 **"could not download the elan installer"**: the fetch failed before anything was installed, so nothing is half-done. Check the URL is reachable — `curl -fsSLI https://elan.lean-lang.org/elan-init.sh` — and retry. If your network needs a proxy, curl reads `https_proxy` from the environment.
 
-**"the elan installer failed; lean and lake are not installed"** or **"the elan installer reported success but there is no executable at ~/.elan/bin/elan"**: read the installer's own output above the error — it names the cause. The usual ones are an unsupported platform, no write permission on `$HOME/.elan`, or a stale `~/.elan` from a previous partial install. The downloaded script is deliberately left at `~/elan-init.sh` when the install fails, so you can inspect it or re-run it by hand with `sh ~/elan-init.sh -y`. Lean is optional: `/z-spec-dev:check-dev` and `/z-spec-dev:test-dev` do not need it, only `/z-spec-dev:prove-dev` does.
+**"the elan installer failed; lean and lake are not installed"** or **"the elan installer reported success but there is no executable at ~/.elan/bin/elan"**: read the installer's own output above the error — it names the cause. The usual ones are an unsupported platform, no write permission on `$HOME/.elan`, or a stale `~/.elan` from a previous partial install. The downloaded script stays at `~/elan-init.sh` whether the install succeeded or failed, so you can inspect it or re-run it by hand with `~/elan-init.sh -y`; it is safe to delete once Lean works. Lean is optional: `/z-spec-dev:check-dev` and `/z-spec-dev:test-dev` do not need it, only `/z-spec-dev:prove-dev` does.
 
 **"elan: command not found" after install**: Run `source "$HOME/.elan/env"` or restart your terminal.
 
@@ -619,23 +632,24 @@ echo '\begin{zed}[X]\end{zed}' > .tmp/test.tex
 # Test probcli with Z
 "$PROBCLI_BIN" -version
 
-# Test the Lean toolchain. It is optional, so absence is not a failure — but
-# say which of the three states you are in rather than leaving it to a
-# command-not-found. /z-spec-dev:prove-dev looks for lean on PATH and nowhere else:
-# there is no $LEAN override and no ~/.elan fallback, so PATH is the thing
-# worth checking, and a lean only reachable at ~/.elan/bin is one prove will
-# not find.
-if command -v lean >/dev/null 2>&1; then
-  elan --version
-  lean --version
-  lake --version
-elif [ -x ~/.elan/bin/lean ]; then
-  echo "lean: installed at ~/.elan/bin, but NOT on PATH." >&2
-  echo "      /z-spec-dev:prove-dev will report LEAN_NOT_FOUND until you run" >&2
-  echo "      source \"\$HOME/.elan/env\", or open a new shell." >&2
-else
-  echo "lean: not installed — skipped. Only /z-spec-dev:prove-dev needs it."
-fi
+# Test the Lean toolchain. It is optional — only /z-spec-dev:prove-dev needs it — so
+# absence is not a failure, but say which state each tool is in rather than
+# leaving it to a command-not-found. Ask about the three separately: a partial
+# install, or a Lean put there by some other route, can leave lean on PATH
+# without elan or lake, and prove checks lean and lake independently too.
+# /z-spec-dev:prove-dev looks on PATH and nowhere else — no $LEAN override, no ~/.elan
+# fallback — so a binary reachable only at ~/.elan/bin is one prove will not
+# find.
+for tool in elan lean lake; do
+  if command -v "$tool" >/dev/null 2>&1; then
+    "$tool" --version
+  elif [ -x ~/.elan/bin/"$tool" ]; then
+    echo "$tool: at ~/.elan/bin but NOT on PATH — /z-spec-dev:prove-dev will not see" >&2
+    echo "      it until you run source \"\$HOME/.elan/env\"." >&2
+  else
+    echo "$tool: not installed (optional)"
+  fi
+done
 ```
 
 Create a simple test spec and run both tools:
