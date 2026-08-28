@@ -1,7 +1,7 @@
 ---
 description: Install and configure fuzz, probcli, and lean dependencies
 argument-hint: "[check|fuzz|probcli|lean|all]"
-allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(sh:*), Bash(rm:*), Bash(head:*), Read, Glob
+allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(sh ~/elan-init.sh:*), Bash(rm ~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
 ---
 
 # Setup Z Specification Tools
@@ -194,6 +194,16 @@ PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
 PROB_URL="$PROB_BASE/$PROB_VERSION/ProB.macos.zip"
 ARCHIVE=~/Applications/ProB.macos.zip
 
+# Check the tools first. Without this, a missing unzip exits 127 and gets
+# reported below as "did not return a zip archive" — a bad diagnosis of a
+# problem that has nothing to do with the download.
+for tool in curl unzip file; do
+  command -v "$tool" >/dev/null || {
+    echo "ERROR: $tool is not installed, and this block needs it" >&2
+    exit 1
+  }
+done
+
 mkdir -p ~/Applications/ProB || {
   echo "ERROR: could not create ~/Applications/ProB" >&2
   exit 1
@@ -215,7 +225,14 @@ unzip -tq "$ARCHIVE" || {
 # Read the layout out of the archive instead of assuming it: a zip that carries
 # its own top-level ProB/ is extracted one level up, a flat one into ProB/
 # itself. Either way probcli ends up at ~/Applications/ProB/probcli.
-if unzip -Z1 "$ARCHIVE" | grep -q '^ProB/'; then
+# Capture the listing first: piped straight into grep, a failure of unzip
+# itself would be invisible and the empty output would read as "flat".
+LISTING="$(unzip -Z1 "$ARCHIVE")" || {
+  echo "ERROR: could not list the contents of $ARCHIVE" >&2
+  exit 1
+}
+
+if printf '%s\n' "$LISTING" | grep -q '^ProB/'; then
   DEST=~/Applications
 else
   DEST=~/Applications/ProB
@@ -228,6 +245,10 @@ unzip -oq "$ARCHIVE" -d "$DEST" || {
   exit 1
 }
 
+# Do not trust the archive's exec bit — this repo's own CI chmods the binary
+# after unpacking the same release.
+chmod +x ~/Applications/ProB/probcli 2>/dev/null
+
 # A partial or misdirected extract leaves a stale binary answering -version, so
 # check the path before trusting it.
 test -x ~/Applications/ProB/probcli || {
@@ -237,13 +258,25 @@ test -x ~/Applications/ProB/probcli || {
   exit 1
 }
 
-# Verify
-~/Applications/ProB/probcli -version || {
-  echo "ERROR: ~/Applications/ProB/probcli is installed but would not run." >&2
+# Verify. Two distinct failures: it will not run, or it runs and is the wrong
+# version — the second is what you get when an older install is still in place,
+# and it passes every check above.
+PROB_OUT="$(~/Applications/ProB/probcli -version 2>&1)" || {
+  echo "ERROR: ~/Applications/ProB/probcli is installed but would not run:" >&2
+  printf '%s\n' "$PROB_OUT" >&2
   echo "       See 'Common Issues' below — missing Tcl/Tk libraries and macOS" >&2
   echo "       quarantine are the usual causes." >&2
   exit 1
 }
+
+printf '%s\n' "$PROB_OUT" | grep -q '1\.15\.1' || {
+  echo "ERROR: expected ProB 1.15.1 at ~/Applications/ProB/probcli, but got:" >&2
+  printf '%s\n' "$PROB_OUT" >&2
+  echo "       An earlier install is still there. See 'Choosing a version'." >&2
+  exit 1
+}
+
+printf '%s\n' "$PROB_OUT"
 ```
 
 **Full ProB with GUI**: the desktop application, which bundles the GUI and all
@@ -260,6 +293,16 @@ PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
 PROB_URL="$PROB_BASE/$PROB_VERSION/ProB.linux64.tar.gz"
 ARCHIVE=~/Applications/ProB.linux64.tar.gz
 
+# Check the tools first. Without this, a missing tar exits 127 and gets
+# reported below as "did not return a gzip tarball" — a bad diagnosis of a
+# problem that has nothing to do with the download.
+for tool in curl tar file; do
+  command -v "$tool" >/dev/null || {
+    echo "ERROR: $tool is not installed, and this block needs it" >&2
+    exit 1
+  }
+done
+
 mkdir -p ~/Applications/ProB || {
   echo "ERROR: could not create ~/Applications/ProB" >&2
   exit 1
@@ -272,8 +315,11 @@ curl -fL -o "$ARCHIVE" "$PROB_URL" || {
   exit 1
 }
 
-# Refuse to extract anything that is not actually a gzip tarball.
-tar -tzf "$ARCHIVE" > /dev/null || {
+# One command does two jobs here: listing the tarball proves it really is a
+# gzip tarball, and the listing is what the layout check reads. Capture it
+# rather than piping into grep, so a failure of tar itself is not mistaken for
+# an archive with no top-level ProB/.
+LISTING="$(tar -tzf "$ARCHIVE")" || {
   echo "ERROR: $PROB_URL did not return a gzip tarball (got: $(file -b "$ARCHIVE"))" >&2
   exit 1
 }
@@ -281,7 +327,7 @@ tar -tzf "$ARCHIVE" > /dev/null || {
 # Read the layout out of the archive instead of assuming it: a tarball that
 # carries its own top-level ProB/ is extracted one level up, a flat one into
 # ProB/ itself. Either way probcli ends up at ~/Applications/ProB/probcli.
-if tar -tzf "$ARCHIVE" | grep -q '^ProB/'; then
+if printf '%s\n' "$LISTING" | grep -q '^ProB/'; then
   DEST=~/Applications
 else
   DEST=~/Applications/ProB
@@ -292,6 +338,10 @@ tar -xzf "$ARCHIVE" -C "$DEST" || {
   exit 1
 }
 
+# Do not trust the archive's exec bit — this repo's own CI chmods the binary
+# after unpacking this very tarball.
+chmod +x ~/Applications/ProB/probcli 2>/dev/null
+
 # A partial or misdirected extract leaves a stale binary answering -version, so
 # check the path before trusting it.
 test -x ~/Applications/ProB/probcli || {
@@ -301,13 +351,25 @@ test -x ~/Applications/ProB/probcli || {
   exit 1
 }
 
-# Verify
-~/Applications/ProB/probcli -version || {
-  echo "ERROR: ~/Applications/ProB/probcli is installed but would not run." >&2
+# Verify. Two distinct failures: it will not run, or it runs and is the wrong
+# version — the second is what you get when an older install is still in place,
+# and it passes every check above.
+PROB_OUT="$(~/Applications/ProB/probcli -version 2>&1)" || {
+  echo "ERROR: ~/Applications/ProB/probcli is installed but would not run:" >&2
+  printf '%s\n' "$PROB_OUT" >&2
   echo "       See 'Common Issues' below — missing Tcl/Tk libraries are the" >&2
   echo "       usual cause." >&2
   exit 1
 }
+
+printf '%s\n' "$PROB_OUT" | grep -q '1\.15\.1' || {
+  echo "ERROR: expected ProB 1.15.1 at ~/Applications/ProB/probcli, but got:" >&2
+  printf '%s\n' "$PROB_OUT" >&2
+  echo "       An earlier install is still there. See 'Choosing a version'." >&2
+  exit 1
+}
+
+printf '%s\n' "$PROB_OUT"
 ```
 
 #### Tcl/Tk Dependency
@@ -369,7 +431,13 @@ unzip -Z1 ~/Applications/ProB.macos.zip | head -20        # macOS
 tar -tzf ~/Applications/ProB.linux64.tar.gz | head -20    # Linux
 ```
 
-The install block handles a flat archive and one wrapped in a single top-level `ProB/`; a deeper or differently-named wrapper needs the extracted tree moved so that `probcli` sits directly in `~/Applications/ProB/`. The nine other `/z-spec:*` commands default to that exact path, so leaving the binary where it landed and pointing `$PROBCLI` at it fixes this command and breaks the rest.
+The install block handles a flat archive and one wrapped in a single top-level `ProB/`. For anything else — a deeper or differently-named wrapper — point `$PROBCLI` at wherever the binary actually landed:
+
+```bash
+export PROBCLI="$HOME/Applications/ProB/ProB/probcli"   # wherever it really is
+```
+
+That is the supported override, not a workaround, and it is honoured everywhere: `resolve_probcli()` in the engine checks `$PROBCLI` before `PATH` and before the conventional path, and every `/z-spec:*` command that reaches probcli resolves it as `PROBCLI="${PROBCLI:-$HOME/Applications/ProB/probcli}"`, so the environment variable wins. `~/Applications/ProB/probcli` is only the default for when nothing says otherwise. Moving the extracted tree by hand also works, but it is the more laborious of the two and nothing requires it.
 
 **"probcli: cannot execute binary file"**: Wrong platform archive — `ProB.macos.zip` on Linux or `ProB.linux64.tar.gz` on macOS. A single macOS archive serves both Intel and Apple Silicon, so this is never an Intel-vs-arm64 mismatch.
 
@@ -396,20 +464,37 @@ through has already fed the shell a truncated script by the time curl reports
 the failure, leaving a half-installed toolchain behind. Land the script first,
 then run it, so a failed download installs nothing at all.
 
-```bash
-ELAN_INIT=~/elan-init.sh
+`-y` accepts the defaults. The installer checks whether its stdout is a
+terminal and refuses to continue without it — "Unable to run interactively. Run
+with -y to accept defaults." — so an agent, whose stdout is captured, needs the
+flag every time. A human running this in their own terminal can drop `-y` to
+get the interactive prompt.
 
-curl -fsSL -o "$ELAN_INIT" https://elan.lean-lang.org/elan-init.sh || {
+```bash
+curl -fsSL -o ~/elan-init.sh https://elan.lean-lang.org/elan-init.sh || {
   echo "ERROR: could not download the elan installer" >&2
   exit 1
 }
 
-sh "$ELAN_INIT" || {
+sh ~/elan-init.sh -y || {
   echo "ERROR: the elan installer failed; lean and lake are not installed" >&2
   exit 1
 }
 
-rm "$ELAN_INIT"
+# The installer's exit code is not proof it installed anything, for the same
+# reason curl's was not: check the binary is there and answers.
+test -x ~/.elan/bin/elan || {
+  echo "ERROR: the elan installer reported success but there is no" >&2
+  echo "       executable at ~/.elan/bin/elan" >&2
+  exit 1
+}
+
+~/.elan/bin/elan --version || {
+  echo "ERROR: ~/.elan/bin/elan is installed but would not run" >&2
+  exit 1
+}
+
+rm ~/elan-init.sh
 ```
 
 This installs `elan`, `lean`, and `lake` (the build system).
@@ -430,6 +515,10 @@ export PATH="$HOME/.elan/bin:$PATH"
 ```
 
 #### Common Issues
+
+**"could not download the elan installer"**: the fetch failed before anything was installed, so nothing is half-done. Check the URL is reachable — `curl -fsSLI https://elan.lean-lang.org/elan-init.sh` — and retry. If your network needs a proxy, curl reads `https_proxy` from the environment.
+
+**"the elan installer failed; lean and lake are not installed"** or **"the elan installer reported success but there is no executable at ~/.elan/bin/elan"**: read the installer's own output above the error — it names the cause. The usual ones are an unsupported platform, no write permission on `$HOME/.elan`, or a stale `~/.elan` from a previous partial install. The downloaded script is deliberately left at `~/elan-init.sh` when the install fails, so you can inspect it or re-run it by hand with `sh ~/elan-init.sh -y`. Lean is optional: `/z-spec:check` and `/z-spec:test` do not need it, only `/z-spec:prove` does.
 
 **"elan: command not found" after install**: Run `source "$HOME/.elan/env"` or restart your terminal.
 
@@ -528,8 +617,10 @@ The report to emit, verbatim backticks and all:
 |------|--------|----------|
 | fuzz | ✓ Installed | ~/Applications/fuzz/fuzz |
 | fuzz.sty | ✓ Installed | /usr/local/texlive/.../fuzz.sty |
-| probcli | ✓ Installed | ~/Applications/ProB/probcli |
-| elan, lean, lake | ✓ Installed | ~/.elan/bin/ |
+| probcli | ✓ Installed 1.15.1 | ~/Applications/ProB/probcli |
+| elan | ✓ Installed | ~/.elan/bin/elan |
+| lean | ✓ Installed | ~/.elan/bin/lean |
+| lake | ✓ Installed | ~/.elan/bin/lake |
 
 ## Shell Configuration
 
