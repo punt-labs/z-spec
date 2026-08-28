@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - **Static gate against the manifest bug that broke plugin load in 0.18.0–0.19.0.** `tests/test_plugin_manifest.py` reads `plugin/.claude-plugin/plugin.json` and refuses any spelling of `hooks/hooks.json` in the `hooks` field whenever `plugin/hooks/hooks.json` exists on disk — the exact invariant Claude Code enforces at plugin load. Runs as part of `make check` in milliseconds, needs no `claude` CLI or subprocess. Verified positive (passes on the current fixed manifest) and negative (fails with a clear message when the bad `"hooks": "./hooks/hooks.json"` line is reintroduced). Closes the invisible-bug window that let #106 ship — if anyone re-adds the field, CI fails before the release ever runs.
 
+### Fixed
+
+- **`/z-spec:setup`'s probcli install pointed at a dead URL and failed silently.** `plugin/commands/setup.md` downloaded probcli from `prob.hhu.de/downloads/prob2-latest/...`, which 404s on every platform; `curl -L -o` with no `-f` saved the HTML error page to disk under the archive's name and exited 0, so the install reported success while installing nothing — `z-spec doctor` later reported `probcli: NOT FOUND` with nothing pointing back at the cause. Both platform blocks now point at `stups.hhu-hosting.de/downloads/prob/tcltk/releases`, every download uses `-f` to fail loudly on a bad response, and the archive is verified as the correct type before extraction. Pinned to probcli **1.15.1** rather than the newest 1.16.1 — ProB 1.16.0 changed its `-coverage` census output to a format `src/punt_zspec/coverage.py` cannot yet read (tracked as bead `z-spec-v0m`); pinning the newer release would have "fixed" the install while silently breaking every spec's coverage check.
+
 ## [0.19.1] - 2026-08-23
 
 ### Changed
