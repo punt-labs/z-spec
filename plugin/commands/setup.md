@@ -1,7 +1,7 @@
 ---
 description: Install and configure fuzz, probcli, and lean dependencies
 argument-hint: "[check|fuzz|probcli|lean|all]"
-allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash($PROBCLI_BIN:*), Bash($FUZZ:*), Bash($FUZZ_BIN:*), Bash($lean_tool:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
+allowed-tools: Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash($PROBCLI_BIN:*), Bash($FUZZ:*), Bash($FUZZ_BIN:*), Bash($lean_tool:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
 ---
 
 # Setup Z Specification Tools
@@ -80,16 +80,36 @@ else
   echo "probcli: NOT FOUND"
 fi
 
-# Check fuzz.sty in TeX path
-kpsewhich fuzz.sty
+# Check fuzz.sty in the TeX path. kpsewhich prints nothing and exits nonzero
+# when it finds nothing, which is silence where a status line belongs.
+if FUZZ_STY="$(kpsewhich fuzz.sty 2>/dev/null)" && [ -n "$FUZZ_STY" ]; then
+  echo "fuzz.sty: $FUZZ_STY"
+else
+  echo "fuzz.sty: NOT FOUND in the TeX path"
+fi
 
-# Check Tcl/Tk (needed for probcli on some systems)
-which wish || brew list tcl-tk 2>/dev/null
+# Check Tcl/Tk. probcli needs it on some systems and not others, so absence
+# here is a note, not a verdict — the probcli line above is the real test.
+if command -v wish >/dev/null 2>&1; then
+  echo "tcl/tk: $(command -v wish)"
+else
+  echo "tcl/tk: no wish on PATH (only matters if probcli reports a missing library)"
+fi
 
-# Check Lean 4 (optional, for /z-spec:prove)
-which elan && elan --version
-which lean && lean --version
-which lake && lake --version
+# Check the Lean toolchain (optional, for /z-spec:prove). Three states, the
+# same three section 6 reports: on PATH, present under ~/.elan/bin but not on
+# PATH, or absent. /z-spec:prove looks on PATH and nowhere else, so the middle
+# state is a real distinction and not a formality.
+for lean_tool in elan lean lake; do
+  if command -v "$lean_tool" >/dev/null 2>&1; then
+    echo "$lean_tool: $(command -v "$lean_tool")"
+    "$lean_tool" --version
+  elif [ -x ~/.elan/bin/"$lean_tool" ]; then
+    echo "$lean_tool: at ~/.elan/bin but NOT on PATH — /z-spec:prove will not see it"
+  else
+    echo "$lean_tool: NOT FOUND (optional)"
+  fi
+done
 ```
 
 Report status clearly, and give probcli's version rather than a bare tick — an
@@ -521,6 +541,13 @@ flag every time. A human running this in their own terminal can drop `-y` to
 get the interactive prompt.
 
 ```bash
+# Same preflight as the probcli blocks: a missing curl exits 127 and would
+# otherwise be reported below as a failed download.
+command -v curl >/dev/null || {
+  echo "ERROR: curl is not installed, and this block needs it" >&2
+  exit 1
+}
+
 curl -fsSL -o ~/elan-init.sh https://elan.lean-lang.org/elan-init.sh || {
   echo "ERROR: could not download the elan installer" >&2
   exit 1
@@ -541,17 +568,24 @@ chmod +x ~/elan-init.sh || {
 }
 
 # The installer's exit code is not proof it installed anything, for the same
-# reason curl's was not: check the binary is there and answers.
-test -x ~/.elan/bin/elan || {
-  echo "ERROR: the elan installer reported success but there is no" >&2
-  echo "       executable at ~/.elan/bin/elan" >&2
-  exit 1
-}
+# reason curl's was not. It installs three tools, so check all three: a partial
+# install that produced elan alone would otherwise be reported as success, and
+# /z-spec:prove needs lean and lake, not elan.
+for lean_tool in elan lean lake; do
+  test -x ~/.elan/bin/"$lean_tool" || {
+    echo "ERROR: the elan installer reported success but there is no" >&2
+    echo "       executable at ~/.elan/bin/$lean_tool" >&2
+    exit 1
+  }
 
-~/.elan/bin/elan --version || {
-  echo "ERROR: ~/.elan/bin/elan is installed but would not run" >&2
-  exit 1
-}
+  LEAN_OUT="$(~/.elan/bin/"$lean_tool" --version 2>&1)" || {
+    echo "ERROR: ~/.elan/bin/$lean_tool is installed but would not run:" >&2
+    printf '%s\n' "$LEAN_OUT" >&2
+    exit 1
+  }
+
+  printf '%s\n' "$LEAN_OUT"
+done
 ```
 
 The installer stays at `~/elan-init.sh`; nothing here deletes it. Remove it by
