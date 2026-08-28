@@ -37,14 +37,36 @@ uname -m  # arm64, x86_64, etc.
 Always start by checking what's already installed:
 
 ```bash
-# Check fuzz
-which fuzz && fuzz -version
+# Check fuzz. $FUZZ wins, then PATH — the order resolve_fuzz() uses. Note
+# there is no conventional-path fallback for fuzz: a binary sitting in
+# ~/Applications/fuzz that is neither on PATH nor named by $FUZZ is a binary
+# the engine will not find, however well it runs when you type its full path.
+if [ -n "${FUZZ:-}" ] && [ -f "$FUZZ" ]; then
+  FUZZ_BIN="$FUZZ"
+else
+  FUZZ_BIN="$(command -v fuzz 2>/dev/null)"
+fi
+
+if [ -n "$FUZZ_BIN" ]; then
+  echo "fuzz: $FUZZ_BIN"
+  "$FUZZ_BIN" -version
+else
+  echo "fuzz: NOT FOUND (not on PATH, and \$FUZZ does not name it)"
+fi
 
 # Check probcli, and report which version. Presence alone is not enough: a
 # 1.16.x install answers every check in this section and still fails the
 # coverage tier of every specification, so a bare "found" here would send the
 # user off to discover that one command later with nothing pointing back.
-PROBCLI_BIN="$(which probcli 2>/dev/null || echo "$HOME/Applications/ProB/probcli")"
+# $PROBCLI wins, then PATH, then the conventional path — the order
+# resolve_probcli() uses. Resolving any other way would make this report
+# describe a binary the other commands are not going to run, which is the
+# whole failure this section exists to prevent.
+if [ -n "${PROBCLI:-}" ] && [ -f "$PROBCLI" ]; then
+  PROBCLI_BIN="$PROBCLI"
+else
+  PROBCLI_BIN="$(command -v probcli 2>/dev/null || echo "$HOME/Applications/ProB/probcli")"
+fi
 
 if test -x "$PROBCLI_BIN"; then
   PROB_VER="$("$PROBCLI_BIN" -version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
@@ -530,21 +552,27 @@ export PATH="$HOME/.elan/bin:$PATH"
 
 Everything is installed; now confirm each tool answers.
 
-Call each tool by its absolute path here, exactly as step 4 does. The
+Resolve each tool the way the engine does, rather than by bare name. The
 `export PATH` lines in the steps above are instructions to paste into a shell
 profile — they are not in effect in the session that just ran the install, so a
 bare `fuzz` or `probcli` on the very next line after a clean install reports
 `command not found` and makes a working installation look like a failed one.
-Once you have opened a new shell, the bare names work and are the nicer form.
+`$FUZZ` and `$PROBCLI` take precedence, exactly as they do for every
+`/z-spec:*` command, so a spec verified here is verified against the same
+binary the tools will use. Each block resolves them again, because each is a
+separate shell invocation.
 
 ```bash
+FUZZ_BIN="${FUZZ:-$(command -v fuzz || echo "$HOME/Applications/fuzz/fuzz")}"
+PROBCLI_BIN="${PROBCLI:-$(command -v probcli || echo "$HOME/Applications/ProB/probcli")}"
+
 # Test fuzz
 mkdir -p .tmp
 echo '\begin{zed}[X]\end{zed}' > .tmp/test.tex
-~/Applications/fuzz/fuzz -t .tmp/test.tex
+"$FUZZ_BIN" -t .tmp/test.tex
 
 # Test probcli with Z
-~/Applications/ProB/probcli -version
+"$PROBCLI_BIN" -version
 
 # Test the Lean toolchain — skip if you did not install it in step 5
 ~/.elan/bin/elan --version
@@ -555,6 +583,9 @@ echo '\begin{zed}[X]\end{zed}' > .tmp/test.tex
 Create a simple test spec and run both tools:
 
 ```bash
+FUZZ_BIN="${FUZZ:-$(command -v fuzz || echo "$HOME/Applications/fuzz/fuzz")}"
+PROBCLI_BIN="${PROBCLI:-$(command -v probcli || echo "$HOME/Applications/ProB/probcli")}"
+
 mkdir -p .tmp
 cat > .tmp/test_spec.tex << 'EOF'
 \documentclass{article}
@@ -579,13 +610,15 @@ count' = 0
 \end{document}
 EOF
 
-~/Applications/fuzz/fuzz -t .tmp/test_spec.tex && echo "fuzz: OK"
-~/Applications/ProB/probcli .tmp/test_spec.tex -init && echo "probcli: OK"
+"$FUZZ_BIN" -t .tmp/test_spec.tex && echo "fuzz: OK"
+"$PROBCLI_BIN" .tmp/test_spec.tex -init && echo "probcli: OK"
 ```
 
 Test probcli with a B machine:
 
 ```bash
+PROBCLI_BIN="${PROBCLI:-$(command -v probcli || echo "$HOME/Applications/ProB/probcli")}"
+
 mkdir -p .tmp
 cat > .tmp/test_machine.mch << 'EOF'
 MACHINE TestMachine
@@ -597,7 +630,7 @@ OPERATIONS
 END
 EOF
 
-~/Applications/ProB/probcli .tmp/test_machine.mch -init && echo "probcli B: OK"
+"$PROBCLI_BIN" .tmp/test_machine.mch -init && echo "probcli B: OK"
 ```
 
 **Note**: probcli handles both Z specifications (`.tex`) and B machines (`.mch`, `.ref`, `.imp`). No additional tools are needed for B-Method work.
