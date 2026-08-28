@@ -269,14 +269,22 @@ unzip -oq "$ARCHIVE" -d "$DEST" || {
 
 # Do not trust the archive's exec bit — this repo's own CI chmods the binary
 # after unpacking the same release.
-chmod +x ~/Applications/ProB/probcli 2>/dev/null
+CHMOD_ERR="$(chmod +x ~/Applications/ProB/probcli 2>&1)"
 
 # A partial or misdirected extract leaves a stale binary answering -version, so
-# check the path before trusting it.
+# check the path before trusting it. Whether the file exists is what separates
+# the two causes: absent means the archive unpacked into a shape this block
+# does not know, present-but-not-executable means chmod was refused, and
+# reporting either as the other sends the reader after the wrong problem.
 test -x ~/Applications/ProB/probcli || {
-  echo "ERROR: extracted $ARCHIVE but there is no executable probcli at" >&2
-  echo "       ~/Applications/ProB/probcli. The archive layout is not what" >&2
-  echo "       this command expects — see 'Common Issues' below." >&2
+  if [ -e ~/Applications/ProB/probcli ]; then
+    echo "ERROR: probcli is at ~/Applications/ProB/probcli but could not be" >&2
+    echo "       made executable: ${CHMOD_ERR:-chmod reported no reason}" >&2
+  else
+    echo "ERROR: extracted $ARCHIVE but there is no probcli at" >&2
+    echo "       ~/Applications/ProB/probcli. The archive layout is not what" >&2
+    echo "       this command expects — see 'Common Issues' below." >&2
+  fi
   exit 1
 }
 
@@ -291,7 +299,12 @@ PROB_OUT="$(~/Applications/ProB/probcli -version 2>&1)" || {
   exit 1
 }
 
-printf '%s\n' "$PROB_OUT" | grep -q '1\.15\.1' || {
+# Extract the version and compare it exactly. A substring match for "1.15.1"
+# would also accept a future 1.15.10, and accepting the wrong version silently
+# is the failure this block is here to stop.
+PROB_VER="$(printf '%s\n' "$PROB_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+
+test "$PROB_VER" = "1.15.1" || {
   echo "ERROR: expected ProB 1.15.1 at ~/Applications/ProB/probcli, but got:" >&2
   printf '%s\n' "$PROB_OUT" >&2
   echo "       An earlier install is still there. See 'Choosing a version'." >&2
@@ -362,14 +375,22 @@ tar -xzf "$ARCHIVE" -C "$DEST" || {
 
 # Do not trust the archive's exec bit — this repo's own CI chmods the binary
 # after unpacking this very tarball.
-chmod +x ~/Applications/ProB/probcli 2>/dev/null
+CHMOD_ERR="$(chmod +x ~/Applications/ProB/probcli 2>&1)"
 
 # A partial or misdirected extract leaves a stale binary answering -version, so
-# check the path before trusting it.
+# check the path before trusting it. Whether the file exists is what separates
+# the two causes: absent means the archive unpacked into a shape this block
+# does not know, present-but-not-executable means chmod was refused, and
+# reporting either as the other sends the reader after the wrong problem.
 test -x ~/Applications/ProB/probcli || {
-  echo "ERROR: extracted $ARCHIVE but there is no executable probcli at" >&2
-  echo "       ~/Applications/ProB/probcli. The archive layout is not what" >&2
-  echo "       this command expects — see 'Common Issues' below." >&2
+  if [ -e ~/Applications/ProB/probcli ]; then
+    echo "ERROR: probcli is at ~/Applications/ProB/probcli but could not be" >&2
+    echo "       made executable: ${CHMOD_ERR:-chmod reported no reason}" >&2
+  else
+    echo "ERROR: extracted $ARCHIVE but there is no probcli at" >&2
+    echo "       ~/Applications/ProB/probcli. The archive layout is not what" >&2
+    echo "       this command expects — see 'Common Issues' below." >&2
+  fi
   exit 1
 }
 
@@ -384,7 +405,12 @@ PROB_OUT="$(~/Applications/ProB/probcli -version 2>&1)" || {
   exit 1
 }
 
-printf '%s\n' "$PROB_OUT" | grep -q '1\.15\.1' || {
+# Extract the version and compare it exactly. A substring match for "1.15.1"
+# would also accept a future 1.15.10, and accepting the wrong version silently
+# is the failure this block is here to stop.
+PROB_VER="$(printf '%s\n' "$PROB_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+
+test "$PROB_VER" = "1.15.1" || {
   echo "ERROR: expected ProB 1.15.1 at ~/Applications/ProB/probcli, but got:" >&2
   printf '%s\n' "$PROB_OUT" >&2
   echo "       An earlier install is still there. See 'Choosing a version'." >&2
