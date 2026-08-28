@@ -1,7 +1,7 @@
 ---
 description: Install and configure fuzz, probcli, and lean dependencies
 argument-hint: "[check|fuzz|probcli|lean|all]"
-allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(mktemp:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Read, Glob
+allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(sh:*), Bash(rm:*), Read, Glob
 ---
 
 # Setup Z Specification Tools
@@ -129,11 +129,18 @@ export PATH="$HOME/Applications/fuzz:$PATH"
 
 probcli is the ProB command-line interface for animating and model-checking Z specifications.
 
-Both platforms follow the same three steps — download the release archive,
-**verify it is the archive it claims to be**, then unpack it — and both end at
-`~/Applications/ProB/probcli`, already executable. Only the unpack command
-differs: the Linux tarball carries a top-level `ProB/` directory, the macOS zip
-does not, so the zip is unpacked into that directory explicitly.
+Both platforms follow the same four steps — download the release archive,
+**verify it is the archive it claims to be**, unpack it, then **confirm probcli
+actually landed** — and both end at `~/Applications/ProB/probcli`, already
+executable. Only the archive format differs: a zip on macOS, a gzipped tarball
+on Linux.
+
+Neither block assumes how the archive is packed inside. Each reads the archive's
+own listing first and picks the extraction directory from it, so that an archive
+carrying a top-level `ProB/` and a flat one both put `probcli` at that same
+path. Upstream has changed packaging before; a spec toolchain that reports a
+successful install and leaves nothing behind is the failure this whole section
+exists to prevent, so the layout is checked rather than believed.
 
 #### Choosing a version
 
@@ -167,7 +174,10 @@ PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
 PROB_URL="$PROB_BASE/$PROB_VERSION/ProB.macos.zip"
 ARCHIVE=~/Applications/ProB.macos.zip
 
-mkdir -p ~/Applications/ProB
+mkdir -p ~/Applications/ProB || {
+  echo "ERROR: could not create ~/Applications/ProB" >&2
+  exit 1
+}
 
 # -f makes curl exit nonzero on 404/5xx instead of saving the error page as
 # if it were the archive.
@@ -182,13 +192,38 @@ unzip -tq "$ARCHIVE" || {
   exit 1
 }
 
+# Read the layout out of the archive instead of assuming it: a zip that carries
+# its own top-level ProB/ is extracted one level up, a flat one into ProB/
+# itself. Either way probcli ends up at ~/Applications/ProB/probcli.
+if unzip -Z1 "$ARCHIVE" | grep -q '^ProB/'; then
+  DEST=~/Applications
+else
+  DEST=~/Applications/ProB
+fi
+
 # -o overwrites without asking: this is the command you re-run after a failed
 # install, and unzip's "replace probcli?" prompt would hang waiting on input.
-# The macOS zip is packed flat, so name the destination directory.
-unzip -oq "$ARCHIVE" -d ~/Applications/ProB
+unzip -oq "$ARCHIVE" -d "$DEST" || {
+  echo "ERROR: could not extract $ARCHIVE into $DEST" >&2
+  exit 1
+}
+
+# A partial or misdirected extract leaves a stale binary answering -version, so
+# check the path before trusting it.
+test -x ~/Applications/ProB/probcli || {
+  echo "ERROR: extracted $ARCHIVE but there is no executable probcli at" >&2
+  echo "       ~/Applications/ProB/probcli. The archive layout is not what" >&2
+  echo "       this command expects — see 'Common Issues' below." >&2
+  exit 1
+}
 
 # Verify
-~/Applications/ProB/probcli -version
+~/Applications/ProB/probcli -version || {
+  echo "ERROR: ~/Applications/ProB/probcli is installed but would not run." >&2
+  echo "       See 'Common Issues' below — missing Tcl/Tk libraries and macOS" >&2
+  echo "       quarantine are the usual causes." >&2
+  exit 1
+}
 ```
 
 **Full ProB with GUI**: the desktop application, which bundles the GUI and all
@@ -205,7 +240,10 @@ PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
 PROB_URL="$PROB_BASE/$PROB_VERSION/ProB.linux64.tar.gz"
 ARCHIVE=~/Applications/ProB.linux64.tar.gz
 
-mkdir -p ~/Applications
+mkdir -p ~/Applications/ProB || {
+  echo "ERROR: could not create ~/Applications/ProB" >&2
+  exit 1
+}
 
 # -f makes curl exit nonzero on 404/5xx instead of saving the error page as
 # if it were the archive.
@@ -220,10 +258,36 @@ tar -tzf "$ARCHIVE" > /dev/null || {
   exit 1
 }
 
-tar -xzf "$ARCHIVE" -C ~/Applications   # creates ~/Applications/ProB/
+# Read the layout out of the archive instead of assuming it: a tarball that
+# carries its own top-level ProB/ is extracted one level up, a flat one into
+# ProB/ itself. Either way probcli ends up at ~/Applications/ProB/probcli.
+if tar -tzf "$ARCHIVE" | grep -q '^ProB/'; then
+  DEST=~/Applications
+else
+  DEST=~/Applications/ProB
+fi
+
+tar -xzf "$ARCHIVE" -C "$DEST" || {
+  echo "ERROR: could not extract $ARCHIVE into $DEST" >&2
+  exit 1
+}
+
+# A partial or misdirected extract leaves a stale binary answering -version, so
+# check the path before trusting it.
+test -x ~/Applications/ProB/probcli || {
+  echo "ERROR: extracted $ARCHIVE but there is no executable probcli at" >&2
+  echo "       ~/Applications/ProB/probcli. The archive layout is not what" >&2
+  echo "       this command expects — see 'Common Issues' below." >&2
+  exit 1
+}
 
 # Verify
-~/Applications/ProB/probcli -version
+~/Applications/ProB/probcli -version || {
+  echo "ERROR: ~/Applications/ProB/probcli is installed but would not run." >&2
+  echo "       See 'Common Issues' below — missing Tcl/Tk libraries are the" >&2
+  echo "       usual cause." >&2
+  exit 1
+}
 ```
 
 #### Tcl/Tk Dependency
@@ -274,9 +338,18 @@ file ~/Applications/ProB.macos.zip        # macOS
 file ~/Applications/ProB.linux64.tar.gz   # Linux
 ```
 
-"HTML document" means the URL was wrong, not the archive. Confirm the pinned version's directory is still present at https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/ — releases have been withdrawn before. The `-f` flag and the `unzip -tq` / `tar -tzf` checks above exist to make this abort loudly rather than leave a broken install behind.
+"HTML document" means the URL was wrong, not the archive. Confirm the pinned version's directory is still present at https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/ — releases have been withdrawn before. The `-f` flag, the `unzip -tq` / `tar -tzf` type checks, and the `test -x` check after extraction all exist to make this abort loudly rather than leave a broken install behind. None of them can be dropped: `-f` catches the error page, the type check catches a file that is not the archive it is named after, and `test -x` catches an archive that unpacked into a shape that puts no runnable probcli where the rest of the plugin looks for it.
 
 **`coverage: failed — probcli printed no coverage census`**: you are running ProB 1.16.0 or newer, whose coverage census z-spec cannot read. Confirm with `~/Applications/ProB/probcli -version`, then reinstall 1.15.1 using the block for your platform above. The model check itself is unaffected — only the coverage tier fails — and the reason is under "Choosing a version" above. Tracked as bead `z-spec-v0m`.
+
+**"extracted ... but there is no executable probcli at ~/Applications/ProB/probcli"**: the archive downloaded and unpacked, but upstream repackaged it into a shape the install block does not recognise. List what you actually got and find the binary:
+
+```bash
+unzip -Z1 ~/Applications/ProB.macos.zip | head -20        # macOS
+tar -tzf ~/Applications/ProB.linux64.tar.gz | head -20    # Linux
+```
+
+The install block handles a flat archive and one wrapped in a single top-level `ProB/`; a deeper or differently-named wrapper needs the extracted tree moved so that `probcli` sits directly in `~/Applications/ProB/`. The nine other `/z-spec:*` commands default to that exact path, so leaving the binary where it landed and pointing `$PROBCLI` at it fixes this command and breaks the rest.
 
 **"probcli: cannot execute binary file"**: Wrong platform archive — `ProB.macos.zip` on Linux or `ProB.linux64.tar.gz` on macOS. A single macOS archive serves both Intel and Apple Silicon, so this is never an Intel-vs-arm64 mismatch.
 
@@ -290,9 +363,63 @@ export PROB_HOME="$HOME/Applications/ProB"
 xattr -d com.apple.quarantine ~/Applications/ProB/probcli
 ```
 
-### 5. Verify Installation
+### 5. Install Lean 4
 
-After installation, verify everything works:
+Lean 4 is the theorem prover used by `/z-spec-dev:prove-dev` to generate
+machine-checked proof obligations from Z specifications. It is optional: fuzz
+and probcli cover type-checking and model-checking without it.
+
+#### Install elan (Lean version manager)
+
+Upstream documents this as `curl ... | sh`, but a transfer that drops partway
+through has already fed the shell a truncated script by the time curl reports
+the failure, leaving a half-installed toolchain behind. Land the script first,
+then run it, so a failed download installs nothing at all.
+
+```bash
+ELAN_INIT=~/elan-init.sh
+
+curl -fsSL -o "$ELAN_INIT" https://elan.lean-lang.org/elan-init.sh || {
+  echo "ERROR: could not download the elan installer" >&2
+  exit 1
+}
+
+sh "$ELAN_INIT" || {
+  echo "ERROR: the elan installer failed; lean and lake are not installed" >&2
+  exit 1
+}
+
+rm "$ELAN_INIT"
+```
+
+This installs `elan`, `lean`, and `lake` (the build system).
+
+After installation, source the environment:
+
+```bash
+source "$HOME/.elan/env"
+```
+
+#### Add to PATH
+
+If `lean` isn't in PATH after installing elan:
+
+```bash
+# Add to shell profile (~/.zshrc or ~/.bashrc)
+export PATH="$HOME/.elan/bin:$PATH"
+```
+
+#### Common Issues
+
+**"elan: command not found" after install**: Run `source "$HOME/.elan/env"` or restart your terminal.
+
+**Slow first build**: The first `lake build` in a Mathlib project downloads precompiled dependencies (~2 GB). Run `lake exe cache get` first to fetch the cache.
+
+**"no toolchain installed"**: Run `elan default leanprover/lean4:stable` to set the default toolchain.
+
+### 6. Verify Installation
+
+Everything is installed; now confirm each tool answers:
 
 ```bash
 # Test fuzz
@@ -302,6 +429,11 @@ fuzz -t .tmp/test.tex
 
 # Test probcli with Z
 probcli -version
+
+# Test the Lean toolchain — skip if you did not install it in step 5
+elan --version
+lean --version
+lake --version
 ```
 
 Create a simple test spec and run both tools:
@@ -354,11 +486,15 @@ probcli .tmp/test_machine.mch -init && echo "probcli B: OK"
 
 **Note**: probcli handles both Z specifications (`.tex`) and B machines (`.mch`, `.ref`, `.imp`). No additional tools are needed for B-Method work.
 
-### 6. Report Results
+### 7. Report Results
 
-Summarize what was done and current status:
+Summarize what was done and the resulting status. Report only the tools you
+actually installed and verified — a row claiming success for a step that was
+skipped or that failed is the one thing this command must never print.
 
-```
+The report to emit, verbatim backticks and all:
+
+````text
 ## Setup Complete
 
 | Tool | Status | Location |
@@ -366,78 +502,19 @@ Summarize what was done and current status:
 | fuzz | ✓ Installed | ~/Applications/fuzz/fuzz |
 | fuzz.sty | ✓ Installed | /usr/local/texlive/.../fuzz.sty |
 | probcli | ✓ Installed | ~/Applications/ProB/probcli |
+| elan, lean, lake | ✓ Installed | ~/.elan/bin/ |
 
 ## Shell Configuration
 
 Add to ~/.zshrc:
+
 ```bash
-export PATH="$HOME/Applications/fuzz:$HOME/Applications/ProB:$PATH"
+export PATH="$HOME/Applications/fuzz:$HOME/Applications/ProB:$HOME/.elan/bin:$PATH"
 export PROBCLI="$HOME/Applications/ProB/probcli"
 ```
 
 Run `source ~/.zshrc` or restart your terminal.
-```
-
-### 5. Install Lean 4
-
-Lean 4 is the theorem prover used by `/z-spec-dev:prove-dev` to generate
-machine-checked proof obligations from Z specifications.
-
-#### Install elan (Lean version manager)
-
-```bash
-curl https://elan.lean-lang.org/elan-init.sh -sSf | sh
-```
-
-This installs `elan`, `lean`, and `lake` (the build system).
-
-After installation, source the environment:
-
-```bash
-source "$HOME/.elan/env"
-```
-
-#### Verify
-
-```bash
-elan --version
-lean --version
-lake --version
-```
-
-#### Add to PATH
-
-If `lean` isn't in PATH after installing elan:
-
-```bash
-# Add to shell profile (~/.zshrc or ~/.bashrc)
-export PATH="$HOME/.elan/bin:$PATH"
-```
-
-#### Common Issues
-
-**"elan: command not found" after install**: Run `source "$HOME/.elan/env"` or restart your terminal.
-
-**Slow first build**: The first `lake build` in a Mathlib project downloads precompiled dependencies (~2 GB). Run `lake exe cache get` first to fetch the cache.
-
-**"no toolchain installed"**: Run `elan default leanprover/lean4:stable` to set the default toolchain.
-
-### 6. Verify Installation
-
-After installation, verify everything works:
-
-```bash
-# Test fuzz
-mkdir -p .tmp
-echo '\begin{zed}[X]\end{zed}' > .tmp/test.tex
-fuzz -t .tmp/test.tex
-
-# Test probcli
-probcli -version
-
-# Test lean (if installed)
-lean --version && lake --version
-```
+````
 
 ## Interactive Guidance
 
