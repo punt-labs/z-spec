@@ -1,7 +1,7 @@
 ---
 description: Install and configure fuzz, probcli, and lean dependencies
 argument-hint: "[check|fuzz|probcli|lean|all]"
-allowed-tools: Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash($PROBCLI_BIN:*), Bash($FUZZ:*), Bash($FUZZ_BIN:*), Bash($lean_tool:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
+allowed-tools: Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash($PROBCLI_BIN:*), Bash($FUZZ:*), Bash($FUZZ_BIN:*), Bash($lean_tool:*), Bash(~/.elan/bin/elan:*), Bash(~/.elan/bin/lean:*), Bash(~/.elan/bin/lake:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
 ---
 
 # Setup Z Specification Tools
@@ -141,8 +141,10 @@ fuzz is the Z type-checker. It must be compiled from source.
 
 #### Prerequisites
 
-**macOS:**
-```bash
+**macOS** — yours to run; `xcode-select` opens a GUI installer and is not among
+this command's tools:
+
+```text
 # Xcode command line tools (for gcc/make)
 xcode-select --install
 
@@ -150,14 +152,19 @@ xcode-select --install
 # User should have MacTeX or BasicTeX installed
 ```
 
-**Linux (Debian/Ubuntu):**
-```bash
+**Linux (Debian/Ubuntu):** run this yourself, for the same reason:
+
+```text
 sudo apt-get install build-essential texlive-base
 ```
 
 #### Installation Steps
 
-```bash
+Building fuzz is a human procedure from end to end — `git`, `make` and `sudo`
+are all outside this command's tools — so the block below is what to type, not
+something the agent will run for you.
+
+```text
 # Clone fuzz repository
 cd ~/Applications  # or user's preferred location
 git clone https://github.com/Spivoxity/fuzz.git
@@ -460,9 +467,10 @@ export LDFLAGS="-L/opt/homebrew/opt/tcl-tk/lib"
 export CPPFLAGS="-I/opt/homebrew/opt/tcl-tk/include"
 ```
 
-Debian/Ubuntu:
+Debian/Ubuntu — run this yourself; it needs a password, and `sudo` is
+deliberately not among this command's tools:
 
-```bash
+```text
 sudo apt-get install tcl tk
 ```
 
@@ -474,8 +482,9 @@ export PROBCLI="$HOME/Applications/ProB/probcli"
 export PATH="$HOME/Applications/ProB:$PATH"
 ```
 
-Or create a symlink:
-```bash
+Or create a symlink — again yours to run, not the agent's:
+
+```text
 sudo ln -s ~/Applications/ProB/probcli /usr/local/bin/probcli
 ```
 
