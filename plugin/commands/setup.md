@@ -1,7 +1,7 @@
 ---
 description: Install and configure fuzz, probcli, and lean dependencies
 argument-hint: "[check|fuzz|probcli|lean|all]"
-allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Read, Glob
+allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(sh:*), Bash(rm:*), Read, Glob
 ---
 
 # Setup Z Specification Tools
@@ -338,7 +338,7 @@ file ~/Applications/ProB.macos.zip        # macOS
 file ~/Applications/ProB.linux64.tar.gz   # Linux
 ```
 
-"HTML document" means the URL was wrong, not the archive. Confirm the pinned version's directory is still present at https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/ — releases have been withdrawn before. The `-f` flag and the `unzip -tq` / `tar -tzf` checks above exist to make this abort loudly rather than leave a broken install behind.
+"HTML document" means the URL was wrong, not the archive. Confirm the pinned version's directory is still present at https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/ — releases have been withdrawn before. The `-f` flag, the `unzip -tq` / `tar -tzf` type checks, and the `test -x` check after extraction all exist to make this abort loudly rather than leave a broken install behind. None of them can be dropped: `-f` catches the error page, the type check catches a file that is not the archive it is named after, and `test -x` catches an archive that unpacked into a shape that puts no runnable probcli where the rest of the plugin looks for it.
 
 **`coverage: failed — probcli printed no coverage census`**: you are running ProB 1.16.0 or newer, whose coverage census z-spec cannot read. Confirm with `~/Applications/ProB/probcli -version`, then reinstall 1.15.1 using the block for your platform above. The model check itself is unaffected — only the coverage tier fails — and the reason is under "Choosing a version" above. Tracked as bead `z-spec-v0m`.
 
@@ -371,8 +371,25 @@ and probcli cover type-checking and model-checking without it.
 
 #### Install elan (Lean version manager)
 
+Upstream documents this as `curl ... | sh`, but a transfer that drops partway
+through has already fed the shell a truncated script by the time curl reports
+the failure, leaving a half-installed toolchain behind. Land the script first,
+then run it, so a failed download installs nothing at all.
+
 ```bash
-curl https://elan.lean-lang.org/elan-init.sh -sSf | sh
+ELAN_INIT=~/elan-init.sh
+
+curl -fsSL -o "$ELAN_INIT" https://elan.lean-lang.org/elan-init.sh || {
+  echo "ERROR: could not download the elan installer" >&2
+  exit 1
+}
+
+sh "$ELAN_INIT" || {
+  echo "ERROR: the elan installer failed; lean and lake are not installed" >&2
+  exit 1
+}
+
+rm "$ELAN_INIT"
 ```
 
 This installs `elan`, `lean`, and `lake` (the build system).
