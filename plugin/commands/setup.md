@@ -1,7 +1,7 @@
 ---
 description: Install and configure fuzz, probcli, and lean dependencies
 argument-hint: "[check|fuzz|probcli|lean|all]"
-allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(sh:*), Bash(rm:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
+allowed-tools: Bash(which:*), Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash($PROBCLI_BIN:*), Bash($FUZZ:*), Bash($FUZZ_BIN:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
 ---
 
 # Setup Z Specification Tools
@@ -524,7 +524,16 @@ curl -fsSL -o ~/elan-init.sh https://elan.lean-lang.org/elan-init.sh || {
   exit 1
 }
 
-sh ~/elan-init.sh -y || {
+chmod +x ~/elan-init.sh || {
+  echo "ERROR: could not make the elan installer executable" >&2
+  exit 1
+}
+
+# Run the script directly rather than through `sh`. This command needs no
+# general shell interpreter to be reachable, only this one downloaded file,
+# and alongside the curl grant a bare `sh` would compose into a
+# fetch-then-execute-anything pair.
+~/elan-init.sh -y || {
   echo "ERROR: the elan installer failed; lean and lake are not installed" >&2
   exit 1
 }
@@ -541,9 +550,13 @@ test -x ~/.elan/bin/elan || {
   echo "ERROR: ~/.elan/bin/elan is installed but would not run" >&2
   exit 1
 }
-
-rm ~/elan-init.sh
 ```
+
+The installer stays at `~/elan-init.sh`; nothing here deletes it. Remove it by
+hand once Lean works — `rm ~/elan-init.sh` — or leave it, which costs a few
+kilobytes and gives you something to re-run. Deleting it automatically would
+mean this command holds a grant to run `rm`, and a one-line convenience is not
+worth that.
 
 This installs `elan`, `lean`, and `lake` (the build system).
 
@@ -566,7 +579,7 @@ export PATH="$HOME/.elan/bin:$PATH"
 
 **"could not download the elan installer"**: the fetch failed before anything was installed, so nothing is half-done. Check the URL is reachable — `curl -fsSLI https://elan.lean-lang.org/elan-init.sh` — and retry. If your network needs a proxy, curl reads `https_proxy` from the environment.
 
-**"the elan installer failed; lean and lake are not installed"** or **"the elan installer reported success but there is no executable at ~/.elan/bin/elan"**: read the installer's own output above the error — it names the cause. The usual ones are an unsupported platform, no write permission on `$HOME/.elan`, or a stale `~/.elan` from a previous partial install. The downloaded script is deliberately left at `~/elan-init.sh` when the install fails, so you can inspect it or re-run it by hand with `sh ~/elan-init.sh -y`. Lean is optional: `/z-spec:check` and `/z-spec:test` do not need it, only `/z-spec:prove` does.
+**"the elan installer failed; lean and lake are not installed"** or **"the elan installer reported success but there is no executable at ~/.elan/bin/elan"**: read the installer's own output above the error — it names the cause. The usual ones are an unsupported platform, no write permission on `$HOME/.elan`, or a stale `~/.elan` from a previous partial install. The downloaded script stays at `~/elan-init.sh` whether the install succeeded or failed, so you can inspect it or re-run it by hand with `~/elan-init.sh -y`; it is safe to delete once Lean works. Lean is optional: `/z-spec:check` and `/z-spec:test` do not need it, only `/z-spec:prove` does.
 
 **"elan: command not found" after install**: Run `source "$HOME/.elan/env"` or restart your terminal.
 
