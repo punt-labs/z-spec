@@ -370,6 +370,18 @@ else
     PROBCLI_STATUS="wrong-version"
     warn "probcli resolves to $RESOLVED_PROBCLI, version ${RESOLVED_PROBCLI_VER:-unreadable}"
     warn "-- not $PROB_VERSION. That is what every z-spec command will use."
+    # install_probcli() already installed the correct version at $PROB_HOME,
+    # unless the download failed or that is the very file that just failed
+    # the version check above -- name the fix only when it is genuinely
+    # available and genuinely different, not a guess.
+    if [ -x "$PROB_HOME/probcli" ] && [ "$PROB_HOME/probcli" != "$RESOLVED_PROBCLI" ]; then
+      HOME_PROB_OUT="$("$PROB_HOME/probcli" -version 2>&1)" || HOME_PROB_OUT=""
+      HOME_PROB_VER="$(printf '%s\n' "$HOME_PROB_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+      if [ "$HOME_PROB_VER" = "$PROB_VERSION" ]; then
+        warn "The correct $PROB_VERSION is at $PROB_HOME/probcli. Fix with:"
+        warn "  export PROBCLI=\"$PROB_HOME/probcli\""
+      fi
+    fi
   fi
 fi
 
