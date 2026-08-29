@@ -315,6 +315,12 @@ install_probcli() (
     return 1
   }
 
+  # The archive itself is not the install -- $PROB_HOME/probcli is. Leaving
+  # a multi-hundred-MB .zip/.tar.gz in ~/Applications after a verified-good
+  # extraction is pure clutter and invites confusion about which one is
+  # "installed"; only remove it once every check above has passed.
+  rm -f "$ARCHIVE"
+
   echo "  ✓ probcli $PROB_HOME/probcli ($PROB_VERSION)"
 )
 
@@ -394,8 +400,14 @@ else
 fi
 
 # Same resolution order as resolve_fuzz(): $FUZZ then PATH, no conventional
-# fallback. fuzz has no pinned version to check against, so its only two
-# states are "resolves and runs" and everything else.
+# fallback. fuzz has no pinned version to check against and no -version
+# flag, so liveness is probed with a deliberately bogus flag: fuzz's own
+# getopt-style usage banner ("Usage: fuzz ...") on stderr, exit 2, is what a
+# genuinely runnable fuzz always prints for that -- a linker-level failure
+# (wrong architecture, a missing shared library) prints a different message
+# from the shell or the dynamic loader instead, never that banner. This is
+# the same "resolves but will not run" case already distinguished for
+# probcli above; -x alone cannot tell the two apart.
 HAVE_FUZZ=0
 FUZZ_STATUS="absent"
 RESOLVED_FUZZ="$(resolve_fuzz_path)" || RESOLVED_FUZZ=""
@@ -407,9 +419,16 @@ elif [ ! -x "$RESOLVED_FUZZ" ]; then
   warn "fuzz resolves to $RESOLVED_FUZZ, but it is not executable"
   warn "(permissions, or macOS quarantine) -- $FUZZ_SETUP_HINT"
 else
-  HAVE_FUZZ=1
-  FUZZ_STATUS="ok"
-  ok "fuzz $RESOLVED_FUZZ"
+  FUZZ_PROBE_OUT="$("$RESOLVED_FUZZ" -bogusflag 2>&1)" || true
+  if printf '%s\n' "$FUZZ_PROBE_OUT" | grep -q '^Usage: fuzz'; then
+    HAVE_FUZZ=1
+    FUZZ_STATUS="ok"
+    ok "fuzz $RESOLVED_FUZZ"
+  else
+    FUZZ_STATUS="wont-run"
+    warn "fuzz resolves to $RESOLVED_FUZZ, but it would not run:"
+    printf '%s\n' "$FUZZ_PROBE_OUT" | while IFS= read -r line; do warn "  $line"; done
+  fi
 fi
 
 if [ "$SKIP_PLUGIN" = "0" ]; then
