@@ -56,13 +56,14 @@ registry, the display, the lux session) runs the whole flight.
 | # | Action | Context | Expected |
 |---|--------|---------|----------|
 | D1 | `z-spec show examples/<spec>.tex` | luxd running | the spec renders with its title and body visible in the pane — not an empty frame |
-| D2 | `z-spec browse` / **Browse** menu entry | a real repo with specs | only the repo's **real** specs (in this repo: `examples/`, `plugin/tutorials/`); each labelled with a readable name, not a truncated path; selecting one shows its content |
+| D2 | `z-spec browse` / **Z-Spec Browser** menu entry | a real repo with specs | only the repo's **real** specs (in this repo: `examples/`, `plugin/tutorials/`); each labelled with a readable name, not a truncated path; selecting one shows its content |
 | D3 | `z-spec pick .` | repo containing scratch dirs (`.tmp/`, `.venv/`, `.git/`, `.pytest_cache/`, pytest temp trees) | scratch and test junk **excluded** — no `.tmp/pytest-of-…/*.tex` in the picker |
 | D4 | `z-spec pick <empty dir>` | directory with no specs | a clear "no Z specs found" message — **not** a stranded "Loading…" placeholder |
 | D5 | `z-spec show <absolute path outside cwd>` | path outside the project | renders, or a typed failure — never an uncaught crash |
-| D6 | **Tutorial** menu entry | installed plugin (`ZSPEC_PLUGIN_ROOT` set) | the intro lessons render with their titles |
-| D7 | **Tutorial** menu entry | standalone CLI, no plugin root | either the packaged lessons render or a clean "unavailable" — never a stuck spinner |
+| D6 | **Z-Spec Tutorial** menu entry | installed plugin (`ZSPEC_PLUGIN_ROOT` set) | the intro lessons render with their titles |
+| D7 | **Z-Spec Tutorial** menu entry | standalone CLI, no plugin root | either the packaged lessons render or a clean "unavailable" — never a stuck spinner |
 | D8 | menu registration | second repo open at the same time | both repos' entries present, grouped, no collision; identity name is ASCII |
+| D9 | click `Clients ▸ <repo> ▸ Z-Spec Tutorial`, then `… ▸ Z-Spec Browser` | luxd running, z-spec enabled | each raised frame's **title bar reads exactly the clicked label** — byte-identical, no repo suffix; only a title bar shows this, no in-process test can |
 
 For every D row, capture **both**:
 
