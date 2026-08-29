@@ -86,6 +86,8 @@ memorizing them:
 
 | Command | Description |
 |---------|--------------|
+| `/z-spec-dev:enable-dev` | Turn z-spec on in this repository |
+| `/z-spec-dev:disable-dev` | Turn z-spec off in this repository |
 | `/z-spec-dev:setup-dev` | Install and configure fuzz and probcli |
 | `/z-spec-dev:doctor-dev` | Check Z specification environment health |
 | `/z-spec-dev:code2model-dev [focus]` | Create or update a Z specification from codebase |
