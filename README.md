@@ -99,11 +99,15 @@ This installs the `z-spec` CLI and the Claude Code plugin. To install the CLI
 only — for non-Claude harnesses (Codex, Cursor, a plain terminal) or where org
 policy blocks plugin installation — skip the plugin with `--no-plugin`:
 
-```bash
-# flag form (passed through the pipe with sh -s --)
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/1e5cb89/install.sh | sh -s -- --no-plugin
+As a flag, passed through the pipe with `sh -s --`:
 
-# env form (for argument-hostile contexts: templated CI, proxies)
+```bash
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/1e5cb89/install.sh | sh -s -- --no-plugin
+```
+
+Or, for argument-hostile contexts (templated CI, proxies), as an environment variable:
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/1e5cb89/install.sh | ZSPEC_NO_PLUGIN=1 sh
 ```
 
@@ -117,8 +121,17 @@ skipped. `ZSPEC_NO_PLUGIN` is honored only when set to exactly `1`. Missing
 
 ```bash
 uv tool install punt-z-spec
+```
+
+```bash
 claude plugin marketplace add punt-labs/claude-plugins
+```
+
+```bash
 claude plugin install z-spec@punt-labs
+```
+
+```bash
 z-spec doctor
 ```
 
@@ -129,8 +142,17 @@ z-spec doctor
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/1e5cb89/install.sh -o install.sh
+```
+
+```bash
 shasum -a 256 install.sh
+```
+
+```bash
 cat install.sh
+```
+
+```bash
 sh install.sh
 ```
 
@@ -140,8 +162,17 @@ Inside Claude Code:
 
 ```
 /z-spec:setup all                                   # Install fuzz and probcli
+```
+
+```
 /z-spec:code2model the user authentication system   # Generate your first spec
+```
+
+```
 /z-spec:check docs/auth.tex                         # Type-check it
+```
+
+```
 /z-spec:test docs/auth.tex                          # Animate and model-check
 ```
 
@@ -164,6 +195,9 @@ The `punt-z-spec` package provides a CLI and MCP server for programmatic access 
 
 ```bash
 uv tool install punt-z-spec        # CLI only
+```
+
+```bash
 uv add punt-z-spec                 # As a library dependency
 ```
 
@@ -171,18 +205,57 @@ uv add punt-z-spec                 # As a library dependency
 
 ```bash
 z-spec check examples/auth.tex              # Type-check with fuzz, saves .fuzz.json
+```
+
+```bash
 z-spec test examples/auth.tex               # Full probcli suite, saves .report.json
+```
+
+```bash
 z-spec animate examples/auth.tex            # Animate only
+```
+
+```bash
 z-spec model-check examples/auth.tex        # Model-check only
+```
+
+```bash
 z-spec partition examples/auth.tex          # Validate + persist an authored partition report (JSON on stdin, or --report FILE)
+```
+
+```bash
 z-spec audit examples/auth.tex              # Validate + persist an authored coverage-audit report (stdin, or --report FILE)
+```
+
+```bash
 z-spec show examples/auth.tex               # Render the spec and its reports in Lux
+```
+
+```bash
 z-spec browse tutorial/manifest.toml        # Open a tutorial collection in Lux
+```
+
+```bash
 z-spec pick examples                        # Discover a directory's .tex specs and render a picker
+```
+
+```bash
 z-spec report examples/auth.tex             # Load an existing report
+```
+
+```bash
 z-spec doctor                               # Check tool availability
+```
+
+```bash
 z-spec enable                               # Turn z-spec on in this repo (writes the marker)
+```
+
+```bash
 z-spec disable                              # Turn it off; the deposited guide stays, dormant
+```
+
+```bash
 z-spec mcp                                  # Start MCP server (stdio)
 ```
 
@@ -248,10 +321,19 @@ tools keep working regardless.
 Reports are saved as JSON alongside `.tex` files:
 
 ```text
-examples/claude-code.tex               → examples/claude-code.report.json     (ProB)
-                                       → examples/claude-code.fuzz.json       (fuzz)
-                                       → examples/claude-code.partition.json  (TTF partitions)
-                                       → examples/claude-code.audit.json      (test coverage)
+examples/claude-code.tex → examples/claude-code.report.json (ProB)
+```
+
+```text
+examples/claude-code.tex → examples/claude-code.fuzz.json (fuzz)
+```
+
+```text
+examples/claude-code.tex → examples/claude-code.partition.json (TTF partitions)
+```
+
+```text
+examples/claude-code.tex → examples/claude-code.audit.json (test coverage)
 ```
 
 All reports are gitignored (generated artifacts). `show_z_spec` loads whichever reports exist and renders each as a tab in the lux display.
@@ -260,20 +342,56 @@ All reports are gitignored (generated artifacts). `show_z_spec` loads whichever 
 
 The `browse` tool provides a lesson-by-lesson tutorial experience. All lessons render upfront as tabs — one per lesson — in the Lux window (requires a running lux Hub). Define a `manifest.toml` with ordered lessons:
 
+A `[collection]` table names the course:
+
 ```toml
 [collection]
+```
+
+```toml
 title = "My Z Course"
+```
 
+Each `[[lessons]]` entry adds one lesson — its title, its spec file, a
+didactic annotation, and any section headers to auto-expand:
+
+```toml
 [[lessons]]
+```
+
+```toml
 title = "Basic Types"
-spec = "01-basic-types.tex"
-annotation = "Z specifications start with **basic types** and **free types**..."
-highlights = ["Basic Types"]
+```
 
+```toml
+spec = "01-basic-types.tex"
+```
+
+```toml
+annotation = "Z specifications start with **basic types** and **free types**..."
+```
+
+```toml
+highlights = ["Basic Types"]
+```
+
+```toml
 [[lessons]]
+```
+
+```toml
 title = "State Schemas"
+```
+
+```toml
 spec = "02-state.tex"
+```
+
+```toml
 annotation = "A **state schema** captures the data a system holds..."
+```
+
+```toml
 highlights = ["State"]
 ```
 
@@ -283,28 +401,91 @@ The browser displays one tab per lesson; selecting a lesson tab shows its didact
 
 ### A generated spec
 
+The `State` schema declares the data and its invariants:
+
 ```latex
 \begin{schema}{State}
-level : \nat \\
-attempts : \nat \\
-correct : \nat
-\where
-level \geq 1 \\
-level \leq 26 \\
-correct \leq attempts \\
-attempts \leq 10000
-\end{schema}
+```
 
-\begin{schema}{AdvanceLevel}
-\Delta State \\
-accuracy? : \nat
+```latex
+level : \nat \\
+```
+
+```latex
+attempts : \nat \\
+```
+
+```latex
+correct : \nat
+```
+
+```latex
 \where
+```
+
+```latex
+level \geq 1 \\
+```
+
+```latex
+level \leq 26 \\
+```
+
+```latex
+correct \leq attempts \\
+```
+
+```latex
+attempts \leq 10000
+```
+
+```latex
+\end{schema}
+```
+
+The `AdvanceLevel` operation constrains how `State` may change:
+
+```latex
+\begin{schema}{AdvanceLevel}
+```
+
+```latex
+\Delta State \\
+```
+
+```latex
+accuracy? : \nat
+```
+
+```latex
+\where
+```
+
+```latex
 accuracy? \geq 90 \\
+```
+
+```latex
 accuracy? \leq 100 \\
+```
+
+```latex
 level < 26 \\
+```
+
+```latex
 level' = level + 1 \\
+```
+
+```latex
 attempts' = attempts \\
+```
+
+```latex
 correct' = correct
+```
+
+```latex
 \end{schema}
 ```
 
@@ -392,19 +573,61 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 
 ```
 /z-spec:setup                              # Install tools (first time only)
+```
+
+```
 /z-spec:doctor                             # Verify environment health
+```
+
+```
 /z-spec:code2model the payment system      # Generate spec from codebase
+```
+
+```
 /z-spec:check docs/payment.tex             # Type-check
+```
+
+```
 /z-spec:test docs/payment.tex              # Animate and model-check
+```
+
+```
 /z-spec:partition docs/payment.tex         # Derive test cases from spec
+```
+
+```
 /z-spec:partition docs/payment.tex --code  # Generate executable test code
+```
+
+```
 /z-spec:prove docs/payment.tex             # Generate Lean 4 proof obligations
+```
+
+```
 /z-spec:contracts docs/payment.tex         # Generate runtime assertion functions
+```
+
+```
 /z-spec:oracle docs/payment.tex            # Property-based testing vs Lean model
+```
+
+```
 /z-spec:refine docs/payment.tex            # Verify code refines spec
+```
+
+```
 /z-spec:elaborate docs/payment.tex         # Add narrative from DESIGN.md
+```
+
+```
 /z-spec:model2code docs/payment.tex swift  # Generate Swift code and tests
+```
+
+```
 /z-spec:audit docs/payment.tex             # Audit test coverage against spec
+```
+
+```
 /z-spec:cleanup                            # Remove tooling files when done
 ```
 
@@ -427,9 +650,21 @@ B support is alpha --- the commands work with probcli (no additional tools requi
 
 ```
 /z-spec:b-create A user registry with add and remove  # Create B machine
+```
+
+```
 /z-spec:b-check specs/registry.mch                    # Type-check
+```
+
+```
 /z-spec:b-animate specs/registry.mch                  # Animate and model-check
+```
+
+```
 /z-spec:b-refine specs/registry.mch                   # Create refinement machine
+```
+
+```
 /z-spec:b-refine specs/registry.mch specs/registry_r.ref  # Verify refinement
 ```
 
@@ -471,25 +706,12 @@ Generated specs follow this structure:
 
 ## Documentation
 
+- [Contributing](https://github.com/punt-labs/z-spec/blob/main/CONTRIBUTING.md) — quality-gate commands
 - [Development](https://github.com/punt-labs/z-spec/blob/main/docs/development.md) — dev/prod plugin swap, release flow, project layout
 - [Workflow](https://github.com/punt-labs/z-spec/blob/main/docs/WORKFLOW.md) — the three-loop development process
 - [Testing](https://github.com/punt-labs/z-spec/blob/main/TESTING.md) — the five-tier testing pyramid
 - [Design docs](https://github.com/punt-labs/z-spec/tree/main/docs/design) — ADRs and architectural decisions
 - [Changelog](https://github.com/punt-labs/z-spec/blob/main/CHANGELOG.md) — release history
-
-## Development
-
-```bash
-uv sync                        # Install dependencies
-make lint                      # ruff check + format --check + markdownlint
-make type                      # mypy + pyright + fuzz on every spec
-make test                      # pytest + probcli on every spec
-make check                     # Full gate: lint, type, test, ratchets
-make uat                       # Build the wheel and install the CLI for acceptance testing
-```
-
-Contributor content — dev-vs-prod plugin swap, release flow, project layout —
-is in [`docs/development.md`](https://github.com/punt-labs/z-spec/blob/main/docs/development.md).
 
 ## Thanks
 
