@@ -17,78 +17,6 @@ that layers authoring commands on top. The engine type-checks specs with
 them with [ProB](https://prob.hhu.de/), and renders results in a Lux window
 when one is running.
 
-## What is Z?
-
-[Z](https://en.wikipedia.org/wiki/Z_notation) ("zed") is a formal specification language based on set theory and first-order predicate logic. It was developed at the University of Oxford in the late 1970s and is standardized as [ISO 13568](https://www.iso.org/standard/21573.html).
-
-A Z specification describes a system as:
-
-- **States** --- the data a system holds (e.g., a set of users, a counter, a mode flag)
-- **Invariants** --- constraints that must always be true (e.g., `correct ≤ attempts`, `level ≥ 1`)
-- **Operations** --- transitions between states, with preconditions and effects
-
-The specification says *what* a system does, not *how*. When a type-checker ([fuzz](https://spivey.oriel.ox.ac.uk/mike/fuzz/)) accepts a spec, the description is internally consistent. When an animator ([ProB](https://prob.hhu.de/)) explores the state space, you see every reachable configuration --- including ones you forgot to think about.
-
-Z's sibling, the [B-Method](https://en.wikipedia.org/wiki/B-Method), extends the same mathematical foundations with a substitution language and a deterministic refinement chain from spec to code. This plugin supports both --- see [B-Method](#b-method-workflow-alpha) below.
-
-### Why use formal specs?
-
-Formal specs catch entire *classes* of bugs mathematically, not just the specific inputs you happened to test. A spec invariant like `¬(radioMode = receiving ∧ toneActive)` makes it structurally impossible to miss the case where keying occurs during receive mode --- no matter how many test cases you write, the invariant covers all of them.
-
-Formal specifications have always caught these bugs. They were too expensive to write by hand --- hours of skilled effort per schema. An LLM drafts the spec; fuzz type-checks it. The methods are the same; the time cost is not.
-
-### Key references
-
-- Spivey, J.M. *[The Z Notation: A Reference Manual](https://spivey.oriel.ox.ac.uk/mike/zrm/)* --- the definitive Z reference
-- Abrial, J-R. *[The B-Book: Assigning Programs to Meanings](https://doi.org/10.1017/CBO9780511624162)* --- the definitive B-Method reference, by Z's co-creator
-- Bowen, J.P. *[Formal Specification and Documentation using Z](https://doi.org/10.1007/978-1-4471-3553-1)* --- practical applications of Z to real systems
-- Simpson, A. *Software Engineering Mathematics* and *State-Based Modelling* --- [University of Oxford](https://www.cs.ox.ac.uk/), Department of Computer Science
-
-## Dependencies
-
-Z Spec orchestrates two established tools that do the mathematical heavy lifting:
-
-- **[fuzz](https://spivey.oriel.ox.ac.uk/mike/fuzz/)** --- Mike Spivey's Z type-checker, developed at Oxford. Verifies that a specification is internally consistent: every schema is well-typed, every reference resolves, every invariant is expressible. Also provides `fuzz.sty` for LaTeX rendering.
-- **[ProB](https://prob.hhu.de/)** --- an animator and model-checker from Heinrich Heine University Düsseldorf. Explores the state space of a specification: finds reachable states, checks invariants hold across all transitions, and discovers counter-examples when they don't.
-
-Both are installed automatically by `/z-spec:setup all`. fuzz is compiled from source; ProB is downloaded as a pre-built binary for your platform.
-
-## Ways to Use It
-
-z-spec is one engine — the LaTeX Z parser, the fuzz and probcli wrappers, the
-report store — reached through two clients: a `z-spec` CLI and an MCP server. A
-given capability runs the same engine code through either client. The Claude
-Code plugin is not a third client: its `/z-spec:*` slash commands are LLM
-prompts that drive the MCP client. Three ways it gets used:
-
-**1. Claude Code plugin (prompts over the MCP client).** Install the plugin and
-drive everything with `/z-spec:*` slash commands. The commands are LLM prompts
-that add authoring on top of the engine — generating a spec from a codebase
-(`/z-spec:code2model`), deriving TTF partition analyses, explaining a
-counter-example — then call the MCP client to type-check, model-check, and
-render results in Lux. See [Quick Start](#quick-start).
-
-**2. CLI + MCP without the plugin.** For agents that are not the Claude Code
-plugin — Codex, Cursor, or Claude Code under an org policy that blocks plugin
-installation — install CLI-only with `--no-plugin`. The `z-spec` CLI and its MCP
-server (`z-spec mcp`) expose every deterministic capability. The CLI does not
-embed an LLM; the agent authors the artifact itself and passes it to the CLI as
-data. A partition or audit report the agent generates is validated and persisted
-by piping it in:
-
-```bash
-cat analysis.json | z-spec partition spec.tex
-```
-
-So a bash-only agent reaches the same partition, audit, type-check, and
-model-check results as the plugin, without the plugin. See
-[CLI-only install](#quick-start) and [Python Package](#python-package-cli--mcp).
-
-**3. Command line, by hand.** A person at a terminal runs `z-spec check spec.tex`,
-`z-spec test spec.tex`, and the rest — the same verbs, no agent, no plugin.
-Reports are written as JSON next to the spec; `z-spec show spec.tex` renders them
-in Lux.
-
 ## Quick Start
 
 ```bash
@@ -121,6 +49,12 @@ skipped. `ZSPEC_NO_PLUGIN` is honored only when set to exactly `1`. Missing
 
 ```bash
 uv tool install punt-z-spec
+```
+
+Or, to use it as a library dependency instead of a CLI tool:
+
+```bash
+uv add punt-z-spec
 ```
 
 ```bash
@@ -187,19 +121,82 @@ Setup auto-detects your platform (macOS Intel/Apple Silicon, Linux) and guides y
 
 </details>
 
-## Python Package (CLI + MCP)
+## What is Z?
 
-The `punt-z-spec` package provides a CLI and MCP server for programmatic access to Z specification tools.
+[Z](https://en.wikipedia.org/wiki/Z_notation) ("zed") is a formal specification language based on set theory and first-order predicate logic. It was developed at the University of Oxford in the late 1970s and is standardized as [ISO 13568](https://www.iso.org/standard/21573.html).
 
-### Install
+A Z specification describes a system as:
+
+- **States** --- the data a system holds (e.g., a set of users, a counter, a mode flag)
+- **Invariants** --- constraints that must always be true (e.g., `correct ≤ attempts`, `level ≥ 1`)
+- **Operations** --- transitions between states, with preconditions and effects
+
+The specification says *what* a system does, not *how*. When a type-checker ([fuzz](https://spivey.oriel.ox.ac.uk/mike/fuzz/)) accepts a spec, the description is internally consistent. When an animator ([ProB](https://prob.hhu.de/)) explores the state space, you see every reachable configuration --- including ones you forgot to think about.
+
+Z's sibling, the [B-Method](https://en.wikipedia.org/wiki/B-Method), extends the same mathematical foundations with a substitution language and a deterministic refinement chain from spec to code. This plugin supports both --- see [B-Method](#b-method-workflow-alpha) below.
+
+### Why use formal specs?
+
+Formal specs catch entire *classes* of bugs mathematically, not just the specific inputs you happened to test. A spec invariant like `¬(radioMode = receiving ∧ toneActive)` makes it structurally impossible to miss the case where keying occurs during receive mode --- no matter how many test cases you write, the invariant covers all of them.
+
+Formal specifications have always caught these bugs. They were too expensive to write by hand --- hours of skilled effort per schema. An LLM drafts the spec; fuzz type-checks it. The methods are the same; the time cost is not.
+
+### Key references
+
+- Spivey, J.M. *[The Z Notation: A Reference Manual](https://spivey.oriel.ox.ac.uk/mike/zrm/)* --- the definitive Z reference
+- Abrial, J-R. *[The B-Book: Assigning Programs to Meanings](https://doi.org/10.1017/CBO9780511624162)* --- the definitive B-Method reference, by Z's co-creator
+- Bowen, J.P. *[Formal Specification and Documentation using Z](https://doi.org/10.1007/978-1-4471-3553-1)* --- practical applications of Z to real systems
+- Simpson, A. *Software Engineering Mathematics* and *State-Based Modelling* --- [University of Oxford](https://www.cs.ox.ac.uk/), Department of Computer Science
+
+## Dependencies
+
+Z Spec orchestrates two established tools that do the mathematical heavy lifting:
+
+- **[fuzz](https://spivey.oriel.ox.ac.uk/mike/fuzz/)** --- Mike Spivey's Z type-checker, developed at Oxford. Verifies that a specification is internally consistent: every schema is well-typed, every reference resolves, every invariant is expressible. Also provides `fuzz.sty` for LaTeX rendering.
+- **[ProB](https://prob.hhu.de/)** --- an animator and model-checker from Heinrich Heine University Düsseldorf. Explores the state space of a specification: finds reachable states, checks invariants hold across all transitions, and discovers counter-examples when they don't.
+
+Both are installed automatically by `/z-spec:setup all`. fuzz is compiled from source; ProB is downloaded as a pre-built binary for your platform.
+
+## Ways to Use It
+
+z-spec is one engine — the LaTeX Z parser, the fuzz and probcli wrappers, the
+report store — reached through two clients: a `z-spec` CLI and an MCP server. A
+given capability runs the same engine code through either client. The Claude
+Code plugin is not a third client: its `/z-spec:*` slash commands are LLM
+prompts that drive the MCP client. Three ways it gets used:
+
+**1. Claude Code plugin (prompts over the MCP client).** Install the plugin and
+drive everything with `/z-spec:*` slash commands. The commands are LLM prompts
+that add authoring on top of the engine — generating a spec from a codebase
+(`/z-spec:code2model`), deriving TTF partition analyses, explaining a
+counter-example — then call the MCP client to type-check, model-check, and
+render results in Lux. See [Quick Start](#quick-start).
+
+**2. CLI + MCP without the plugin.** For agents that are not the Claude Code
+plugin — Codex, Cursor, or Claude Code under an org policy that blocks plugin
+installation — install CLI-only with `--no-plugin`. The `z-spec` CLI and its MCP
+server (`z-spec mcp`) expose every deterministic capability. The CLI does not
+embed an LLM; the agent authors the artifact itself and passes it to the CLI as
+data. A partition or audit report the agent generates is validated and persisted
+by piping it in:
 
 ```bash
-uv tool install punt-z-spec        # CLI only
+cat analysis.json | z-spec partition spec.tex
 ```
 
-```bash
-uv add punt-z-spec                 # As a library dependency
-```
+So a bash-only agent reaches the same partition, audit, type-check, and
+model-check results as the plugin, without the plugin. See
+[CLI-only install](#quick-start) and [CLI + MCP Reference](#cli--mcp-reference).
+
+**3. Command line, by hand.** A person at a terminal runs `z-spec check spec.tex`,
+`z-spec test spec.tex`, and the rest — the same verbs, no agent, no plugin.
+Reports are written as JSON next to the spec; `z-spec show spec.tex` renders them
+in Lux.
+
+## CLI + MCP Reference
+
+The raw `z-spec` CLI verbs and `zspec` MCP tools behind the modes above —
+install steps are in [Quick Start](#quick-start).
 
 ### CLI
 
@@ -321,19 +318,10 @@ tools keep working regardless.
 Reports are saved as JSON alongside `.tex` files:
 
 ```text
-examples/claude-code.tex → examples/claude-code.report.json (ProB)
-```
-
-```text
-examples/claude-code.tex → examples/claude-code.fuzz.json (fuzz)
-```
-
-```text
-examples/claude-code.tex → examples/claude-code.partition.json (TTF partitions)
-```
-
-```text
-examples/claude-code.tex → examples/claude-code.audit.json (test coverage)
+examples/claude-code.tex               → examples/claude-code.report.json     (ProB)
+                                       → examples/claude-code.fuzz.json       (fuzz)
+                                       → examples/claude-code.partition.json  (TTF partitions)
+                                       → examples/claude-code.audit.json      (test coverage)
 ```
 
 All reports are gitignored (generated artifacts). `show_z_spec` loads whichever reports exist and renders each as a tab in the lux display.
@@ -342,56 +330,20 @@ All reports are gitignored (generated artifacts). `show_z_spec` loads whichever 
 
 The `browse` tool provides a lesson-by-lesson tutorial experience. All lessons render upfront as tabs — one per lesson — in the Lux window (requires a running lux Hub). Define a `manifest.toml` with ordered lessons:
 
-A `[collection]` table names the course:
-
 ```toml
 [collection]
-```
-
-```toml
 title = "My Z Course"
-```
 
-Each `[[lessons]]` entry adds one lesson — its title, its spec file, a
-didactic annotation, and any section headers to auto-expand:
-
-```toml
 [[lessons]]
-```
-
-```toml
 title = "Basic Types"
-```
-
-```toml
 spec = "01-basic-types.tex"
-```
-
-```toml
 annotation = "Z specifications start with **basic types** and **free types**..."
-```
-
-```toml
 highlights = ["Basic Types"]
-```
 
-```toml
 [[lessons]]
-```
-
-```toml
 title = "State Schemas"
-```
-
-```toml
 spec = "02-state.tex"
-```
-
-```toml
 annotation = "A **state schema** captures the data a system holds..."
-```
-
-```toml
 highlights = ["State"]
 ```
 
@@ -401,91 +353,28 @@ The browser displays one tab per lesson; selecting a lesson tab shows its didact
 
 ### A generated spec
 
-The `State` schema declares the data and its invariants:
-
 ```latex
 \begin{schema}{State}
-```
-
-```latex
 level : \nat \\
-```
-
-```latex
 attempts : \nat \\
-```
-
-```latex
 correct : \nat
-```
-
-```latex
 \where
-```
-
-```latex
 level \geq 1 \\
-```
-
-```latex
 level \leq 26 \\
-```
-
-```latex
 correct \leq attempts \\
-```
-
-```latex
 attempts \leq 10000
-```
-
-```latex
 \end{schema}
-```
 
-The `AdvanceLevel` operation constrains how `State` may change:
-
-```latex
 \begin{schema}{AdvanceLevel}
-```
-
-```latex
 \Delta State \\
-```
-
-```latex
 accuracy? : \nat
-```
-
-```latex
 \where
-```
-
-```latex
 accuracy? \geq 90 \\
-```
-
-```latex
 accuracy? \leq 100 \\
-```
-
-```latex
 level < 26 \\
-```
-
-```latex
 level' = level + 1 \\
-```
-
-```latex
 attempts' = attempts \\
-```
-
-```latex
 correct' = correct
-```
-
-```latex
 \end{schema}
 ```
 
