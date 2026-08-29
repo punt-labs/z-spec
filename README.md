@@ -232,14 +232,16 @@ renders each result as a concise panel rather than raw JSON in the conversation.
 
 ### Interactive Lux menu
 
-When the MCP server runs alongside a running lux Hub, each session
-registers two right-click menu entries in the lux window: **Tutorial** (opens the
-shipped `tutorials/intro` collection) and **Browse** (renders the `.tex` specs in
-the session's working directory — the same content as the `pick` tool). Both
-labels carry the repo and pid (`z-spec Tutorial · <repo> · #<pid>`), so two
-z-spec sessions open in different repos never cross wires. The menu is
-best-effort: a down Hub at startup is non-fatal and the type-checking tools keep
-working regardless.
+When the MCP server runs alongside a running lux Hub, each session registers
+two entries under its repository's submenu of the lux Clients menu:
+`Clients ▸ <repo> ▸ Z-Spec Tutorial` (opens the shipped `tutorials/intro`
+collection) and `Clients ▸ <repo> ▸ Z-Spec Browser` (renders the `.tex` specs
+in the session's working directory — the same content as the `pick` tool).
+Each entry's label is identical to the title of the frame it launches; luxd
+names the submenu after the repository, so the repo never repeats inside the
+label, and two z-spec sessions open in different repos never cross wires. The
+menu is best-effort: a down Hub at startup is non-fatal and the type-checking
+tools keep working regardless.
 
 ### Reports
 

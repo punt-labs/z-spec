@@ -111,6 +111,15 @@ the single-session case.
 
 ### 2.2 Two menu entries per session: Tutorial and Browse
 
+> **Superseded again (2026-08-29, operator ruling).** The bare labels of the
+> 2026-08-06 amendment overshot: the submenu names the **repository** — the
+> organizing concept — not the tool, so `Tutorial` and `Browse` under
+> `Clients ▸ <repo>` attributed to no tool at all. The labels are now exactly
+> **`Z-Spec Tutorial`** and **`Z-Spec Browser`**, and each label is
+> byte-identical to the title of the frame its click launches —
+> `ZSpecMenuEntry` carries one `title` field for both, so they cannot diverge.
+> The repo still never appears in the label; that axis belongs to the submenu.
+>
 > **Superseded (2026-08-06).** The labels are now exactly `Tutorial` and
 > `Browse`. The composite forms below repeated the client and session inside a
 > submenu that already states both — noise beside `voxd ▸ Music` and every

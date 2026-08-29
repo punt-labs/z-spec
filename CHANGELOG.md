@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Lux menu entries renamed to `Z-Spec Tutorial` and `Z-Spec Browser`, each byte-identical to the title of the frame its click launches.** The bare labels (`Tutorial`, `Browse`) leaned on the Clients submenu for attribution, but luxd names that submenu after the *repository* — the organizing concept — not the tool, so nothing in the menu path said z-spec. `ZSpecMenuEntry` now carries one `title` field serving as both the menu label and the launched frame's title, so the two can never diverge. `PickerCommand` titles the picker frame statically `Z-Spec Browser` on every surface (menu click, MCP `pick`, CLI) instead of the dynamic `Z Specs: <dir>`, and the shipped tutorial manifest's collection title is now `Z-Spec Tutorial`, which `BrowseCommand`'s existing `collection.title` path carries to the frame unchanged.
+
 ## [0.20.0] - 2026-08-29
 
 ### Added
