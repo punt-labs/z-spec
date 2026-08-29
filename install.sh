@@ -369,12 +369,14 @@ fi
 # stale or wrong-version probcli earlier on PATH would otherwise pass this
 # check while every command that shells out to probcli finds the wrong one.
 #
-# PROBCLI_STATUS distinguishes the three outcomes the final summary needs to
-# tell apart: nothing resolves at all ("absent"), something resolves but
-# will not execute ("not-executable" -- a permissions/quarantine problem,
-# not a missing install), or something resolves, runs, and is the wrong
-# version ("wrong-version" -- a stale install shadowing the pinned one, not
-# an absent one). Collapsing any two of these into "not found" sends the
+# PROBCLI_STATUS distinguishes the outcomes the final summary needs to tell
+# apart: nothing resolves at all ("absent"); something resolves but will
+# not execute ("not-executable" -- a permissions/quarantine problem, not a
+# missing install); something resolves and is executable but fails to run
+# ("wont-run" -- missing Tcl/Tk, a broken binary); or something resolves,
+# runs, and is the wrong version ("wrong-version" -- a stale install
+# shadowing the pinned one, not an absent one) -- plus "ok" for success.
+# Collapsing any two of the failure cases into "not found" sends the
 # reader after the wrong fix.
 #
 # Both the not-executable and wrong-version cases can have the same actual
