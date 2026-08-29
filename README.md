@@ -262,7 +262,7 @@ The `browse` tool provides a lesson-by-lesson tutorial experience. All lessons r
 
 ```toml
 [collection]
-title = "Introduction to Z Notation"
+title = "My Z Course"
 
 [[lessons]]
 title = "Basic Types"
