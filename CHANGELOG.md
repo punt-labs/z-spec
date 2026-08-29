@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-08-29
+
 ### Added
 
 - **Static gate against the manifest bug that broke plugin load in 0.18.0–0.19.0.** `tests/test_plugin_manifest.py` reads `plugin/.claude-plugin/plugin.json` and refuses any spelling of `hooks/hooks.json` in the `hooks` field whenever `plugin/hooks/hooks.json` exists on disk — the exact invariant Claude Code enforces at plugin load. Runs as part of `make check` in milliseconds, needs no `claude` CLI or subprocess. Verified positive (passes on the current fixed manifest) and negative (fails with a clear message when the bad `"hooks": "./hooks/hooks.json"` line is reintroduced). Closes the invisible-bug window that let #106 ship — if anyone re-adds the field, CI fails before the release ever runs.
