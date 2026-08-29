@@ -154,9 +154,11 @@ ok "$BINARY $(command -v "$BINARY")"
 
 # --- Step 4.5: Install probcli ---
 #
-# Only /z-spec:check (fuzz type-checking) works without probcli. Every other
-# command -- test, model2code, code2model, oracle, animation -- needs it. An
-# install that finishes without probcli and then prints "ready!" is the exact
+# Of the commands that touch a spec, only /z-spec:check (fuzz type-checking)
+# works without probcli -- test, model2code, code2model, oracle, and
+# animation all need it (doctor, show, and browse don't touch a spec and
+# never needed it either way). An install that finishes without probcli and
+# then prints "ready!" is the exact
 # bug z-spec-68e fixed in plugin/commands/setup.md, just one layer up: reports
 # success while the tool cannot do most of what it is for. So probcli install
 # is part of the default flow, not a follow-up step.
@@ -374,6 +376,24 @@ fi
 # version ("wrong-version" -- a stale install shadowing the pinned one, not
 # an absent one). Collapsing any two of these into "not found" sends the
 # reader after the wrong fix.
+#
+# Both the not-executable and wrong-version cases can have the same actual
+# fix: install_probcli() already put a genuinely-correct probcli at
+# $PROB_HOME, and $RESOLVED_PROBCLI is just shadowing it via $PROBCLI or an
+# earlier PATH entry. Name that fix only when it is genuinely true, not a
+# guess -- $PROB_HOME/probcli must exist, be a different file than the one
+# that just failed, and actually be $PROB_VERSION.
+warn_if_home_probcli_is_the_fix() {
+  if [ -x "$PROB_HOME/probcli" ] && [ "$PROB_HOME/probcli" != "$RESOLVED_PROBCLI" ]; then
+    HOME_PROB_OUT="$("$PROB_HOME/probcli" -version 2>&1)" || HOME_PROB_OUT=""
+    HOME_PROB_VER="$(printf '%s\n' "$HOME_PROB_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+    if [ "$HOME_PROB_VER" = "$PROB_VERSION" ]; then
+      warn "The correct $PROB_VERSION is at $PROB_HOME/probcli. Fix with:"
+      warn "  export PROBCLI=\"$PROB_HOME/probcli\""
+    fi
+  fi
+}
+
 HAVE_PROBCLI=0
 PROBCLI_STATUS="absent"
 RESOLVED_PROBCLI="$(resolve_probcli_path)" || RESOLVED_PROBCLI=""
@@ -384,6 +404,7 @@ elif [ ! -x "$RESOLVED_PROBCLI" ]; then
   PROBCLI_STATUS="not-executable"
   warn "probcli resolves to $RESOLVED_PROBCLI, but it is not executable"
   warn "(permissions, or macOS quarantine) -- $PROBCLI_SETUP_HINT"
+  warn_if_home_probcli_is_the_fix
 else
   # Two distinct failures, same split setup.md already makes: it will not
   # run at all (missing Tcl/Tk, quarantine, a broken binary), or it runs and
@@ -403,18 +424,7 @@ else
     PROBCLI_STATUS="wrong-version"
     warn "probcli resolves to $RESOLVED_PROBCLI, version ${RESOLVED_PROBCLI_VER:-unreadable}"
     warn "-- not $PROB_VERSION. That is what every z-spec command will use."
-    # install_probcli() already installed the correct version at $PROB_HOME,
-    # unless the download failed or that is the very file that just failed
-    # the version check above -- name the fix only when it is genuinely
-    # available and genuinely different, not a guess.
-    if [ -x "$PROB_HOME/probcli" ] && [ "$PROB_HOME/probcli" != "$RESOLVED_PROBCLI" ]; then
-      HOME_PROB_OUT="$("$PROB_HOME/probcli" -version 2>&1)" || HOME_PROB_OUT=""
-      HOME_PROB_VER="$(printf '%s\n' "$HOME_PROB_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-      if [ "$HOME_PROB_VER" = "$PROB_VERSION" ]; then
-        warn "The correct $PROB_VERSION is at $PROB_HOME/probcli. Fix with:"
-        warn "  export PROBCLI=\"$PROB_HOME/probcli\""
-      fi
-    fi
+    warn_if_home_probcli_is_the_fix
   fi
 fi
 
