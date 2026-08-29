@@ -123,7 +123,7 @@ async def _until(predicate: Callable[[], bool], what: str) -> None:
 
 
 def _entry(
-    callback_id: str, label: str, target: Path, log: list[tuple[Path, str]]
+    callback_id: str, title: str, target: Path, log: list[tuple[Path, str]]
 ) -> ZSpecMenuEntry:
     class _Command:
         def run(self, path: Path, /, *, frame_id: str) -> ClickOutcome:
@@ -135,9 +135,8 @@ def _entry(
 
     return ZSpecMenuEntry(
         callback_id=callback_id,
-        label=label,
+        title=title,
         scene_id=callback_id,
-        scene_title=label,
         factory=factory,
         target=target,
     )
@@ -147,8 +146,8 @@ def _entries(
     tutorial_log: list[tuple[Path, str]], browse_log: list[tuple[Path, str]]
 ) -> tuple[ZSpecMenuEntry, ...]:
     return (
-        _entry("z-spec-tutorial", "Tutorial", _MANIFEST, tutorial_log),
-        _entry("z-spec-browse", "Browse", _PROJECT, browse_log),
+        _entry("z-spec-tutorial", "Z-Spec Tutorial", _MANIFEST, tutorial_log),
+        _entry("z-spec-browse", "Z-Spec Browser", _PROJECT, browse_log),
     )
 
 
@@ -219,7 +218,7 @@ def test_unknown_callback_is_a_noop() -> None:
     assert (tut, brw, raised) == ([], [], 0)
 
 
-def test_on_connect_registers_both_entries_under_their_command_labels() -> None:
+def test_on_connect_registers_both_entries_under_their_own_titles() -> None:
     async def scenario() -> list[tuple[str, str]]:
         menu = _RecordingMenu()
         sub = _subscription(_RecordingRaiseClient(), menu=menu)
@@ -228,11 +227,11 @@ def test_on_connect_registers_both_entries_under_their_command_labels() -> None:
 
     registered = asyncio.run(scenario())
 
-    # A leaf is named for the command alone; the submenu it sits in is already
-    # labelled with this client's repository.
+    # The label luxd shows is the entry's one title — the same string the frame
+    # behind the click carries.
     assert registered == [
-        ("z-spec-tutorial", "Tutorial"),
-        ("z-spec-browse", "Browse"),
+        ("z-spec-tutorial", "Z-Spec Tutorial"),
+        ("z-spec-browse", "Z-Spec Browser"),
     ]
 
 

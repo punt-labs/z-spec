@@ -84,9 +84,8 @@ def _entry(outcome: ClickOutcome = _OK, ran: list[str] | None = None) -> ZSpecMe
 
     return ZSpecMenuEntry(
         callback_id="z-spec-browse",
-        label="Browse",
+        title="Z-Spec Browser",
         scene_id="z-spec-picker",
-        scene_title="Z Specs",
         factory=factory,
         target=_PROJECT,
     )
@@ -198,7 +197,8 @@ def test_a_failing_render_is_logged_and_reported_in_the_frame(
 
     shows = asyncio.run(scenario())
 
-    assert shows == [("z-spec-picker", "Z Specs")]
+    # The failure lands in the frame under the very title that was clicked.
+    assert shows == [("z-spec-picker", "Z-Spec Browser")]
     assert "z-spec-browse click failed" in caplog.text
     assert "No Z specs found in /work/repo" in caplog.text
 

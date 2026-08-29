@@ -146,7 +146,7 @@ class ZSpecSubscription:
             logger.info("z-spec is not enabled here — registering no menu entries")
             return
         for entry in self._entries:
-            await self._menu.register(entry.callback_id, entry.label)
+            await self._menu.register(entry.callback_id, entry.title)
 
     async def on_event(self, topic: str, payload: Mapping[str, object]) -> None:
         """Ignore topic events: z-spec's scenes publish none; clicks are callbacks."""
