@@ -173,6 +173,44 @@ PROB_VERSION=1.15.1
 PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
 PROB_HOME="$HOME/Applications/ProB"
 
+# Mirror src/punt_zspec/prob.py's resolve_probcli() exactly: $PROBCLI (if it
+# names a file) wins, then PATH, then the conventional path -- in that order.
+# Checking only the conventional path here would let install.sh report a
+# state that disagrees with what the engine and every other z-spec command
+# actually resolve to, which is exactly the class of bug this whole change
+# exists to close.
+resolve_probcli_path() {
+  if [ -n "${PROBCLI:-}" ] && [ -f "$PROBCLI" ]; then
+    printf '%s\n' "$PROBCLI"
+    return 0
+  fi
+  found="$(command -v probcli 2>/dev/null)" || found=""
+  if [ -n "$found" ]; then
+    printf '%s\n' "$found"
+    return 0
+  fi
+  if [ -f "$PROB_HOME/probcli" ]; then
+    printf '%s\n' "$PROB_HOME/probcli"
+    return 0
+  fi
+  return 1
+}
+
+# Mirror src/punt_zspec/fuzz.py's resolve_fuzz(): $FUZZ (if a file), then
+# PATH. No conventional-path fallback -- fuzz has none, unlike probcli.
+resolve_fuzz_path() {
+  if [ -n "${FUZZ:-}" ] && [ -f "$FUZZ" ]; then
+    printf '%s\n' "$FUZZ"
+    return 0
+  fi
+  found="$(command -v fuzz 2>/dev/null)" || found=""
+  if [ -n "$found" ]; then
+    printf '%s\n' "$found"
+    return 0
+  fi
+  return 1
+}
+
 install_probcli() (
   # Subshell: a failure anywhere here returns nonzero without aborting the
   # rest of install.sh under set -e, and every path below is explicit so a
@@ -196,12 +234,16 @@ install_probcli() (
     *.tar.gz) command -v tar >/dev/null 2>&1 || { echo "  ! tar not found -- cannot install probcli" >&2; return 1; } ;;
   esac
 
-  # Already at the right version? Skip the download entirely.
-  if [ -x "$PROB_HOME/probcli" ]; then
-    EXISTING_OUT="$("$PROB_HOME/probcli" -version 2>&1)" || EXISTING_OUT=""
+  # Already at the right version, wherever the engine would actually find it
+  # ($PROBCLI, PATH, or the conventional path)? Skip the download entirely --
+  # and do not install into $PROB_HOME on top of it, which would leave two
+  # copies and nothing pointing at which one is authoritative.
+  EXISTING="$(resolve_probcli_path)" && [ -x "$EXISTING" ] || EXISTING=""
+  if [ -n "$EXISTING" ]; then
+    EXISTING_OUT="$("$EXISTING" -version 2>&1)" || EXISTING_OUT=""
     EXISTING_VER="$(printf '%s\n' "$EXISTING_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
     if [ "$EXISTING_VER" = "$PROB_VERSION" ]; then
-      echo "  ✓ probcli $PROB_HOME/probcli (already $PROB_VERSION)"
+      echo "  ✓ probcli $EXISTING (already $PROB_VERSION)"
       return 0
     fi
   fi
@@ -263,18 +305,38 @@ install_probcli() (
   echo "  ✓ probcli $PROB_HOME/probcli ($PROB_VERSION)"
 )
 
+install_probcli || warn "probcli install failed -- see the error above"
+
+# HAVE_PROBCLI is not install_probcli's return code: that function only ever
+# manages $PROB_HOME. What matters is what the engine will actually resolve
+# to (resolve_probcli_path, same precedence as resolve_probcli() in
+# src/punt_zspec/prob.py) and whether that binary is genuinely 1.15.1 -- a
+# stale or wrong-version probcli earlier on PATH would otherwise pass this
+# check while every command that shells out to probcli finds the wrong one.
 HAVE_PROBCLI=0
-if install_probcli; then
-  HAVE_PROBCLI=1
+RESOLVED_PROBCLI="$(resolve_probcli_path)" && [ -x "$RESOLVED_PROBCLI" ] || RESOLVED_PROBCLI=""
+if [ -n "$RESOLVED_PROBCLI" ]; then
+  RESOLVED_PROBCLI_OUT="$("$RESOLVED_PROBCLI" -version 2>&1)" || RESOLVED_PROBCLI_OUT=""
+  RESOLVED_PROBCLI_VER="$(printf '%s\n' "$RESOLVED_PROBCLI_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+  if [ "$RESOLVED_PROBCLI_VER" = "$PROB_VERSION" ]; then
+    HAVE_PROBCLI=1
+    ok "probcli $RESOLVED_PROBCLI ($PROB_VERSION)"
+  else
+    warn "probcli resolves to $RESOLVED_PROBCLI, version ${RESOLVED_PROBCLI_VER:-unreadable}"
+    warn "-- not $PROB_VERSION. That is what every z-spec command will use."
+  fi
 else
-  warn "probcli install failed -- most z-spec commands need it. Re-run this"
+  warn "probcli not found -- most z-spec commands need it. Re-run this"
   warn "installer, or install by hand: /z-spec:setup probcli"
 fi
 
+# Same resolution order as resolve_fuzz(): $FUZZ then PATH, no conventional
+# fallback.
 HAVE_FUZZ=0
-if command -v fuzz >/dev/null 2>&1; then
+RESOLVED_FUZZ="$(resolve_fuzz_path)" && [ -x "$RESOLVED_FUZZ" ] || RESOLVED_FUZZ=""
+if [ -n "$RESOLVED_FUZZ" ]; then
   HAVE_FUZZ=1
-  ok "fuzz $(command -v fuzz)"
+  ok "fuzz $RESOLVED_FUZZ"
 else
   warn "fuzz not found -- type-checking (/z-spec:check) needs it"
   warn "fuzz must be built from source; see /z-spec:setup fuzz"
@@ -376,11 +438,17 @@ else
   printf '%b%b%s plugin installed, but the toolchain is incomplete%b\n\n' "$YELLOW" "$BOLD" "$PLUGIN_NAME" "$NC"
   printf 'Restart Claude Code, then run "%s doctor" (or /z-spec:doctor) to see what\n' "$BINARY"
   printf 'is still missing, and /z-spec:setup to install it.\n\n'
-  if [ "$HAVE_PROBCLI" != "1" ]; then
-    printf 'Without probcli: /z-spec:check works, but /z-spec:test, model2code,\n'
-    printf 'code2model, oracle, and animation do not.\n\n'
-  fi
-  if [ "$HAVE_FUZZ" != "1" ]; then
-    printf 'Without fuzz: type-checking (/z-spec:check) does not work.\n\n'
+  # The three sub-cases (fuzz only, probcli only, both) each say what
+  # actually still works, not a per-tool line that can contradict its
+  # neighbour when both are missing.
+  if [ "$HAVE_PROBCLI" != "1" ] && [ "$HAVE_FUZZ" != "1" ]; then
+    printf 'Neither probcli nor fuzz is available: no z-spec command that touches a\n'
+    printf 'spec will work yet.\n\n'
+  elif [ "$HAVE_PROBCLI" != "1" ]; then
+    printf 'fuzz is available, probcli is not: /z-spec:check (type-checking) works,\n'
+    printf 'but /z-spec:test, model2code, code2model, oracle, and animation do not.\n\n'
+  else
+    printf 'probcli is available, fuzz is not: model-checking and animation work,\n'
+    printf 'but /z-spec:check (type-checking) does not.\n\n'
   fi
 fi
