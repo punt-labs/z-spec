@@ -217,10 +217,27 @@ install_probcli() (
   # partial failure never gets reported as success.
   set -eu
 
+  # Already at the right version, wherever the engine would actually find it
+  # ($PROBCLI, PATH, or the conventional path)? Skip the download entirely --
+  # and do not install into $PROB_HOME on top of it, which would leave two
+  # copies and nothing pointing at which one is authoritative. This check
+  # runs before the OS/tool checks below on purpose: an unsupported OS or a
+  # missing unzip/tar is irrelevant if a correct probcli is already there --
+  # only actually needing to download should ever fail for those reasons.
+  EXISTING="$(resolve_probcli_path)" && [ -x "$EXISTING" ] || EXISTING=""
+  if [ -n "$EXISTING" ]; then
+    EXISTING_OUT="$("$EXISTING" -version 2>&1)" || EXISTING_OUT=""
+    EXISTING_VER="$(printf '%s\n' "$EXISTING_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+    if [ "$EXISTING_VER" = "$PROB_VERSION" ]; then
+      echo "  ✓ probcli $EXISTING (already $PROB_VERSION)"
+      return 0
+    fi
+  fi
+
   case "$(uname -s)" in
     Darwin) PROB_ARCHIVE_NAME="ProB.macos.zip" ;;
     Linux)  PROB_ARCHIVE_NAME="ProB.linux64.tar.gz" ;;
-    *)      echo "  ! unsupported OS for probcli: $(uname -s) -- skipping" >&2; return 1 ;;
+    *)      echo "  ! unsupported OS for probcli: $(uname -s) -- install by hand" >&2; return 1 ;;
   esac
 
   for tool in curl file; do
@@ -233,20 +250,6 @@ install_probcli() (
     *.zip) command -v unzip >/dev/null 2>&1 || { echo "  ! unzip not found -- cannot install probcli" >&2; return 1; } ;;
     *.tar.gz) command -v tar >/dev/null 2>&1 || { echo "  ! tar not found -- cannot install probcli" >&2; return 1; } ;;
   esac
-
-  # Already at the right version, wherever the engine would actually find it
-  # ($PROBCLI, PATH, or the conventional path)? Skip the download entirely --
-  # and do not install into $PROB_HOME on top of it, which would leave two
-  # copies and nothing pointing at which one is authoritative.
-  EXISTING="$(resolve_probcli_path)" && [ -x "$EXISTING" ] || EXISTING=""
-  if [ -n "$EXISTING" ]; then
-    EXISTING_OUT="$("$EXISTING" -version 2>&1)" || EXISTING_OUT=""
-    EXISTING_VER="$(printf '%s\n' "$EXISTING_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-    if [ "$EXISTING_VER" = "$PROB_VERSION" ]; then
-      echo "  ✓ probcli $EXISTING (already $PROB_VERSION)"
-      return 0
-    fi
-  fi
 
   mkdir -p "$PROB_HOME" || { echo "  ! could not create $PROB_HOME" >&2; return 1; }
 
