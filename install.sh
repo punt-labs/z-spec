@@ -467,8 +467,20 @@ if [ "$SKIP_PLUGIN" = "1" ]; then
   fi
   printf 'To get started:\n\n'
   printf '  %s doctor                 # check fuzz/probcli availability\n' "$BINARY"
-  printf '  %s check <spec.tex>       # type-check a Z spec with fuzz\n' "$BINARY"
-  printf '  %s test <spec.tex>        # animate and model-check with probcli\n\n' "$BINARY"
+  # Only suggest commands that will actually run -- the warnings above
+  # already said if fuzz/probcli are missing, and pointing the reader at a
+  # command that fails immediately after saying so is the same "reports one
+  # thing, does another" failure this whole change exists to close.
+  if [ "$HAVE_FUZZ" = "1" ]; then
+    printf '  %s check <spec.tex>       # type-check a Z spec with fuzz\n' "$BINARY"
+  fi
+  if [ "$HAVE_PROBCLI" = "1" ]; then
+    printf '  %s test <spec.tex>        # animate and model-check with probcli\n' "$BINARY"
+  fi
+  if [ "$HAVE_FUZZ" != "1" ] && [ "$HAVE_PROBCLI" != "1" ]; then
+    printf '  (check/test need fuzz/probcli -- see the warnings above)\n'
+  fi
+  printf '\n'
   printf '%s\n' 'To add the Claude Code plugin later, re-run the installer without' \
     '--no-plugin (and with ZSPEC_NO_PLUGIN unset). The plugin requires the' \
     'claude CLI and git to be installed.'
