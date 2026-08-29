@@ -9,7 +9,7 @@ tools:
   - Grep
   - Glob
 skills:
-  - baseline-ops
+  - "baseline-ops"
 hooks:
   PostToolUse:
     - matcher: "Write|Edit"
