@@ -318,13 +318,18 @@ install_probcli() (
 install_probcli || warn "probcli install failed -- see the error above"
 
 # The pointer to /z-spec:setup only makes sense when the plugin is
-# installed; a CLI-only install has no slash commands to run.
+# installed; a CLI-only install has no slash commands to run, and no local
+# checkout of this repo either -- a repo-relative path like
+# plugin/commands/setup.md would not exist on a machine that only ran
+# curl | sh. Point at the public GitHub blob view instead, reachable from
+# any browser with no clone required.
+SETUP_DOC_URL="https://github.com/punt-labs/z-spec/blob/main/plugin/commands/setup.md"
 if [ "$SKIP_PLUGIN" = "0" ]; then
   PROBCLI_SETUP_HINT="or install by hand: /z-spec:setup probcli"
   FUZZ_SETUP_HINT="see /z-spec:setup fuzz"
 else
-  PROBCLI_SETUP_HINT="see 'Choosing a version' in plugin/commands/setup.md for the manual steps"
-  FUZZ_SETUP_HINT="see plugin/commands/setup.md for the manual build steps (no plugin installed to run /z-spec:setup)"
+  PROBCLI_SETUP_HINT="see 'Choosing a version' at $SETUP_DOC_URL for the manual steps"
+  FUZZ_SETUP_HINT="see $SETUP_DOC_URL for the manual build steps (no plugin installed to run /z-spec:setup)"
 fi
 
 # HAVE_PROBCLI is not install_probcli's return code: that function only ever
