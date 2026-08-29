@@ -280,11 +280,21 @@ install_probcli() (
       ;;
   esac
 
-  # Do not trust the archive's exec bit.
-  chmod +x "$PROB_HOME/probcli" 2>/dev/null || true
+  # Do not trust the archive's exec bit -- but do not conflate "chmod was
+  # refused" with "nothing is there": whether the file exists first is what
+  # separates the two causes, and reporting either as the other sends the
+  # reader after the wrong problem, same as plugin/commands/setup.md.
+  CHMOD_ERR="$(chmod +x "$PROB_HOME/probcli" 2>&1)" || true
 
   test -x "$PROB_HOME/probcli" || {
-    echo "  ! extracted $ARCHIVE but no executable probcli at $PROB_HOME/probcli" >&2
+    if [ -e "$PROB_HOME/probcli" ]; then
+      echo "  ! probcli is at $PROB_HOME/probcli but could not be made" >&2
+      echo "    executable: ${CHMOD_ERR:-chmod reported no reason}" >&2
+    else
+      echo "  ! extracted $ARCHIVE but there is no probcli at" >&2
+      echo "    $PROB_HOME/probcli. The archive layout is not what this" >&2
+      echo "    script expects." >&2
+    fi
     return 1
   }
 
@@ -307,39 +317,71 @@ install_probcli() (
 
 install_probcli || warn "probcli install failed -- see the error above"
 
+# The pointer to /z-spec:setup only makes sense when the plugin is
+# installed; a CLI-only install has no slash commands to run.
+if [ "$SKIP_PLUGIN" = "0" ]; then
+  PROBCLI_SETUP_HINT="or install by hand: /z-spec:setup probcli"
+  FUZZ_SETUP_HINT="see /z-spec:setup fuzz"
+else
+  PROBCLI_SETUP_HINT="see 'Choosing a version' in plugin/commands/setup.md for the manual steps"
+  FUZZ_SETUP_HINT="see plugin/commands/setup.md for the manual build steps (no plugin installed to run /z-spec:setup)"
+fi
+
 # HAVE_PROBCLI is not install_probcli's return code: that function only ever
 # manages $PROB_HOME. What matters is what the engine will actually resolve
 # to (resolve_probcli_path, same precedence as resolve_probcli() in
 # src/punt_zspec/prob.py) and whether that binary is genuinely 1.15.1 -- a
 # stale or wrong-version probcli earlier on PATH would otherwise pass this
 # check while every command that shells out to probcli finds the wrong one.
+#
+# PROBCLI_STATUS distinguishes the three outcomes the final summary needs to
+# tell apart: nothing resolves at all ("absent"), something resolves but
+# will not execute ("not-executable" -- a permissions/quarantine problem,
+# not a missing install), or something resolves, runs, and is the wrong
+# version ("wrong-version" -- a stale install shadowing the pinned one, not
+# an absent one). Collapsing any two of these into "not found" sends the
+# reader after the wrong fix.
 HAVE_PROBCLI=0
-RESOLVED_PROBCLI="$(resolve_probcli_path)" && [ -x "$RESOLVED_PROBCLI" ] || RESOLVED_PROBCLI=""
-if [ -n "$RESOLVED_PROBCLI" ]; then
+PROBCLI_STATUS="absent"
+RESOLVED_PROBCLI="$(resolve_probcli_path)" || RESOLVED_PROBCLI=""
+if [ -z "$RESOLVED_PROBCLI" ]; then
+  warn "probcli not found -- most z-spec commands need it. Re-run this"
+  warn "installer, $PROBCLI_SETUP_HINT"
+elif [ ! -x "$RESOLVED_PROBCLI" ]; then
+  PROBCLI_STATUS="not-executable"
+  warn "probcli resolves to $RESOLVED_PROBCLI, but it is not executable"
+  warn "(permissions, or macOS quarantine) -- $PROBCLI_SETUP_HINT"
+else
   RESOLVED_PROBCLI_OUT="$("$RESOLVED_PROBCLI" -version 2>&1)" || RESOLVED_PROBCLI_OUT=""
   RESOLVED_PROBCLI_VER="$(printf '%s\n' "$RESOLVED_PROBCLI_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
   if [ "$RESOLVED_PROBCLI_VER" = "$PROB_VERSION" ]; then
     HAVE_PROBCLI=1
+    PROBCLI_STATUS="ok"
     ok "probcli $RESOLVED_PROBCLI ($PROB_VERSION)"
   else
+    PROBCLI_STATUS="wrong-version"
     warn "probcli resolves to $RESOLVED_PROBCLI, version ${RESOLVED_PROBCLI_VER:-unreadable}"
     warn "-- not $PROB_VERSION. That is what every z-spec command will use."
   fi
-else
-  warn "probcli not found -- most z-spec commands need it. Re-run this"
-  warn "installer, or install by hand: /z-spec:setup probcli"
 fi
 
 # Same resolution order as resolve_fuzz(): $FUZZ then PATH, no conventional
-# fallback.
+# fallback. fuzz has no pinned version to check against, so its only two
+# states are "resolves and runs" and everything else.
 HAVE_FUZZ=0
-RESOLVED_FUZZ="$(resolve_fuzz_path)" && [ -x "$RESOLVED_FUZZ" ] || RESOLVED_FUZZ=""
-if [ -n "$RESOLVED_FUZZ" ]; then
-  HAVE_FUZZ=1
-  ok "fuzz $RESOLVED_FUZZ"
-else
+FUZZ_STATUS="absent"
+RESOLVED_FUZZ="$(resolve_fuzz_path)" || RESOLVED_FUZZ=""
+if [ -z "$RESOLVED_FUZZ" ]; then
   warn "fuzz not found -- type-checking (/z-spec:check) needs it"
-  warn "fuzz must be built from source; see /z-spec:setup fuzz"
+  warn "fuzz must be built from source; $FUZZ_SETUP_HINT"
+elif [ ! -x "$RESOLVED_FUZZ" ]; then
+  FUZZ_STATUS="not-executable"
+  warn "fuzz resolves to $RESOLVED_FUZZ, but it is not executable"
+  warn "(permissions, or macOS quarantine) -- $FUZZ_SETUP_HINT"
+else
+  HAVE_FUZZ=1
+  FUZZ_STATUS="ok"
+  ok "fuzz $RESOLVED_FUZZ"
 fi
 
 if [ "$SKIP_PLUGIN" = "0" ]; then
@@ -438,17 +480,25 @@ else
   printf '%b%b%s plugin installed, but the toolchain is incomplete%b\n\n' "$YELLOW" "$BOLD" "$PLUGIN_NAME" "$NC"
   printf 'Restart Claude Code, then run "%s doctor" (or /z-spec:doctor) to see what\n' "$BINARY"
   printf 'is still missing, and /z-spec:setup to install it.\n\n'
-  # The three sub-cases (fuzz only, probcli only, both) each say what
-  # actually still works, not a per-tool line that can contradict its
-  # neighbour when both are missing.
-  if [ "$HAVE_PROBCLI" != "1" ] && [ "$HAVE_FUZZ" != "1" ]; then
+  # Only claim a command outright "works" or "does not work" when the status
+  # is unambiguous (ok, or genuinely absent). "wrong-version" and
+  # "not-executable" both mean a probcli/fuzz DOES resolve and (for
+  # wrong-version) DOES run -- just not correctly -- which is a different
+  # claim than "not available", and conflating them was the exact finding
+  # this rewrite closes. The specific reason is already in the warning
+  # printed above; this summary states only what is unambiguous.
+  if [ "$PROBCLI_STATUS" = "absent" ] && [ "$FUZZ_STATUS" = "absent" ]; then
     printf 'Neither probcli nor fuzz is available: no z-spec command that touches a\n'
     printf 'spec will work yet.\n\n'
-  elif [ "$HAVE_PROBCLI" != "1" ]; then
+  elif [ "$PROBCLI_STATUS" = "absent" ] && [ "$FUZZ_STATUS" = "ok" ]; then
     printf 'fuzz is available, probcli is not: /z-spec:check (type-checking) works,\n'
     printf 'but /z-spec:test, model2code, code2model, oracle, and animation do not.\n\n'
-  else
+  elif [ "$PROBCLI_STATUS" = "ok" ] && [ "$FUZZ_STATUS" = "absent" ]; then
     printf 'probcli is available, fuzz is not: model-checking and animation work,\n'
     printf 'but /z-spec:check (type-checking) does not.\n\n'
+  else
+    printf 'probcli or fuzz resolves to something that will not run correctly (see\n'
+    printf 'the warning above naming which one and why) rather than being absent --\n'
+    printf 'fixing that, not reinstalling from scratch, is what unblocks it.\n\n'
   fi
 fi
