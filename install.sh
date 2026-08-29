@@ -360,9 +360,17 @@ elif [ ! -x "$RESOLVED_PROBCLI" ]; then
   warn "probcli resolves to $RESOLVED_PROBCLI, but it is not executable"
   warn "(permissions, or macOS quarantine) -- $PROBCLI_SETUP_HINT"
 else
-  RESOLVED_PROBCLI_OUT="$("$RESOLVED_PROBCLI" -version 2>&1)" || RESOLVED_PROBCLI_OUT=""
-  RESOLVED_PROBCLI_VER="$(printf '%s\n' "$RESOLVED_PROBCLI_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-  if [ "$RESOLVED_PROBCLI_VER" = "$PROB_VERSION" ]; then
+  # Two distinct failures, same split setup.md already makes: it will not
+  # run at all (missing Tcl/Tk, quarantine, a broken binary), or it runs and
+  # prints the wrong version. Collapsing "would not run" into "wrong
+  # version: unreadable" hides the actual error and points at the wrong fix
+  # (pin/export vs. Tcl/Tk or quarantine).
+  if ! RESOLVED_PROBCLI_OUT="$("$RESOLVED_PROBCLI" -version 2>&1)"; then
+    PROBCLI_STATUS="wont-run"
+    warn "probcli resolves to $RESOLVED_PROBCLI, but it would not run:"
+    printf '%s\n' "$RESOLVED_PROBCLI_OUT" | while IFS= read -r line; do warn "  $line"; done
+    warn "Missing Tcl/Tk libraries and macOS quarantine are the usual causes."
+  elif RESOLVED_PROBCLI_VER="$(printf '%s\n' "$RESOLVED_PROBCLI_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)" && [ "$RESOLVED_PROBCLI_VER" = "$PROB_VERSION" ]; then
     HAVE_PROBCLI=1
     PROBCLI_STATUS="ok"
     ok "probcli $RESOLVED_PROBCLI ($PROB_VERSION)"
