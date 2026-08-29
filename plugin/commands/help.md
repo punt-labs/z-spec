@@ -1,5 +1,5 @@
 ---
-description: Show Z specification plugin help and quick reference
+description: Interactive getting-started tutorial for your first Z specification
 ---
 
 # Z Specification Plugin Help
@@ -14,6 +14,10 @@ problem they actually have, not a page they scrolled past.
 Walk the user through these steps in order. Do not skip ahead to the
 command table below until this path is complete or the user asks for it
 directly.
+
+If `/z-spec:check` or `/z-spec:test` refuses because z-spec isn't enabled
+in this repository, run `/z-spec:enable` first, then resume the step that
+was refused.
 
 ### 1. Find the stateful system
 
