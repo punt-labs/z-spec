@@ -995,7 +995,7 @@ wheels = [
 
 [[package]]
 name = "punt-lux"
-version = "0.30.0"
+version = "0.31.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastapi" },
@@ -1009,9 +1009,9 @@ dependencies = [
     { name = "uvicorn" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/34/3e/bdc1c02c1c8dca4805515156e82657c4a6657228ec23c5c7da98e364e10d/punt_lux-0.30.0.tar.gz", hash = "sha256:f2cc04333cb4c0410238154327611d476724b1e01383be97c37c05a06b805491", size = 1010900, upload-time = "2026-08-24T05:23:07.975Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/56/4d/540a8a7600378dd711e60540126c17e9854a8a8e1d6a736c22f399fa2361/punt_lux-0.31.1.tar.gz", hash = "sha256:7c4b15ca98cfa487dbb4867f4fc16bb16c8f007b218c2c30caac08286183a73f", size = 1012788, upload-time = "2026-08-25T23:15:33.149Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a3/41/748f0e177771fddf177c552c8247deb272398d6a868abace697b4e01d28d/punt_lux-0.30.0-py3-none-any.whl", hash = "sha256:f05b8974041dee8063b81f506f52f70f2671b907857bd713c6399d0462d3cebb", size = 1363532, upload-time = "2026-08-24T05:23:06.44Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/71/786cb5bd5c49e3aa7ab3dc85410bab04340ff3d5fbb6909a3097e6f359ef/punt_lux-0.31.1-py3-none-any.whl", hash = "sha256:ba55e6aad29680b1318de947afde926791209417645f3b133ce9e841176bd55e", size = 1364991, upload-time = "2026-08-25T23:15:31.287Z" },
 ]
 
 [[package]]
@@ -1037,7 +1037,7 @@ dev = [
 requires-dist = [
     { name = "mcp", specifier = ">=1.0.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.14.0" },
-    { name = "punt-lux", specifier = ">=0.29,<0.31" },
+    { name = "punt-lux", specifier = ">=0.31,<0.32" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.390" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.0.0" },
@@ -1453,8 +1453,8 @@ name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography" },
-    { name = "jeepney" },
+    { name = "cryptography", marker = "sys_platform != 'win32'" },
+    { name = "jeepney", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
