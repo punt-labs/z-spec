@@ -263,6 +263,17 @@ install_probcli() (
     return 1
   }
 
+  # An absolute path or a "../" segment in the listing could write outside
+  # $DEST (zip-slip / tar-slip) -- checked before either extractor ever
+  # runs, not left to unzip's/tar's own (inconsistent, not fail-closed)
+  # traversal handling. $PROB_URL is a pinned HTTPS host, not user input, but
+  # that host being compromised or MITM'd is exactly the scenario this
+  # guards, and it costs one grep to close.
+  reject_unsafe_archive_paths() {
+    printf '%s\n' "$1" | grep -qE '^/|(^|/)\.\./' && return 1
+    return 0
+  }
+
   case "$PROB_ARCHIVE_NAME" in
     *.zip)
       unzip -tq "$ARCHIVE" || {
@@ -270,12 +281,20 @@ install_probcli() (
         return 1
       }
       LISTING="$(unzip -Z1 "$ARCHIVE")" || { echo "  ! could not list $ARCHIVE" >&2; return 1; }
+      reject_unsafe_archive_paths "$LISTING" || {
+        echo "  ! $ARCHIVE contains an absolute or ../ path -- refusing to extract" >&2
+        return 1
+      }
       if printf '%s\n' "$LISTING" | grep -q '^ProB/'; then DEST="$HOME/Applications"; else DEST="$PROB_HOME"; fi
       unzip -oq "$ARCHIVE" -d "$DEST" || { echo "  ! could not extract $ARCHIVE into $DEST" >&2; return 1; }
       ;;
     *.tar.gz)
       LISTING="$(tar -tzf "$ARCHIVE")" || {
         echo "  ! $PROB_URL did not return a gzip tarball (got: $(file -b "$ARCHIVE"))" >&2
+        return 1
+      }
+      reject_unsafe_archive_paths "$LISTING" || {
+        echo "  ! $ARCHIVE contains an absolute or ../ path -- refusing to extract" >&2
         return 1
       }
       if printf '%s\n' "$LISTING" | grep -q '^ProB/'; then DEST="$HOME/Applications"; else DEST="$PROB_HOME"; fi
