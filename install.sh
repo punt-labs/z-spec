@@ -152,6 +152,134 @@ fi
 
 ok "$BINARY $(command -v "$BINARY")"
 
+# --- Step 4.5: Install probcli ---
+#
+# Only /z-spec:check (fuzz type-checking) works without probcli. Every other
+# command -- test, model2code, code2model, oracle, animation -- needs it. An
+# install that finishes without probcli and then prints "ready!" is the exact
+# bug z-spec-68e fixed in plugin/commands/setup.md, just one layer up: reports
+# success while the tool cannot do most of what it is for. So probcli install
+# is part of the default flow, not a follow-up step.
+#
+# fuzz is deliberately NOT auto-installed here: it must be compiled from
+# source (git clone + make + sudo make install into a TeX distribution most
+# machines do not have), which is a fundamentally riskier and slower operation
+# to run unattended inside a piped curl | sh than downloading a static binary.
+# HAVE_FUZZ below only detects it for the final summary, never installs it.
+
+info "Installing probcli..."
+
+PROB_VERSION=1.15.1
+PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
+PROB_HOME="$HOME/Applications/ProB"
+
+install_probcli() (
+  # Subshell: a failure anywhere here returns nonzero without aborting the
+  # rest of install.sh under set -e, and every path below is explicit so a
+  # partial failure never gets reported as success.
+  set -eu
+
+  case "$(uname -s)" in
+    Darwin) PROB_ARCHIVE_NAME="ProB.macos.zip" ;;
+    Linux)  PROB_ARCHIVE_NAME="ProB.linux64.tar.gz" ;;
+    *)      echo "  ! unsupported OS for probcli: $(uname -s) -- skipping" >&2; return 1 ;;
+  esac
+
+  for tool in curl file; do
+    command -v "$tool" >/dev/null 2>&1 || {
+      echo "  ! $tool not found -- cannot install probcli" >&2
+      return 1
+    }
+  done
+  case "$PROB_ARCHIVE_NAME" in
+    *.zip) command -v unzip >/dev/null 2>&1 || { echo "  ! unzip not found -- cannot install probcli" >&2; return 1; } ;;
+    *.tar.gz) command -v tar >/dev/null 2>&1 || { echo "  ! tar not found -- cannot install probcli" >&2; return 1; } ;;
+  esac
+
+  # Already at the right version? Skip the download entirely.
+  if [ -x "$PROB_HOME/probcli" ]; then
+    EXISTING_OUT="$("$PROB_HOME/probcli" -version 2>&1)" || EXISTING_OUT=""
+    EXISTING_VER="$(printf '%s\n' "$EXISTING_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+    if [ "$EXISTING_VER" = "$PROB_VERSION" ]; then
+      echo "  ✓ probcli $PROB_HOME/probcli (already $PROB_VERSION)"
+      return 0
+    fi
+  fi
+
+  mkdir -p "$PROB_HOME" || { echo "  ! could not create $PROB_HOME" >&2; return 1; }
+
+  PROB_URL="$PROB_BASE/$PROB_VERSION/$PROB_ARCHIVE_NAME"
+  ARCHIVE="$HOME/Applications/$PROB_ARCHIVE_NAME"
+
+  # -f makes curl exit nonzero on 404/5xx instead of saving the error page as
+  # if it were the archive -- the exact silent failure z-spec-68e fixed.
+  curl -fL -o "$ARCHIVE" "$PROB_URL" || {
+    echo "  ! download failed: $PROB_URL" >&2
+    return 1
+  }
+
+  case "$PROB_ARCHIVE_NAME" in
+    *.zip)
+      unzip -tq "$ARCHIVE" || {
+        echo "  ! $PROB_URL did not return a zip archive (got: $(file -b "$ARCHIVE"))" >&2
+        return 1
+      }
+      LISTING="$(unzip -Z1 "$ARCHIVE")" || { echo "  ! could not list $ARCHIVE" >&2; return 1; }
+      if printf '%s\n' "$LISTING" | grep -q '^ProB/'; then DEST="$HOME/Applications"; else DEST="$PROB_HOME"; fi
+      unzip -oq "$ARCHIVE" -d "$DEST" || { echo "  ! could not extract $ARCHIVE into $DEST" >&2; return 1; }
+      ;;
+    *.tar.gz)
+      LISTING="$(tar -tzf "$ARCHIVE")" || {
+        echo "  ! $PROB_URL did not return a gzip tarball (got: $(file -b "$ARCHIVE"))" >&2
+        return 1
+      }
+      if printf '%s\n' "$LISTING" | grep -q '^ProB/'; then DEST="$HOME/Applications"; else DEST="$PROB_HOME"; fi
+      tar -xzf "$ARCHIVE" -C "$DEST" || { echo "  ! could not extract $ARCHIVE into $DEST" >&2; return 1; }
+      ;;
+  esac
+
+  # Do not trust the archive's exec bit.
+  chmod +x "$PROB_HOME/probcli" 2>/dev/null || true
+
+  test -x "$PROB_HOME/probcli" || {
+    echo "  ! extracted $ARCHIVE but no executable probcli at $PROB_HOME/probcli" >&2
+    return 1
+  }
+
+  PROB_OUT="$("$PROB_HOME/probcli" -version 2>&1)" || {
+    echo "  ! $PROB_HOME/probcli is installed but would not run:" >&2
+    printf '%s\n' "$PROB_OUT" >&2
+    return 1
+  }
+
+  # Exact match, not substring: a future 1.15.10 must not silently pass as
+  # 1.15.1.
+  PROB_VER="$(printf '%s\n' "$PROB_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+  test "$PROB_VER" = "$PROB_VERSION" || {
+    echo "  ! expected probcli $PROB_VERSION, got: $PROB_VER" >&2
+    return 1
+  }
+
+  echo "  ✓ probcli $PROB_HOME/probcli ($PROB_VERSION)"
+)
+
+HAVE_PROBCLI=0
+if install_probcli; then
+  HAVE_PROBCLI=1
+else
+  warn "probcli install failed -- most z-spec commands need it. Re-run this"
+  warn "installer, or install by hand: /z-spec:setup probcli"
+fi
+
+HAVE_FUZZ=0
+if command -v fuzz >/dev/null 2>&1; then
+  HAVE_FUZZ=1
+  ok "fuzz $(command -v fuzz)"
+else
+  warn "fuzz not found -- type-checking (/z-spec:check) needs it"
+  warn "fuzz must be built from source; see /z-spec:setup fuzz"
+fi
+
 if [ "$SKIP_PLUGIN" = "0" ]; then
   # --- Step 5: Register marketplace ---
 
@@ -213,14 +341,26 @@ printf '\n'
 
 # --- Done ---
 
-# The final message is gated on the SKIP_PLUGIN boolean, not on the reason for
-# skipping: the capability-absent auto-skip and the explicit --no-plugin skip
-# print the SAME CLI-only block. This prevents the common bug of emitting a
-# "restart to activate the plugin" line when no plugin was ever installed.
+# "Ready" means the toolchain actually works, not just that the CLI/plugin
+# steps completed -- claiming otherwise is the exact bug this step exists to
+# stop. HAVE_PROBCLI/HAVE_FUZZ reflect what was actually verified above, not
+# what the installer attempted.
+if [ "$HAVE_PROBCLI" = "1" ] && [ "$HAVE_FUZZ" = "1" ]; then
+  READY=1
+else
+  READY=0
+fi
+
 if [ "$SKIP_PLUGIN" = "1" ]; then
-  printf '%b%b%s CLI installed (CLI-only mode — Claude Code plugin skipped)%b\n\n' "$GREEN" "$BOLD" "$BINARY" "$NC"
-  printf 'The z-spec CLI and its MCP server ("%s mcp") are installed. Type-checking\n' "$BINARY"
-  printf 'and model-checking also need fuzz and probcli — run "%s doctor" to check.\n' "$BINARY"
+  if [ "$READY" = "1" ]; then
+    printf '%b%b%s CLI installed and ready (CLI-only mode — Claude Code plugin skipped)%b\n\n' "$GREEN" "$BOLD" "$BINARY" "$NC"
+  else
+    printf '%b%b%s CLI installed, but not fully ready (CLI-only mode — Claude Code plugin skipped)%b\n\n' "$YELLOW" "$BOLD" "$BINARY" "$NC"
+  fi
+  printf 'The z-spec CLI and its MCP server ("%s mcp") are installed.\n' "$BINARY"
+  if [ "$READY" != "1" ]; then
+    printf 'Run "%s doctor" to see what is still missing.\n' "$BINARY"
+  fi
   printf 'To get started:\n\n'
   printf '  %s doctor                 # check fuzz/probcli availability\n' "$BINARY"
   printf '  %s check <spec.tex>       # type-check a Z spec with fuzz\n' "$BINARY"
@@ -229,8 +369,18 @@ if [ "$SKIP_PLUGIN" = "1" ]; then
     '--no-plugin (and with ZSPEC_NO_PLUGIN unset). The plugin requires the' \
     'claude CLI and git to be installed.'
   printf '\n'
-else
+elif [ "$READY" = "1" ]; then
   printf '%b%b%s is ready!%b\n\n' "$GREEN" "$BOLD" "$PLUGIN_NAME" "$NC"
-  printf 'Restart Claude Code, then type /z-spec:help to get started.\n'
-  printf 'Run /z-spec:setup all to install fuzz and probcli.\n\n'
+  printf 'Restart Claude Code, then type /z-spec:help to get started.\n\n'
+else
+  printf '%b%b%s plugin installed, but the toolchain is incomplete%b\n\n' "$YELLOW" "$BOLD" "$PLUGIN_NAME" "$NC"
+  printf 'Restart Claude Code, then run "%s doctor" (or /z-spec:doctor) to see what\n' "$BINARY"
+  printf 'is still missing, and /z-spec:setup to install it.\n\n'
+  if [ "$HAVE_PROBCLI" != "1" ]; then
+    printf 'Without probcli: /z-spec:check works, but /z-spec:test, model2code,\n'
+    printf 'code2model, oracle, and animation do not.\n\n'
+  fi
+  if [ "$HAVE_FUZZ" != "1" ]; then
+    printf 'Without fuzz: type-checking (/z-spec:check) does not work.\n\n'
+  fi
 fi
