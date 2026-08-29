@@ -135,14 +135,21 @@ class PickerCommand:
         return self
 
     def run(
-        self, directory: Path, *, frame_id: str = "z-spec-picker"
+        self,
+        directory: Path,
+        *,
+        frame_id: str = "z-spec-picker",
+        frame_title: str = FRAME_TITLE,
     ) -> CommandResult[PickerResult]:
         """Render the directory's Z specs into ``frame_id``, or a typed failure.
 
         ``frame_id`` is the Hub scene id, so the Browse callback raises and
-        renders into the same id (ADR §5.2). An absent directory or a directory
-        with no Z specs is a ``spec_not_found`` failure; a down display is a
-        ``display_failed`` — the same error contract as ``BrowseCommand``.
+        renders into the same id (ADR §5.2). ``frame_title`` defaults to
+        ``FRAME_TITLE``, which is what the ``pick`` tool and the CLI verb show;
+        the menu passes its leaf's label, and that label *is* ``FRAME_TITLE``.
+        An absent directory or a directory with no Z specs is a
+        ``spec_not_found`` failure; a down display is a ``display_failed`` —
+        the same error contract as ``BrowseCommand``.
         """
         # Resolved once: the CLI default ``Path()`` and the MCP default "." are
         # both the cwd, and a scene saying it searched "." has told nobody
@@ -169,7 +176,7 @@ class PickerCommand:
                 CommandError(CommandFailure.spec_unreadable, str(exc))
             )
         try:  # PY-EH-5 exception: lux render is an I/O boundary
-            self._display.show(scene, frame_id=frame_id, frame_title=self.FRAME_TITLE)
+            self._display.show(scene, frame_id=frame_id, frame_title=frame_title)
         except DisplayError as exc:
             return CommandResult[PickerResult].failed(
                 CommandError(CommandFailure.display_failed, str(exc))

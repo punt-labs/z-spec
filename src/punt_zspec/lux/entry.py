@@ -56,13 +56,15 @@ class ZSpecMenuEntry:
         return self.callback_id == callback_id
 
     def run(self, display: Display) -> ClickOutcome:
-        """Run this entry's command on ``display`` and return its outcome.
+        """Run this entry's command on ``display``, titled with its own label.
 
         Blocking — call off-thread. The command captures a down display as a
         typed failure rather than raising; the caller reads the returned outcome
         to report a render the user would otherwise wait on forever.
         """
-        return self.factory(display).run(self.target, frame_id=self.scene_id)
+        return self.factory(display).run(
+            self.target, frame_id=self.scene_id, frame_title=self.title
+        )
 
     def error_scene(self, error: CommandError) -> TextElement:
         """Return the scene that reports a render this entry could not complete."""
@@ -84,9 +86,9 @@ class ZSpecMenuEntries:
     ) -> tuple[ZSpecMenuEntry, ...]:
         """Return the Tutorial and Browse entries in the order they register.
 
-        Each title names the frame its click raises: Browse reads that name off
-        ``PickerCommand``, while Tutorial's frame is named by the shipped
-        manifest's collection title, which no import reaches — a test compares it.
+        A click carries the entry's own title to the frame, so nothing else gets
+        a say: the shipped manifest keeps its authored collection title, which
+        the ``browse`` tool and verb still show.
         """
         return (
             ZSpecMenuEntry(

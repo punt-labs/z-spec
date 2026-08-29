@@ -75,7 +75,9 @@ def _entry(outcome: ClickOutcome = _OK, ran: list[str] | None = None) -> ZSpecMe
     log = ran if ran is not None else []
 
     class _Command:
-        def run(self, target: Path, /, *, frame_id: str) -> ClickOutcome:
+        def run(
+            self, target: Path, /, *, frame_id: str, frame_title: str
+        ) -> ClickOutcome:
             log.append(frame_id)
             return outcome
 

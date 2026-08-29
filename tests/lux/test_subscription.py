@@ -126,7 +126,9 @@ def _entry(
     callback_id: str, title: str, target: Path, log: list[tuple[Path, str]]
 ) -> ZSpecMenuEntry:
     class _Command:
-        def run(self, path: Path, /, *, frame_id: str) -> ClickOutcome:
+        def run(
+            self, path: Path, /, *, frame_id: str, frame_title: str
+        ) -> ClickOutcome:
             log.append((path, frame_id))
             return _OK
 

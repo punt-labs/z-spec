@@ -1,15 +1,18 @@
 """The menu-title invariant: a click lands in a frame named for the label clicked.
 
-``ZSpecMenuEntry`` carries one ``title``, so the label luxd shows and the title
-the click path renders cannot diverge inside the entry. What no type ties down is
-the far end — the frame is titled by whatever the entry's *command* decides: the
-shipped manifest's collection title for Tutorial, ``PickerCommand.FRAME_TITLE``
-for Browse. So each shipped entry is run here against its real target, and the
-title it puts on screen is compared with the title it was registered under.
+``ZSpecMenuEntry`` carries one ``title`` and hands it to the command as the frame
+title, so the label luxd registers and the name the frame ends up with are one
+string travelling one path. This asserts that path end to end: each shipped entry
+runs against its real target and the title reaching ``Display.show`` is compared
+with the title the entry was registered under.
 
-Nothing is faked but the display. The manifest, the ten lesson specs, and the
-commands are the shipped ones, because the drift this guards against lives
-exactly in the data a fake would replace.
+The invariant used to rest on data agreeing — the manifest's collection title
+happening to equal the Tutorial leaf's label. It no longer does, which is why the
+manifest is back to its own authored title; the structure carries it instead. The
+test is unchanged because it always asserted the property, never the mechanism.
+
+Nothing is faked but the display: the manifest, the ten lesson specs, and the
+commands are the shipped ones.
 """
 
 from __future__ import annotations
@@ -19,6 +22,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from punt_zspec.browser import build_browser_scene
+from punt_zspec.commands.browse import BrowseCommand
 from punt_zspec.lux.entry import ZSpecMenuEntries
 
 if TYPE_CHECKING:
@@ -63,3 +68,21 @@ def test_a_click_renders_a_frame_titled_with_the_label_that_was_clicked(
 
     assert outcome.error is None, "the shipped target must render"
     assert titles == [entry.title]
+
+
+def test_browsing_the_shipped_collection_still_shows_its_own_title() -> None:
+    """Off the menu path there is no override, so the manifest names its frame.
+
+    The menu is the only caller that renames a frame. The ``browse`` tool and the
+    CLI verb must still report and show the title the manifest actually authors —
+    the thing that stopped being true when the collection was renamed to match a
+    menu leaf.
+    """
+    titles: list[str] = []
+
+    result = BrowseCommand(
+        build=build_browser_scene, display=_recording_display(titles)
+    ).run(_MANIFEST)
+
+    assert result.unwrap().title == "Introduction to Z Notation"
+    assert titles == ["Introduction to Z Notation"]

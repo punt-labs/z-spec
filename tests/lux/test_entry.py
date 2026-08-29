@@ -69,14 +69,16 @@ def test_an_entry_matches_only_its_own_callback_id() -> None:
 
 
 def test_run_renders_the_target_into_its_own_scene() -> None:
-    ran: list[tuple[Path, str]] = []
+    ran: list[tuple[Path, str, str]] = []
     outcome: ClickOutcome = CommandResult.ok(
         PickerResult(total=1, scene_id="z-spec-picker")
     )
 
     class _Command:
-        def run(self, target: Path, /, *, frame_id: str) -> ClickOutcome:
-            ran.append((target, frame_id))
+        def run(
+            self, target: Path, /, *, frame_id: str, frame_title: str
+        ) -> ClickOutcome:
+            ran.append((target, frame_id, frame_title))
             return outcome
 
     entry = ZSpecMenuEntry(
@@ -88,8 +90,9 @@ def test_run_renders_the_target_into_its_own_scene() -> None:
     )
 
     assert entry.run(_RecordingDisplay()) is outcome
-    # One Hub scene: the id a click raises is the frame the command renders into.
-    assert ran == [(_PROJECT, "z-spec-picker")]
+    # One Hub scene: the id a click raises is the frame the command renders into,
+    # and the entry hands it the very label that was clicked.
+    assert ran == [(_PROJECT, "z-spec-picker", "Z-Spec Browser")]
 
 
 def test_the_error_scene_names_the_entry_and_the_reason() -> None:
