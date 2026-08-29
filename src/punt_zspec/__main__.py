@@ -276,11 +276,11 @@ def pick(
     ] = Path(),
 ) -> None:
     """Discover a directory's Z specs and display them in a picker."""
-    from punt_zspec.browser import build_spec_picker
     from punt_zspec.commands.picker import PickerCommand
     from punt_zspec.display import LuxDisplay
+    from punt_zspec.picker_scene import build_spec_picker
 
-    # build_spec_picker matches PickerSceneBuilder(specs, root) — pass it directly.
+    # build_spec_picker satisfies PickerSceneBuilder structurally — pass it directly.
     result = PickerCommand(build=build_spec_picker, display=LuxDisplay()).run(directory)
     err = result.error
     if err is not None:

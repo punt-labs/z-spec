@@ -18,13 +18,16 @@ logger = logging.getLogger(__name__)
 
 
 class PickerSceneBuilder(Protocol):
-    """Build an opaque lux scene from the discovered (path, model) specs.
+    """Build an opaque lux scene from the discovered specs and the root searched.
 
-    The builder labels each tab by its spec's filename stem.
+    ``root`` is passed because the frame title is a constant: the tree that was
+    searched reaches the screen through the scene or not at all.
     """
 
     # object return (PY-TS-14): a lux element; the command forwards it uninspected.
-    def __call__(self, specs: list[tuple[Path, SpecModel]], /) -> object: ...
+    def __call__(
+        self, specs: list[tuple[Path, SpecModel]], root: Path, /
+    ) -> object: ...
 
 
 @final
@@ -141,7 +144,11 @@ class PickerCommand:
         with no Z specs is a ``spec_not_found`` failure; a down display is a
         ``display_failed`` — the same error contract as ``BrowseCommand``.
         """
-        search = SpecDirectory(directory, self._parse)
+        # Resolved once: the CLI default ``Path()`` and the MCP default "." are
+        # both the cwd, and a scene saying it searched "." has told nobody
+        # anything. The failures below keep naming ``directory`` as typed.
+        root = directory.resolve()
+        search = SpecDirectory(root, self._parse)
         if not search.exists():
             return CommandResult[PickerResult].failed(
                 CommandError(
@@ -156,7 +163,7 @@ class PickerCommand:
                 )
             )
         try:  # PY-EH-5 exception: report load / scene build is an I/O boundary
-            scene = self._build(specs)
+            scene = self._build(specs, root)
         except (FileNotFoundError, OSError, UnicodeDecodeError, ValueError) as exc:
             return CommandResult[PickerResult].failed(
                 CommandError(CommandFailure.spec_unreadable, str(exc))

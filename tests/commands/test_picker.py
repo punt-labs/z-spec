@@ -41,9 +41,12 @@ def _fake_parse(path: Path) -> SpecModel:
 
 def _recording_build(
     captured: list[list[tuple[Path, SpecModel]]],
+    roots: list[Path] | None = None,
 ) -> PickerSceneBuilder:
-    def build(specs: list[tuple[Path, SpecModel]]) -> object:
+    def build(specs: list[tuple[Path, SpecModel]], root: Path) -> object:
         captured.append(specs)
+        if roots is not None:
+            roots.append(root)
         return _SCENE
 
     return build
@@ -164,6 +167,26 @@ def test_picker_titles_its_frame_the_same_whatever_the_directory(
     assert [title for _, _, title in calls] == ["Z-Spec Browser", "Z-Spec Browser"]
 
 
+def test_picker_hands_the_builder_the_resolved_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # With the frame title now a constant, the scene is the only place naming the
+    # tree that was searched — and the CLI default Path() and MCP default "."
+    # are both the cwd, which names nothing until it is resolved.
+    _write(tmp_path / "a.tex", "SPEC a")
+    roots: list[Path] = []
+    cmd = PickerCommand(
+        build=_recording_build([], roots),
+        display=_recording_display([]),
+        parse=_fake_parse,
+    )
+    monkeypatch.chdir(tmp_path)
+
+    cmd.run(Path())
+
+    assert roots == [tmp_path.resolve()]
+
+
 def test_picker_frame_id_override(tmp_path: Path) -> None:
     _write(tmp_path / "a.tex", "SPEC a")
     calls: list[tuple[object, str, str]] = []
@@ -256,7 +279,7 @@ def test_picker_file_argument_is_not_found(tmp_path: Path) -> None:
 def test_picker_build_raises_is_spec_unreadable(tmp_path: Path, exc: Exception) -> None:
     _write(tmp_path / "a.tex", "SPEC a")
 
-    def _raising_build(_specs: list[tuple[Path, SpecModel]]) -> object:
+    def _raising_build(_specs: list[tuple[Path, SpecModel]], _root: Path) -> object:
         raise exc
 
     cmd = PickerCommand(

@@ -4,10 +4,9 @@
 the Hub scene it raises, the shipped command a click runs. ``ZSpecMenuEntries``
 is the pair z-spec registers, and the one place all of that is decided.
 
-One ``title`` field does two jobs: the label luxd shows in the menu, and the title
-of the frame a click on it raises. Two fields would be two names for one thing,
-free to drift; one cannot. The title carries the tool's name because the submenu
-around it names the repository, not the client.
+One ``title`` field does two jobs: the label luxd shows in the menu and the title
+of the frame a click raises — two fields would be two names for one thing, free
+to drift. It names the tool because the submenu names the repository, not us.
 """
 
 from __future__ import annotations
@@ -17,9 +16,10 @@ from typing import TYPE_CHECKING, final
 
 from punt_lux.protocol import TextElement
 
-from punt_zspec.browser import build_browser_scene, build_spec_picker
+from punt_zspec.browser import build_browser_scene
 from punt_zspec.commands.browse import BrowseCommand
 from punt_zspec.commands.picker import PickerCommand
+from punt_zspec.picker_scene import build_spec_picker
 
 if TYPE_CHECKING:
     from pathlib import Path

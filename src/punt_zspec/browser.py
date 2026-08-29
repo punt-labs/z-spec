@@ -126,32 +126,3 @@ def build_browser_scene(
         tabs.append(Tab(f"lesson-{lesson.order}", label, tuple(page)))
 
     return TabBarElement(id="z-spec-browser-tabs", tabs=tabs)
-
-
-def build_spec_picker(
-    specs: list[tuple[Path, SpecModel]],
-) -> TabBarElement:
-    """Build a tabbed picker for discovered Z specs — one tab per spec.
-
-    Tabs are labelled by the spec's filename stem (``search-panel``), which reads
-    cleanly in a narrow tab strip; a full path would truncate to nothing. Using
-    the stem also can never raise, unlike ``relative_to`` against a mismatched
-    root.
-    """
-    from punt_zspec.report import load_audit, load_fuzz, load_partition, load_report
-
-    tabs: list[Tab] = []
-    for idx, (tex_path, spec) in enumerate(specs):
-        label = tex_path.stem
-        spec_tabs = build_z_spec_scene(
-            tex_path,
-            spec,
-            report=load_report(tex_path),
-            fuzz=load_fuzz(tex_path),
-            partition=load_partition(tex_path),
-            audit=load_audit(tex_path),
-            id_prefix=f"s{idx}-",
-        )
-        tabs.append(Tab(f"spec-{idx}", label, (spec_tabs,)))
-
-    return TabBarElement(id="z-spec-picker-tabs", tabs=tabs)

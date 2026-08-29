@@ -293,10 +293,10 @@ def pick(directory: str = _PROJECT_DIR) -> str:
     Returns:
         JSON with ok (bool), total specs, and scene_id on success, or error.
     """
-    from punt_zspec.browser import build_spec_picker
     from punt_zspec.commands.picker import PickerCommand
+    from punt_zspec.picker_scene import build_spec_picker
 
-    # build_spec_picker matches PickerSceneBuilder(specs, root) — pass it directly.
+    # build_spec_picker satisfies PickerSceneBuilder structurally — pass it directly.
     return (
         PickerCommand(build=build_spec_picker, display=_SESSION.display)
         .run(Path(directory))

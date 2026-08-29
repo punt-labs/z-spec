@@ -25,6 +25,11 @@ if TYPE_CHECKING:
     from punt_zspec.commands.show import Display
     from punt_zspec.lux.entry import ZSpecMenuEntry
 
+# The dev-checkout half of what ZSpecLuxSession._default_tutorial_manifest
+# resolves at runtime: it prefers $ZSPEC_PLUGIN_ROOT (injected by plugin.json in
+# an installed plugin) and falls back to <repo>/plugin. Spelled out rather than
+# called, because reaching for a private resolver would let this test agree with
+# a broken one. If that fallback moves, this constant has to move with it.
 _TUTORIAL = Path(__file__).resolve().parents[2] / "plugin" / "tutorials" / "intro"
 _MANIFEST = _TUTORIAL / "manifest.toml"
 
