@@ -15,7 +15,6 @@ from punt_lux.protocol import (
 from punt_zspec.browser import (
     _apply_highlights,  # pyright: ignore[reportPrivateUsage]
     build_browser_scene,
-    build_spec_picker,
 )
 from punt_zspec.types import (
     BlockKind,
@@ -120,24 +119,6 @@ def test_lesson_tab_has_annotation() -> None:
     first_child = scene.tabs[0].children[0]
     assert isinstance(first_child, TextElement)
     assert "basic types" in first_child.content
-
-
-def test_spec_picker_labels_tabs_by_filename_stem() -> None:
-    """build_spec_picker labels each tab by the spec's filename stem.
-
-    A stem (``a``, ``b``) reads cleanly in a narrow tab strip and never raises —
-    discovery globs absolute paths whenever the search directory is absolute
-    (Claude Code passes absolute paths by convention), so a ``relative_to(cwd)``
-    label would crash for any root the process was not launched from.
-    """
-    root = Path("/z-spec-fixtures/specs")  # absolute, outside the test cwd
-    spec = _make_spec()
-    scene = build_spec_picker(
-        [(root / "a.tex", spec), (root / "nested" / "b.tex", spec)]
-    )
-
-    assert isinstance(scene, TabBarElement)
-    assert [t.label for t in scene.tabs] == ["a", "b"]
 
 
 def test_lesson_tab_has_spec_tabs() -> None:

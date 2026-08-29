@@ -28,12 +28,12 @@ def _entries() -> tuple[ZSpecMenuEntry, ...]:
     return ZSpecMenuEntries.of(tutorial_manifest=_MANIFEST, browse_root=_PROJECT)
 
 
-def test_the_two_entries_are_labelled_for_their_commands_alone() -> None:
-    # They sit under a submenu luxd labels with this client's repository, so a
-    # label repeating the tool or the session would read as noise.
+def test_the_two_entries_are_titled_with_the_tool_and_the_applet() -> None:
+    # The submenu around them names the repository, not the client, so the tool's
+    # own name has to travel on the leaf or it appears nowhere in the menu path.
     tutorial, browse = _entries()
 
-    assert (tutorial.label, browse.label) == ("Tutorial", "Browse")
+    assert (tutorial.title, browse.title) == ("Z-Spec Tutorial", "Z-Spec Browser")
 
 
 def test_each_entry_carries_its_callback_id_scene_and_target() -> None:
@@ -69,28 +69,30 @@ def test_an_entry_matches_only_its_own_callback_id() -> None:
 
 
 def test_run_renders_the_target_into_its_own_scene() -> None:
-    ran: list[tuple[Path, str]] = []
+    ran: list[tuple[Path, str, str]] = []
     outcome: ClickOutcome = CommandResult.ok(
         PickerResult(total=1, scene_id="z-spec-picker")
     )
 
     class _Command:
-        def run(self, target: Path, /, *, frame_id: str) -> ClickOutcome:
-            ran.append((target, frame_id))
+        def run(
+            self, target: Path, /, *, frame_id: str, frame_title: str
+        ) -> ClickOutcome:
+            ran.append((target, frame_id, frame_title))
             return outcome
 
     entry = ZSpecMenuEntry(
         callback_id="z-spec-browse",
-        label="Browse",
+        title="Z-Spec Browser",
         scene_id="z-spec-picker",
-        scene_title="Z Specs",
         factory=lambda _display: _Command(),
         target=_PROJECT,
     )
 
     assert entry.run(_RecordingDisplay()) is outcome
-    # One Hub scene: the id a click raises is the frame the command renders into.
-    assert ran == [(_PROJECT, "z-spec-picker")]
+    # One Hub scene: the id a click raises is the frame the command renders into,
+    # and the entry hands it the very label that was clicked.
+    assert ran == [(_PROJECT, "z-spec-picker", "Z-Spec Browser")]
 
 
 def test_the_error_scene_names_the_entry_and_the_reason() -> None:
@@ -102,4 +104,4 @@ def test_the_error_scene_names_the_entry_and_the_reason() -> None:
     scene = browse.error_scene(error)
 
     assert scene.id == "z-spec-picker-error"
-    assert scene.content == "Z Specs failed: No Z specs found in /work/repo"
+    assert scene.content == "Z-Spec Browser failed: No Z specs found in /work/repo"

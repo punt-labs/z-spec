@@ -108,7 +108,7 @@ class ZSpecClickRunner:
                 self._display.show,
                 entry.error_scene(error),
                 frame_id=entry.scene_id,
-                frame_title=entry.scene_title,
+                frame_title=entry.title,
             )
         except DisplayError as exc:
             logger.warning("could not render error scene %s: %s", entry.scene_id, exc)

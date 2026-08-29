@@ -65,13 +65,22 @@ class BrowseCommand:
         return self
 
     def run(
-        self, manifest: Path, *, frame_id: str = "z-spec-browser"
+        self,
+        manifest: Path,
+        *,
+        frame_id: str = "z-spec-browser",
+        # ``| None`` (PY-TS-14): absence is the contract — no override, so the
+        # collection names its own frame. The menu supplies one, because its
+        # leaf's label and the frame it raises must be a single string.
+        frame_title: str | None = None,
     ) -> CommandResult[BrowseResult]:
         """Render the collection into ``frame_id``, or return a typed failure.
 
         ``frame_id`` is the Hub scene id, so a raise-first caller renders into
         the same id it raised: the ``browse`` tool keeps the default and the
-        Tutorial callback passes ``z-spec-tutorial`` (ADR §5.2).
+        Tutorial callback passes ``z-spec-tutorial`` (ADR §5.2). ``frame_title``
+        defaults to the collection's own title, which is what the tool and the
+        verb show.
         """
         if not manifest.is_file():
             return CommandResult[BrowseResult].failed(
@@ -96,8 +105,9 @@ class BrowseCommand:
             return CommandResult[BrowseResult].failed(
                 CommandError(CommandFailure.manifest_invalid, str(exc))
             )
+        title = collection.title if frame_title is None else frame_title
         try:  # PY-EH-5 exception: lux render is an I/O boundary
-            self._display.show(scene, frame_id=frame_id, frame_title=collection.title)
+            self._display.show(scene, frame_id=frame_id, frame_title=title)
         except DisplayError as exc:
             return CommandResult[BrowseResult].failed(
                 CommandError(CommandFailure.display_failed, str(exc))

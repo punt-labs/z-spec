@@ -1,14 +1,12 @@
 """z-spec's menu entries: one entry's identity and behavior, and the two it ships.
 
-``ZSpecMenuEntry`` is one leaf of the lux Clients menu — its callback id, its
-label, the Hub scene it raises, and the shipped command a click on it runs.
-``ZSpecMenuEntries`` is the pair z-spec registers, and the one place their
-callback ids, labels, scene ids, and commands are decided.
+``ZSpecMenuEntry`` is one leaf of the lux Clients menu — a callback id, a title,
+the Hub scene it raises, the shipped command a click runs. ``ZSpecMenuEntries``
+is the pair z-spec registers, and the one place all of that is decided.
 
-A leaf is named for its command alone — "Tutorial", "Browse". It sits inside a
-submenu luxd already labels with this client's repository, so a label that
-repeated the tool or the session would read as noise beside the clients that
-repeat nothing.
+One ``title`` field does two jobs: the label luxd shows in the menu and the title
+of the frame a click raises — two fields would be two names for one thing, free
+to drift. It names the tool because the submenu names the repository, not us.
 """
 
 from __future__ import annotations
@@ -18,9 +16,10 @@ from typing import TYPE_CHECKING, final
 
 from punt_lux.protocol import TextElement
 
-from punt_zspec.browser import build_browser_scene, build_spec_picker
+from punt_zspec.browser import build_browser_scene
 from punt_zspec.commands.browse import BrowseCommand
 from punt_zspec.commands.picker import PickerCommand
+from punt_zspec.picker_scene import build_spec_picker
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -39,7 +38,7 @@ __all__ = ["ZSpecMenuEntries", "ZSpecMenuEntry"]
 @final
 @dataclass(frozen=True, slots=True)
 class ZSpecMenuEntry:
-    """One menu entry: its callback id, label, scene, and the command it runs.
+    """One menu entry: its callback id, title, scene, and the command it runs.
 
     ``scene_id`` is both the id the click raises and the ``frame_id`` its command
     renders into — one Hub scene, so a raise brings up the very frame the render
@@ -47,9 +46,8 @@ class ZSpecMenuEntry:
     """
 
     callback_id: str
-    label: str
+    title: str
     scene_id: str
-    scene_title: str
     factory: ClickCommandFactory
     target: Path
 
@@ -58,19 +56,21 @@ class ZSpecMenuEntry:
         return self.callback_id == callback_id
 
     def run(self, display: Display) -> ClickOutcome:
-        """Run this entry's command on ``display`` and return its outcome.
+        """Run this entry's command on ``display``, titled with its own label.
 
         Blocking — call off-thread. The command captures a down display as a
         typed failure rather than raising; the caller reads the returned outcome
         to report a render the user would otherwise wait on forever.
         """
-        return self.factory(display).run(self.target, frame_id=self.scene_id)
+        return self.factory(display).run(
+            self.target, frame_id=self.scene_id, frame_title=self.title
+        )
 
     def error_scene(self, error: CommandError) -> TextElement:
         """Return the scene that reports a render this entry could not complete."""
         return TextElement(
             id=f"{self.scene_id}-error",
-            content=f"{self.scene_title} failed: {error.message}",
+            content=f"{self.title} failed: {error.message}",
         )
 
 
@@ -84,21 +84,24 @@ class ZSpecMenuEntries:
     def of(
         cls, *, tutorial_manifest: Path, browse_root: Path
     ) -> tuple[ZSpecMenuEntry, ...]:
-        """Return the Tutorial and Browse entries in the order they register."""
+        """Return the Tutorial and Browse entries in the order they register.
+
+        A click carries the entry's own title to the frame, so nothing else gets
+        a say: the shipped manifest keeps its authored collection title, which
+        the ``browse`` tool and verb still show.
+        """
         return (
             ZSpecMenuEntry(
                 callback_id="z-spec-tutorial",
-                label="Tutorial",
+                title="Z-Spec Tutorial",
                 scene_id="z-spec-tutorial",
-                scene_title="Z-Spec Tutorial",
                 factory=cls._tutorial,
                 target=tutorial_manifest,
             ),
             ZSpecMenuEntry(
                 callback_id="z-spec-browse",
-                label="Browse",
+                title=PickerCommand.FRAME_TITLE,
                 scene_id="z-spec-picker",
-                scene_title="Z Specs",
                 factory=cls._picker,
                 target=browse_root,
             ),

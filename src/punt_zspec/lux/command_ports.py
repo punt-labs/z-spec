@@ -49,8 +49,14 @@ class ClickOutcome(Protocol):
 class ClickCommand(Protocol):
     """One render a menu click runs — a second caller of a shipped command."""
 
-    def run(self, target: Path, /, *, frame_id: str) -> ClickOutcome:
-        """Render ``target`` into ``frame_id`` (the raised Hub scene id)."""
+    def run(self, target: Path, /, *, frame_id: str, frame_title: str) -> ClickOutcome:
+        """Render ``target`` into ``frame_id`` under ``frame_title``.
+
+        The entry supplies both: ``frame_id`` is the Hub scene the click raised,
+        and ``frame_title`` is the entry's own label. A command titling its own
+        frame on the menu path could disagree with the leaf that was clicked;
+        taking the title from the entry is what makes that impossible.
+        """
         ...
 
 

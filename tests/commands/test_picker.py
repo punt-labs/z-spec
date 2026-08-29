@@ -1,4 +1,4 @@
-"""Humble-object tests for PickerCommand — fake builder, parser, and display."""
+"""Tests for the spec search and PickerCommand — fake builder, parser, display."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from punt_zspec.commands.picker import PickerCommand, PickerResult
+from punt_zspec.commands.picker import PickerCommand, PickerResult, SpecDirectory
 from punt_zspec.commands.result import CommandFailure
 from punt_zspec.commands.show import Display, DisplayError
 from punt_zspec.types import SpecModel
@@ -41,9 +41,12 @@ def _fake_parse(path: Path) -> SpecModel:
 
 def _recording_build(
     captured: list[list[tuple[Path, SpecModel]]],
+    roots: list[Path] | None = None,
 ) -> PickerSceneBuilder:
-    def build(specs: list[tuple[Path, SpecModel]]) -> object:
+    def build(specs: list[tuple[Path, SpecModel]], root: Path) -> object:
         captured.append(specs)
+        if roots is not None:
+            roots.append(root)
         return _SCENE
 
     return build
@@ -70,6 +73,42 @@ def _write(path: Path, text: str) -> Path:
     return path
 
 
+def test_spec_directory_of_a_file_does_not_exist(tmp_path: Path) -> None:
+    tex = _write(tmp_path / "a.tex", "SPEC a")
+
+    assert not SpecDirectory(tex, _fake_parse).exists()
+
+
+def test_spec_directory_skips_hidden_dirs_templates_and_blockless_includes(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "real.tex", "SPEC real")
+    scratch = tmp_path / ".tmp"
+    scratch.mkdir()
+    _write(scratch / "junk.tex", "SPEC junk")
+    _write(tmp_path / "preamble.tex", "SPEC preamble")
+    _write(tmp_path / "include.tex", "just a latex include")
+
+    found = SpecDirectory(tmp_path, _fake_parse).specs()
+
+    assert [tex.name for tex, _ in found] == ["real.tex"]
+
+
+def test_a_hidden_directory_searched_explicitly_still_lists_its_specs(
+    tmp_path: Path,
+) -> None:
+    # Only ancestors *below* the root are tested for a leading dot, so pointing
+    # the search straight at .tmp/ is a deliberate choice the rule must honour —
+    # otherwise a project kept under a dotted directory can never be browsed.
+    scratch = tmp_path / ".tmp"
+    scratch.mkdir()
+    _write(scratch / "a.tex", "SPEC a")
+
+    found = SpecDirectory(scratch, _fake_parse).specs()
+
+    assert [tex.name for tex, _ in found] == ["a.tex"]
+
+
 def test_picker_discovers_and_renders(tmp_path: Path) -> None:
     _write(tmp_path / "a.tex", "SPEC a")
     _write(tmp_path / "b.tex", "SPEC b")
@@ -89,7 +128,7 @@ def test_picker_discovers_and_renders(tmp_path: Path) -> None:
     (specs,) = captured
     assert [p for p, _ in specs] == [tmp_path / "a.tex", tmp_path / "b.tex"]
     assert all(isinstance(m, SpecModel) for _, m in specs)
-    assert calls == [(_SCENE, "z-spec-picker", f"Z Specs: {tmp_path.name}")]
+    assert calls == [(_SCENE, "z-spec-picker", "Z-Spec Browser")]
 
 
 def test_picker_wire_format(tmp_path: Path) -> None:
@@ -104,24 +143,48 @@ def test_picker_wire_format(tmp_path: Path) -> None:
     )
 
 
-def test_picker_default_dir_title_names_resolved_cwd(
+def test_picker_titles_its_frame_the_same_whatever_the_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _write(tmp_path / "a.tex", "SPEC a")
+    # The menu click, the MCP tool and the CLI verb reach the same Hub frame from
+    # different directories — the CLI default Path() and the MCP default "." are
+    # the cwd. One shared frame carries one name, so the title must not vary with
+    # the argument that reached it.
+    named = tmp_path / "project"
+    named.mkdir()
+    _write(named / "a.tex", "SPEC a")
     calls: list[tuple[object, str, str]] = []
     cmd = PickerCommand(
         build=_recording_build([]),
         display=_recording_display(calls),
         parse=_fake_parse,
     )
-    # The CLI default Path() and MCP default "." are the cwd, whose bare .name is
-    # "" — the frame title must resolve to the real directory basename, not
-    # "Z Specs: ".
+    monkeypatch.chdir(named)
+
+    cmd.run(named)
+    cmd.run(Path())
+
+    assert [title for _, _, title in calls] == ["Z-Spec Browser", "Z-Spec Browser"]
+
+
+def test_picker_hands_the_builder_the_resolved_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # With the frame title now a constant, the scene is the only place naming the
+    # tree that was searched — and the CLI default Path() and MCP default "."
+    # are both the cwd, which names nothing until it is resolved.
+    _write(tmp_path / "a.tex", "SPEC a")
+    roots: list[Path] = []
+    cmd = PickerCommand(
+        build=_recording_build([], roots),
+        display=_recording_display([]),
+        parse=_fake_parse,
+    )
     monkeypatch.chdir(tmp_path)
 
     cmd.run(Path())
 
-    assert calls[0][2] == f"Z Specs: {tmp_path.resolve().name}"
+    assert roots == [tmp_path.resolve()]
 
 
 def test_picker_frame_id_override(tmp_path: Path) -> None:
@@ -216,7 +279,7 @@ def test_picker_file_argument_is_not_found(tmp_path: Path) -> None:
 def test_picker_build_raises_is_spec_unreadable(tmp_path: Path, exc: Exception) -> None:
     _write(tmp_path / "a.tex", "SPEC a")
 
-    def _raising_build(_specs: list[tuple[Path, SpecModel]]) -> object:
+    def _raising_build(_specs: list[tuple[Path, SpecModel]], _root: Path) -> object:
         raise exc
 
     cmd = PickerCommand(

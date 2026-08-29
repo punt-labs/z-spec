@@ -111,6 +111,30 @@ def test_browse_frame_id_override(tmp_path: Path) -> None:
     assert calls == [(_SCENE, "z-spec-tutorial", "Test Collection")]
 
 
+def test_browse_frame_title_override(tmp_path: Path) -> None:
+    """A caller with a name of its own titles the frame with it.
+
+    The menu is that caller: its leaf's label and the frame it raises are one
+    string, which no manifest can be made to guarantee. What the command
+    *reports* stays the collection's title either way, because that is what the
+    collection is called.
+    """
+    (tmp_path / "01.tex").write_text("dummy", encoding="utf-8")
+    manifest = _manifest(tmp_path)
+    calls: list[tuple[object, str, str]] = []
+    cmd = BrowseCommand(
+        build=_build_scene,
+        display=_recording_display(calls),
+        parse_manifest=lambda _p: _collection(tmp_path),
+        parse_spec=_model,
+    )
+
+    result = cmd.run(manifest, frame_title="Z-Spec Tutorial")
+
+    assert result.unwrap().title == "Test Collection"
+    assert calls == [(_SCENE, "z-spec-browser", "Z-Spec Tutorial")]
+
+
 def test_browse_ok_wire_format(tmp_path: Path) -> None:
     (tmp_path / "01.tex").write_text("dummy", encoding="utf-8")
     manifest = _manifest(tmp_path)
