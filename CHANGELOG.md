@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **`/z-spec:help` is now an interactive getting-started tutorial instead of a static reference dump.** The command had no imperative instruction telling the model what to do with its content — unlike every other command in the plugin (`doctor` opens "Run diagnostic checks... report results in a status table"); `help.md` was 165 lines of pure reference text with nothing telling the model to act, so a slash command whose body is an ordinary prompt produced inconsistent results across sessions. Rewritten to walk a first-time user from naming their own stateful system through `/z-spec:code2model` → `/z-spec:check` → `/z-spec:test` to a validated first specification of a problem they actually have, ending with an explicit call to action. The full command table, the B-Method table, and pointers to `reference/*.md` are preserved as an appendix; the existing lesson-by-lesson Z notation tutorial (lux Tutorial menu entry / `browse`) is referenced rather than duplicated, since it teaches notation while this teaches the toolchain.
+
 ## [0.20.1] - 2026-08-29
 
 ### Changed

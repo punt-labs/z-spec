@@ -360,7 +360,7 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 |---------|-------------|
 | `/z-spec:setup [check\|fuzz\|probcli\|all]` | Install and configure fuzz and probcli |
 | `/z-spec:doctor` | Check environment health |
-| `/z-spec:help` | Show quick reference |
+| `/z-spec:help` | Interactive getting-started tutorial for your own spec |
 | `/z-spec:cleanup [dir]` | Remove TeX tooling files (keeps .tex and .pdf) |
 
 ### Z Specification

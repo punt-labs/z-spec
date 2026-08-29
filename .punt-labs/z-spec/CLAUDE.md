@@ -34,7 +34,7 @@ enablement is reviewed and identical for everyone who clones.
 | `/z-spec:code2model [focus]` | Write a Z spec from a codebase or description |
 | `/z-spec:model2code [spec]` | Generate code and tests from a spec |
 | `/z-spec:doctor` | Report toolchain health (fuzz, probcli, fuzz.sty) |
-| `/z-spec:help` | The full command list |
+| `/z-spec:help` | Interactive getting-started tutorial for your own spec |
 
 Type-check before you model-check: fuzz catches the type errors that make ProB's
 output unreadable. Every command works on `.tex` files carrying `zed`,
