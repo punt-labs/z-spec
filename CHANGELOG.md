@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **README.md rewritten to comply with the updated org README standard: every fenced code block is now exactly one line, and developer content moved to a new `CONTRIBUTING.md`.** A sequence of commands is now a sequence of one-line blocks rather than one multi-line block, applied with no exception, including the LaTeX spec excerpt and TOML manifest examples in "What It Looks Like" and "Tutorial Browser" — each line of those listings is now its own fenced block, connected by short prose. The `## Development` section (quality-gate commands) is removed from README.md entirely; `CONTRIBUTING.md` is the new required home for them, linked from the Documentation section.
+
 ## [0.20.2] - 2026-08-29
 
 ### Changed
