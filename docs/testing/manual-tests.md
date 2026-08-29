@@ -56,7 +56,7 @@ registry, the display, the lux session) runs the whole flight.
 | # | Action | Context | Expected |
 |---|--------|---------|----------|
 | D1 | `z-spec show examples/<spec>.tex` | luxd running | the spec renders with its title and body visible in the pane — not an empty frame |
-| D2 | `z-spec browse` / **Z-Spec Browser** menu entry | a real repo with specs | only the repo's **real** specs (in this repo: `examples/`, `plugin/tutorials/`); each labelled with a readable name, not a truncated path; selecting one shows its content |
+| D2 | `z-spec pick .` / **Z-Spec Browser** menu entry | a real repo with specs | only the repo's **real** specs (in this repo: `examples/`, `plugin/tutorials/`); each labelled with a readable name, not a truncated path; selecting one shows its content |
 | D3 | `z-spec pick .` | repo containing scratch dirs (`.tmp/`, `.venv/`, `.git/`, `.pytest_cache/`, pytest temp trees) | scratch and test junk **excluded** — no `.tmp/pytest-of-…/*.tex` in the picker |
 | D4 | `z-spec pick <empty dir>` | directory with no specs | a clear "no Z specs found" message — **not** a stranded "Loading…" placeholder |
 | D5 | `z-spec show <absolute path outside cwd>` | path outside the project | renders, or a typed failure — never an uncaught crash |
