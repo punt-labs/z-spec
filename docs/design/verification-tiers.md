@@ -214,11 +214,11 @@ artifact each produces.
 | `contracts` | 939 | 3,989 | runtime contracts in Swift/TS/Python/Kotlin | **none** — `allowed-tools` is `Bash(fuzz:*), Bash(which:*)` (`contracts.md:4`) | Structural |
 | `prove` | 874 | 3,408 | Lean 4 project + proof obligations | `lake build` (`prove.md:572-599`) | **Exact** |
 | `code2model` | 555 | 2,198 | `.tex` Z specification | `fuzz -t` (`code2model.md:237-246`) | **Exact** |
-| `partition` | 548 | 2,800 | TTF partition report (JSON) | `partition` → `partition_from_dict` | **Exact** (schema) |
+| `partition` | 548 | 2,800 | TTF partition report (JSON) | `zspec partition` → `partition_from_dict` | **Exact** (schema) |
 | `setup` | 376 | 1,161 | an installed toolchain | `which` probes | Structural |
 | `model2code` | 349 | 1,121 | source code in four languages | **none** — `allowed-tools` is `Bash(fuzz:*), Bash(which:*)` (`model2code.md:4`) | Structural |
 | `b-create` | 314 | 983 | `.mch` B machine | `probcli` (`b-create.md:268-282`) | **Exact** |
-| `audit` | 284 | 1,344 | coverage audit report (JSON) | `audit` → schema | **Exact** (schema) |
+| `audit` | 284 | 1,344 | coverage audit report (JSON) | `zspec audit` → schema | **Exact** (schema) |
 | `elaborate` | 260 | 874 | elaborated `.tex` + narrative | `fuzz -t` (`elaborate.md:153-160`) | Exact on the Z blocks, Rubric on the prose |
 | `b-refine` | 194 | 755 | `.ref` refinement machine | `probcli` | **Exact** |
 | `b-animate` | 183 | 569 | animation report | `probcli` | **Exact** |
