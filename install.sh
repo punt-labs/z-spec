@@ -631,12 +631,12 @@ install_fuzz() (
 # build is about to happen when it is not.
 #
 # The outcome does not need to be captured for later branching: the PATH
-# refresh below guarantees $HOME/.local/bin is on PATH before
-# resolve_fuzz_path() is ever called, so a successful build (which always
-# lands at $FUZZ_HOME/bin/fuzz = $HOME/.local/bin/fuzz) is guaranteed to
-# resolve -- there is no "build succeeded but isn't on PATH yet" case left
-# to distinguish from "build failed" once PATH already carries that
-# directory.
+# refresh further down guarantees $HOME/.local/bin is on PATH before the
+# resolve_fuzz_path() call that reports fuzz's final status runs, so a
+# successful build (which always lands at $FUZZ_HOME/bin/fuzz =
+# $HOME/.local/bin/fuzz) is guaranteed to resolve there -- there is no
+# "build succeeded but isn't on PATH yet" case left to distinguish from
+# "build failed" once PATH already carries that directory.
 install_fuzz || warn "fuzz install failed -- see the error above"
 
 # The pointer to /z-spec:setup only makes sense when the plugin is
