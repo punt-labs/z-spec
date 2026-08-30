@@ -416,6 +416,12 @@ install_fuzz() (
     return 1
   fi
 
+  # Both early-return paths above (already-installed, missing-tools) exit
+  # before this point -- so the banner only fires once a build is genuinely
+  # about to happen, never ahead of "already installed" or an abort that
+  # never touches git/make at all.
+  info "Installing fuzz (compiling from source)..."
+
   FUZZ_BUILD_DIR="$(mktemp -d)" || {
     echo "  ! could not create a scratch build directory for fuzz" >&2
     return 1
@@ -578,11 +584,10 @@ install_fuzz() (
   echo "  ✓ fuzz $FUZZ_HOME/bin/fuzz"
 )
 
-# Every other major step above announces itself before running (see "Checking
-# prerequisites...", "Installing probcli..."); a source build is the slowest
-# step in the whole script and the least self-explanatory raw `make` output
-# to stare at unannounced, so it gets the same banner.
-info "Installing fuzz (compiling from source)..."
+# The "Installing fuzz..." banner lives inside install_fuzz() itself, after
+# its already-installed and missing-tools early returns -- not here -- so it
+# never precedes a "✓ fuzz ... (already installed)" line with a claim that a
+# build is about to happen when it is not.
 
 # Capture the real outcome instead of discarding it: the final summary
 # below distinguishes "the build genuinely failed" from "the build
