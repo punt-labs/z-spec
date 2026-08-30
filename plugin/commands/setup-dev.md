@@ -1,7 +1,7 @@
 ---
 description: Install and configure fuzz, probcli, and lean dependencies
 argument-hint: "[check|fuzz|probcli|lean|all]"
-allowed-tools: Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash($PROBCLI_BIN:*), Bash($FUZZ:*), Bash($FUZZ_BIN:*), Bash($lean_tool:*), Bash($LEAN_BIN:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(cat:*), Bash(xattr:*), Bash(~/Applications/ProB/probcli:*), Bash(~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
+allowed-tools: Bash(uname:*), Bash(git:*), Bash(make:*), Bash(./configure:*), Bash(cd:*), Bash(cp:*), Bash(mktexlsr:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash($PROBCLI_BIN:*), Bash($FUZZ:*), Bash($FUZZ_BIN:*), Bash($lean_tool:*), Bash($LEAN_BIN:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(cat:*), Bash(xattr:*), Bash(~/Applications/ProB/probcli:*), Bash(~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
 ---
 
 # Setup Z Specification Tools
@@ -21,7 +21,11 @@ Parse as:
 - `all` - Install fuzz, probcli, and lean
 - (no argument) - Same as `check`
 
-**Note**: TeX files (fuzz.sty, *.mf) are automatically copied to your project's `docs/` directory when you run `/z-spec-dev:create-dev`, `/z-spec-dev:check-dev`, or `/z-spec-dev:test-dev`. Use `/z-spec-dev:cleanup-dev` to remove them.
+**Note**: `/z-spec-dev:setup-dev fuzz` installs `fuzz.sty` and the `oxsz` Metafont
+sources into your TeX distribution's home tree (`kpsewhich -var-value
+TEXMFHOME`) once, for your user account — not per project. Neither
+`/z-spec-dev:check-dev` nor `/z-spec-dev:test-dev` copies TeX files anywhere; both simply read
+whatever `kpsewhich` already resolves. `/z-spec-dev:create-dev` does not exist.
 
 ## Process
 
@@ -49,7 +53,11 @@ fi
 
 if test -x "$FUZZ_BIN"; then
   echo "fuzz: $FUZZ_BIN"
-  "$FUZZ_BIN" -version
+  # fuzz has no -version flag: passing one lands on the 'e' in "version" and
+  # prints the usage banner instead, with exit 2. -Dv is the debug flag that
+  # prints the real version banner, and it needs input on stdin because fuzz
+  # always reads a file — or, given none, stdin — before doing anything else.
+  "$FUZZ_BIN" -Dv < /dev/null
 elif test -e "$FUZZ_BIN"; then
   echo "fuzz: NOT EXECUTABLE at $FUZZ_BIN"
 else
@@ -160,39 +168,190 @@ sudo apt-get install build-essential texlive-base
 
 #### Installation Steps
 
-Building fuzz is a human procedure from end to end — `git`, `make` and `sudo`
-are all outside this command's tools — so the block below is what to type, not
-something the agent will run for you.
+Building fuzz needs `git`, a C toolchain, `bison`, `flex`, and `gawk` — the
+same build-essential/Xcode-CLT prerequisites above — plus `cpp`, which ships
+with the compiler. `./configure --prefix="$HOME/.local"` is the whole
+difference between this and the traditional `sudo make install`: fuzz's own
+`Makefile.in` installs the `fuzz` binary under `$(bindir)`, its runtime
+library under `$(libdir)`, and `fuzz.sty` plus the `oxsz` Metafont sources
+under `$(datadir)/texmf`, and every one of those directories descends from
+`--prefix`. Point `--prefix` at `$HOME/.local` and every file this step writes
+lands inside the home directory — no `sudo` anywhere in the chain, confirmed
+by building fuzz this way and reading the install log: every `install -c`
+targets a path under `$HOME/.local`.
 
-```text
-# Clone fuzz repository
-cd ~/Applications  # or user's preferred location
-git clone https://github.com/Spivoxity/fuzz.git
-cd fuzz
+That one flag does **not** put `fuzz.sty` somewhere TeX will find it, though.
+`$(datadir)/texmf` comes out as `$HOME/.local/share/texmf`, and on a
+conventional TeX Live install that tree is not on `kpsewhich`'s search
+path — `TEXMFHOME` is usually `$HOME/texmf` instead, a directory `--prefix`
+knows nothing about. The block below runs `make install`, then closes that
+gap itself: copy `tex/fuzz.sty` and `tex/*.mf` straight into `kpsewhich
+-var-value TEXMFHOME`, and run `mktexlsr` scoped to that one directory so TeX
+picks them up. No `sudo` there either — `TEXMFHOME` is a tree the account
+already owns.
 
-# Build
-make
+```bash
+# Check the tools first. A missing git, gcc, make, bison, flex, gawk, or cpp
+# surfaces here by name, rather than however deep into the clone or the build
+# it would otherwise fail.
+for tool in git make gcc bison flex gawk cpp; do
+  command -v "$tool" >/dev/null || {
+    echo "ERROR: $tool is not installed, and this block needs it" >&2
+    exit 1
+  }
+done
 
-# Install fuzz.sty to TeX path (may need sudo)
-sudo make install
+mkdir -p ~/Applications || {
+  echo "ERROR: could not create ~/Applications" >&2
+  exit 1
+}
 
-# Verify
-fuzz -version
-kpsewhich fuzz.sty
+# Idempotent: a re-run after a failed build updates the existing checkout
+# instead of failing on "destination path already exists".
+if [ -d ~/Applications/fuzz-src/.git ]; then
+  git -C ~/Applications/fuzz-src pull --ff-only || {
+    echo "ERROR: ~/Applications/fuzz-src already exists and could not be" >&2
+    echo "       updated with 'git pull --ff-only'. Resolve it by hand, or" >&2
+    echo "       move it aside and re-run this step." >&2
+    exit 1
+  }
+else
+  git clone https://github.com/Spivoxity/fuzz.git ~/Applications/fuzz-src || {
+    echo "ERROR: could not clone https://github.com/Spivoxity/fuzz.git into" >&2
+    echo "       ~/Applications/fuzz-src. Check network connectivity and" >&2
+    echo "       that the repository is reachable." >&2
+    exit 1
+  }
+fi
+
+cd ~/Applications/fuzz-src || {
+  echo "ERROR: ~/Applications/fuzz-src does not exist after the clone step" >&2
+  exit 1
+}
+
+# --prefix is the whole sudo-free story: everything make install writes below
+# descends from it, and $HOME/.local is writable without elevation. Omitting
+# this flag lets configure default to /usr/local, which make install cannot
+# write to without sudo — see 'Common Issues' if that happens.
+./configure --prefix="$HOME/.local" || {
+  echo "ERROR: ./configure failed. Read its own output above for the" >&2
+  echo "       specific check that failed — the preflight loop above already" >&2
+  echo "       ruled out a missing git/gcc/make/bison/flex/gawk/cpp, so a" >&2
+  echo "       failure here is something configure itself is unhappy about." >&2
+  exit 1
+}
+
+make || {
+  echo "ERROR: make failed while building fuzz. Read the compiler output" >&2
+  echo "       above for the specific error." >&2
+  exit 1
+}
+
+make install || {
+  echo "ERROR: make install failed. The usual cause is a stale configure" >&2
+  echo "       run: if ./configure ran without --prefix=\"\$HOME/.local\" it" >&2
+  echo "       defaults to /usr/local, and this step cannot write there" >&2
+  echo "       without sudo. Re-run ./configure with the flag above, then" >&2
+  echo "       make and make install again." >&2
+  exit 1
+}
+
+test -x "$HOME/.local/bin/fuzz" || {
+  echo "ERROR: make install reported success but there is no executable at" >&2
+  echo "       $HOME/.local/bin/fuzz." >&2
+  exit 1
+}
+
+# fuzz has no -version flag; -Dv is the debug flag that prints the version
+# banner — see the note in 'Check Current Status' above.
+FUZZ_OUT="$("$HOME/.local/bin/fuzz" -Dv < /dev/null 2>&1)" || {
+  echo "ERROR: $HOME/.local/bin/fuzz is installed but would not run:" >&2
+  printf '%s\n' "$FUZZ_OUT" >&2
+  exit 1
+}
+printf '%s\n' "$FUZZ_OUT"
+
+# Close the TEXMFHOME gap: make install already wrote fuzz.sty and the oxsz
+# Metafont sources under $HOME/.local/share/texmf, which a conventional TeX
+# Live install does not search. Copy the same two file sets into the tree
+# kpsewhich actually looks in, then rebuild that tree's file database.
+TEXMFHOME="$(kpsewhich -var-value TEXMFHOME)"
+[ -n "$TEXMFHOME" ] || {
+  echo "ERROR: kpsewhich -var-value TEXMFHOME printed nothing. Is a TeX" >&2
+  echo "       distribution installed? fuzz's binary and library are" >&2
+  echo "       installed regardless — only fuzz.sty's discoverability" >&2
+  echo "       depends on this." >&2
+  exit 1
+}
+
+mkdir -p "$TEXMFHOME/tex/latex" "$TEXMFHOME/fonts/source/public/oxsz" || {
+  echo "ERROR: could not create $TEXMFHOME/tex/latex or" >&2
+  echo "       $TEXMFHOME/fonts/source/public/oxsz" >&2
+  exit 1
+}
+
+cp tex/fuzz.sty "$TEXMFHOME/tex/latex/" || {
+  echo "ERROR: could not copy tex/fuzz.sty into $TEXMFHOME/tex/latex" >&2
+  exit 1
+}
+
+cp tex/*.mf "$TEXMFHOME/fonts/source/public/oxsz/" || {
+  echo "ERROR: could not copy tex/*.mf into" >&2
+  echo "       $TEXMFHOME/fonts/source/public/oxsz" >&2
+  exit 1
+}
+
+# Scoped to $TEXMFHOME alone — no sudo, and no touching trees this account
+# does not own.
+mktexlsr "$TEXMFHOME" || {
+  echo "ERROR: mktexlsr failed to rebuild the file database for" >&2
+  echo "       $TEXMFHOME. fuzz.sty was copied there, but kpsewhich may not" >&2
+  echo "       find it until this succeeds — re-run mktexlsr on that" >&2
+  echo "       directory by hand." >&2
+  exit 1
+}
+
+FUZZ_STY="$(kpsewhich fuzz.sty 2>/dev/null)" || {
+  echo "ERROR: fuzz.sty was copied into $TEXMFHOME but kpsewhich still" >&2
+  echo "       cannot find it. See 'Common Issues' below." >&2
+  exit 1
+}
+echo "fuzz.sty: $FUZZ_STY"
 ```
 
 #### Add to PATH
 
-If `fuzz` isn't in PATH after building:
+`$HOME/.local/bin` is already on `PATH` on many systems — it is the default
+target for `pip install --user`, `pipx`, and `uv tool install`. If `fuzz`
+still isn't found after installing:
 
 ```bash
 # Add to shell profile (~/.zshrc or ~/.bashrc)
-export PATH="$HOME/Applications/fuzz:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 #### Common Issues
 
-**"fuzz.sty not found"**: Run `sudo make install` in the fuzz directory, then `sudo texhash`.
+**"fuzz.sty not found" after a successful install**: `make install` writes
+`fuzz.sty` under `$HOME/.local/share/texmf`, which a conventional TeX Live
+install does not search — `TEXMFHOME` is usually `$HOME/texmf` instead.
+Confirm with `kpsewhich -var-value TEXMFHOME`, then re-run the copy-and-`mktexlsr`
+step above by hand. If `kpsewhich -var-value TEXMFHOME` prints nothing, no TeX
+distribution is on `PATH` yet — install one first (see 'Prerequisites' above);
+`fuzz` and `fuzz.sty` being reinstalled does not fix a missing TeX toolchain.
+
+**`./configure` fails**: fuzz's `configure` script has one hard requirement
+beyond the compiler toolchain — `cpp` — and reports `configure: error: no cpp
+found` if it is missing from `PATH`, `/lib`, or `/usr/lib`. The preflight loop
+in the block above already checks for `git`, `gcc`, `make`, `bison`, `flex`,
+`gawk`, and `cpp` before `configure` ever runs, so a failure past that point
+means reading `configure`'s own output for the specific check it failed.
+
+**`make install` fails with "Permission denied"**: `./configure` ran without
+`--prefix="$HOME/.local"`, so it defaulted to `/usr/local`, which this account
+cannot write to without `sudo`. Re-run `./configure --prefix="$HOME/.local"`
+in `~/Applications/fuzz-src`, then `make` and `make install` again — nothing
+from the failed attempt needs cleaning up first.
 
 **"make: gcc: command not found"**: Install Xcode command line tools: `xcode-select --install`
 
@@ -825,8 +984,8 @@ The report to emit, verbatim backticks and all:
 
 | Tool | Status | Location |
 |------|--------|----------|
-| fuzz | ✓ Installed | ~/Applications/fuzz/fuzz |
-| fuzz.sty | ✓ Installed | /usr/local/texlive/.../fuzz.sty |
+| fuzz | ✓ Installed | ~/.local/bin/fuzz |
+| fuzz.sty | ✓ Installed | (wherever kpsewhich fuzz.sty resolved — typically under $TEXMFHOME) |
 | probcli | ✓ Installed 1.15.1 | ~/Applications/ProB/probcli |
 | elan | ✓ Installed | ~/.elan/bin/elan |
 | lean | ✓ Installed | ~/.elan/bin/lean |
@@ -837,7 +996,7 @@ The report to emit, verbatim backticks and all:
 Add to ~/.zshrc:
 
 ```bash
-export PATH="$HOME/Applications/fuzz:$HOME/Applications/ProB:$HOME/.elan/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/Applications/ProB:$HOME/.elan/bin:$PATH"
 export PROBCLI="$HOME/Applications/ProB/probcli"
 ```
 
