@@ -56,20 +56,18 @@ jobs:
           python-version: "3.13"
       - run: uv sync --frozen --all-extras
 
-      # fuzz is autoconf'd: ./configure generates the Makefile from Makefile.in,
-      # and the binary lands at src/fuzz, not the tree root.
-      - name: Build fuzz from source
+      # This is the same install_fuzz() this repo ships in install.sh --
+      # --fuzz-only builds it from source and lands it under $HOME/.local,
+      # no sudo. Running the real function here (not a second, separate
+      # build script) is the regression guard for the sudo-free installer
+      # itself: a change that breaks install_fuzz() breaks this job, not
+      # just the parts of the corpus gate downstream of it.
+      - name: Install build prerequisites
+        run: sudo apt-get update && sudo apt-get install -y build-essential bison flex
+      - name: Build fuzz from source (install.sh --fuzz-only)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential
-          git clone --depth 1 https://github.com/Spivoxity/fuzz.git "${RUNNER_TEMP}/fuzz"
-          cd "${RUNNER_TEMP}/fuzz"
-          ./configure
-          make
-          # `make install` is not optional: fuzz reads its prelude from
-          # $libdir/fuzzlib at run time, so the binary alone exits with
-          # "can't read prelude file". This also lands fuzz on PATH.
-          sudo make install
+          ./install.sh --fuzz-only
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       # The ProB release tarball carries probcli; pinned rather than "latest" so
       # a spec gate failure means the specs changed, not the tool. The archive

@@ -28,9 +28,13 @@ usage() {
     '' \
     'Usage: curl -fsSL .../install.sh | sh                    # CLI + plugin' \
     '       curl -fsSL .../install.sh | sh -s -- --no-plugin  # CLI only' \
+    '       ./install.sh --fuzz-only                          # build fuzz only' \
     '' \
     'Options:' \
     '  --no-plugin   Install the CLI only; skip the Claude Code plugin.' \
+    '  --fuzz-only   Build and install fuzz from source, then exit -- skips' \
+    '                the CLI, probcli, and plugin steps entirely. For CI and' \
+    '                anyone who just wants a working fuzz on PATH.' \
     '  -h, --help    Print this help and exit.' \
     '' \
     'Environment:' \
@@ -43,114 +47,134 @@ usage() {
 # flag must not silently install the plugin the user asked to skip, so unknown
 # options are a usage error (exit 2).
 NO_PLUGIN_REQUESTED=0
+FUZZ_ONLY_REQUESTED=0
 for arg in "$@"; do
   case "$arg" in
-    --no-plugin) NO_PLUGIN_REQUESTED=1 ;;
-    -h|--help)   usage; exit 0 ;;
-    *)           printf 'install.sh: unknown option: %s\n' "$arg" >&2; usage >&2; exit 2 ;;
+    --no-plugin)  NO_PLUGIN_REQUESTED=1 ;;
+    --fuzz-only)  FUZZ_ONLY_REQUESTED=1 ;;
+    -h|--help)    usage; exit 0 ;;
+    *)            printf 'install.sh: unknown option: %s\n' "$arg" >&2; usage >&2; exit 2 ;;
   esac
 done
 
 # --- Step 1: Prerequisites ---
+# Entirely skipped under --fuzz-only: curl, claude, and the plugin-skip
+# bookkeeping below are all about the CLI/probcli/plugin steps, none of
+# which --fuzz-only touches. install_fuzz() has its own accurate preflight
+# (git, make, gcc, bison, flex, cpp, awk) further down -- that is the
+# correct, and only, gatekeeper for what this mode actually needs. Running
+# these checks anyway would hard-fail on curl (fuzz's build never uses it)
+# and print a misleading "skipping plugin install" for a missing git, when
+# git's absence actually means the fuzz build itself will fail.
 
-info "Checking prerequisites..."
+if [ "$FUZZ_ONLY_REQUESTED" = "0" ]; then
+  info "Checking prerequisites..."
 
-# curl is a hard prerequisite: it fetches the uv installer and is the transport
-# for the CLI install itself. Absence aborts — the CLI cannot be installed.
-if command -v curl >/dev/null 2>&1; then
-  ok "curl found"
-else
-  fail "'curl' not found. Install curl first."
-fi
-
-# Resolve whether to skip the plugin. A single boolean OR-combines the explicit
-# request (--no-plugin / ZSPEC_NO_PLUGIN=1) with capability auto-skip: the
-# plugin needs the claude CLI to install and git to clone, so absence of either
-# skips the plugin step (never aborts) while the CLI install proceeds. There is
-# deliberately no counter-flag to force the plugin on — you cannot install it
-# without claude, and explicit-request and capability-absence never conflict.
-SKIP_PLUGIN=0
-if [ "$NO_PLUGIN_REQUESTED" = "1" ] || [ "${ZSPEC_NO_PLUGIN:-}" = "1" ]; then
-  ok "plugin install skipped by request (--no-plugin / ZSPEC_NO_PLUGIN=1)"
-  SKIP_PLUGIN=1
-fi
-
-if command -v claude >/dev/null 2>&1; then
-  ok "claude CLI found"
-else
-  warn "claude CLI not found — skipping plugin install (CLI-only)"
-  warn "Install from: https://docs.anthropic.com/en/docs/claude-code"
-  SKIP_PLUGIN=1
-fi
-
-if command -v git >/dev/null 2>&1; then
-  ok "git found"
-else
-  warn "git not found — skipping plugin install (required to clone the plugin)"
-  SKIP_PLUGIN=1
-fi
-
-# --- Step 2: uv ---
-
-info "Checking uv..."
-
-if command -v uv >/dev/null 2>&1; then
-  ok "uv already installed"
-else
-  info "Installing uv..."
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  if [ -f "$HOME/.local/bin/env" ]; then
-    # shellcheck source=/dev/null
-    . "$HOME/.local/bin/env"
-  elif [ -f "$HOME/.cargo/env" ]; then
-    # shellcheck source=/dev/null
-    . "$HOME/.cargo/env"
+  # curl is a hard prerequisite: it fetches the uv installer and is the
+  # transport for the CLI install itself. Absence aborts — the CLI cannot
+  # be installed.
+  if command -v curl >/dev/null 2>&1; then
+    ok "curl found"
+  else
+    fail "'curl' not found. Install curl first."
   fi
-  export PATH="$HOME/.local/bin:$PATH"
-  if ! command -v uv >/dev/null 2>&1; then
-    fail "uv install succeeded but 'uv' not found on PATH. Restart your shell and re-run."
+
+  # Resolve whether to skip the plugin. A single boolean OR-combines the
+  # explicit request (--no-plugin / ZSPEC_NO_PLUGIN=1) with capability
+  # auto-skip: the plugin needs the claude CLI to install and git to clone,
+  # so absence of either skips the plugin step (never aborts) while the CLI
+  # install proceeds. There is deliberately no counter-flag to force the
+  # plugin on — you cannot install it without claude, and explicit-request
+  # and capability-absence never conflict.
+  SKIP_PLUGIN=0
+  if [ "$NO_PLUGIN_REQUESTED" = "1" ] || [ "${ZSPEC_NO_PLUGIN:-}" = "1" ]; then
+    ok "plugin install skipped by request (--no-plugin / ZSPEC_NO_PLUGIN=1)"
+    SKIP_PLUGIN=1
   fi
-  ok "uv installed"
-fi
 
-# --- Step 3: Python 3.13+ ---
-
-info "Checking Python..."
-
-PYTHON_FLAG=""
-HAVE_PYTHON=0
-if command -v python3 >/dev/null 2>&1; then
-  PY_MAJOR=$(python3 -c 'import sys; print(sys.version_info.major)')
-  PY_MINOR=$(python3 -c 'import sys; print(sys.version_info.minor)')
-  if [ "$PY_MAJOR" -gt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -ge 13 ]; }; then
-    ok "Python ${PY_MAJOR}.${PY_MINOR}"
-    HAVE_PYTHON=1
+  if command -v claude >/dev/null 2>&1; then
+    ok "claude CLI found"
+  else
+    warn "claude CLI not found — skipping plugin install (CLI-only)"
+    warn "Install from: https://docs.anthropic.com/en/docs/claude-code"
+    SKIP_PLUGIN=1
   fi
-fi
 
-if [ "$HAVE_PYTHON" = "0" ]; then
-  info "Installing Python 3.13 via uv..."
-  uv python install 3.13 || fail "Failed to install Python 3.13"
-  ok "Python 3.13 (uv-managed)"
-  PYTHON_FLAG="--python 3.13"
+  if command -v git >/dev/null 2>&1; then
+    ok "git found"
+  else
+    warn "git not found — skipping plugin install (required to clone the plugin)"
+    SKIP_PLUGIN=1
+  fi
+
+  # --- Step 2: uv ---
+
+  info "Checking uv..."
+
+  if command -v uv >/dev/null 2>&1; then
+    ok "uv already installed"
+  else
+    info "Installing uv..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    if [ -f "$HOME/.local/bin/env" ]; then
+      # shellcheck source=/dev/null
+      . "$HOME/.local/bin/env"
+    elif [ -f "$HOME/.cargo/env" ]; then
+      # shellcheck source=/dev/null
+      . "$HOME/.cargo/env"
+    fi
+    export PATH="$HOME/.local/bin:$PATH"
+    if ! command -v uv >/dev/null 2>&1; then
+      fail "uv install succeeded but 'uv' not found on PATH. Restart your shell and re-run."
+    fi
+    ok "uv installed"
+  fi
+
+  # --- Step 3: Python 3.13+ ---
+
+  info "Checking Python..."
+
+  PYTHON_FLAG=""
+  HAVE_PYTHON=0
+  if command -v python3 >/dev/null 2>&1; then
+    PY_MAJOR=$(python3 -c 'import sys; print(sys.version_info.major)')
+    PY_MINOR=$(python3 -c 'import sys; print(sys.version_info.minor)')
+    if [ "$PY_MAJOR" -gt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -ge 13 ]; }; then
+      ok "Python ${PY_MAJOR}.${PY_MINOR}"
+      HAVE_PYTHON=1
+    fi
+  fi
+
+  if [ "$HAVE_PYTHON" = "0" ]; then
+    info "Installing Python 3.13 via uv..."
+    uv python install 3.13 || fail "Failed to install Python 3.13"
+    ok "Python 3.13 (uv-managed)"
+    PYTHON_FLAG="--python 3.13"
+  fi
 fi
 
 # --- Step 4: Install z-spec CLI ---
+# Skipped entirely under --fuzz-only: that mode exists for CI and anyone who
+# just wants fuzz on PATH, not the published CLI package -- installing it
+# would be wasted work at best and the wrong version at worst (CI already
+# runs against the checked-out source, not the PyPI release).
 
-info "Installing $PACKAGE..."
+if [ "$FUZZ_ONLY_REQUESTED" = "0" ]; then
+  info "Installing $PACKAGE..."
 
-# shellcheck disable=SC2086
-uv tool install --force $PYTHON_FLAG "$PACKAGE==$VERSION" || fail "Failed to install $PACKAGE==$VERSION"
-ok "$PACKAGE installed"
+  # shellcheck disable=SC2086
+  uv tool install --force $PYTHON_FLAG "$PACKAGE==$VERSION" || fail "Failed to install $PACKAGE==$VERSION"
+  ok "$PACKAGE installed"
 
-if ! command -v "$BINARY" >/dev/null 2>&1; then
-  export PATH="$HOME/.local/bin:$PATH"
   if ! command -v "$BINARY" >/dev/null 2>&1; then
-    fail "$PACKAGE installed but '$BINARY' not found on PATH"
+    export PATH="$HOME/.local/bin:$PATH"
+    if ! command -v "$BINARY" >/dev/null 2>&1; then
+      fail "$PACKAGE installed but '$BINARY' not found on PATH"
+    fi
   fi
-fi
 
-ok "$BINARY $(command -v "$BINARY")"
+  ok "$BINARY $(command -v "$BINARY")"
+fi
 
 # --- Step 4.5: Install probcli ---
 #
@@ -175,7 +199,9 @@ ok "$BINARY $(command -v "$BINARY")"
 # fuzz binary and fuzz.sty install into user-writable paths -- no sudo
 # anywhere, same discipline as install_probcli() just below it.
 
-info "Installing probcli..."
+if [ "$FUZZ_ONLY_REQUESTED" = "0" ]; then
+  info "Installing probcli..."
+fi
 
 PROB_VERSION=1.15.1
 PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
@@ -351,7 +377,12 @@ install_probcli() (
   echo "  ✓ probcli $PROB_HOME/probcli ($PROB_VERSION)"
 )
 
-install_probcli || warn "probcli install failed -- see the error above"
+# Skipped under --fuzz-only for the same reason as the CLI install above --
+# that mode wants fuzz only, and a caller who also needs probcli (this
+# repo's own CI specs job does) installs it separately, on its own terms.
+if [ "$FUZZ_ONLY_REQUESTED" = "0" ]; then
+  install_probcli || warn "probcli install failed -- see the error above"
+fi
 
 FUZZ_REPO="https://github.com/Spivoxity/fuzz.git"
 # Pinned commit, not a moving branch tip -- same discipline as PROB_VERSION
@@ -637,7 +668,31 @@ install_fuzz() (
 # $HOME/.local/bin/fuzz) is guaranteed to resolve there -- there is no
 # "build succeeded but isn't on PATH yet" case left to distinguish from
 # "build failed" once PATH already carries that directory.
-install_fuzz || warn "fuzz install failed -- see the error above"
+# Under --fuzz-only, Steps 1-4 are skipped entirely, so nothing has put
+# $HOME/.local/bin on PATH yet -- install_fuzz()'s own "already installed"
+# check resolves fuzz via $FUZZ/PATH (same precedence as resolve_fuzz_path),
+# and would miss a genuinely-already-installed fuzz there, triggering a
+# needless rebuild. The normal flow doesn't need this: Step 2 (uv) or
+# Step 4 (CLI) already refreshes PATH by the time install_fuzz runs.
+if [ "$FUZZ_ONLY_REQUESTED" = "1" ]; then
+  case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) export PATH="$HOME/.local/bin:$PATH" ;;
+  esac
+fi
+
+FUZZ_INSTALL_OK=1
+install_fuzz || { FUZZ_INSTALL_OK=0; warn "fuzz install failed -- see the error above"; }
+
+# --fuzz-only wants a hard failure, not the soft warn above: the CLI and
+# probcli steps were skipped entirely for this mode, so a failed fuzz build
+# means the whole invocation accomplished nothing -- exactly the case a CI
+# job needs to see as red, not green-with-a-warning.
+if [ "$FUZZ_ONLY_REQUESTED" = "1" ]; then
+  [ "$FUZZ_INSTALL_OK" = "1" ] || fail "fuzz install failed -- see the error above (--fuzz-only)"
+  ok "fuzz ready ($(resolve_fuzz_path))"
+  exit 0
+fi
 
 # The pointer to /z-spec:setup only makes sense when the plugin is
 # installed; a CLI-only install has no slash commands to run, and no local
