@@ -63,7 +63,7 @@ if [ ! -f docs/fuzz.sty ]; then
         MF_MISSING=""
         for mf in oxsz.mf oxsz10.mf oxsz5.mf oxsz6.mf oxsz7.mf oxsz8.mf oxsz9.mf zarrow.mf zletter.mf zsymbol.mf; do
             if MF_PATH="$(kpsewhich "$mf" 2>/dev/null)" && [ -n "$MF_PATH" ]; then
-                cp "$MF_PATH" docs/ || MF_MISSING="$MF_MISSING $mf"
+                cp "$MF_PATH" docs/ || { rm -f "docs/$mf"; MF_MISSING="$MF_MISSING $mf"; }
             else
                 MF_MISSING="$MF_MISSING $mf"
             fi

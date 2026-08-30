@@ -358,22 +358,31 @@ if command -v kpsewhich >/dev/null 2>&1; then
       echo "  (fuzz type-checking) is unaffected" >&2
     fi
 
-    cp tex/*.mf "$TEXMFHOME/fonts/source/public/oxsz/" 2>/dev/null || {
+    if cp tex/*.mf "$TEXMFHOME/fonts/source/public/oxsz/" 2>/dev/null; then
+      CP_MF_OK=1
+    else
+      CP_MF_OK=0
       echo "! could not copy tex/*.mf into" >&2
       echo "  $TEXMFHOME/fonts/source/public/oxsz — pdflatex will not compile" >&2
       echo "  a spec to PDF, but /z-spec:check (fuzz type-checking) is" >&2
       echo "  unaffected" >&2
-    }
+    fi
 
-    # The cp above can fail non-fatally, and kpsewhich fuzz.sty (below) says
-    # nothing about the oxsz Metafont glyph sources — verify independently
-    # that at least one .mf file actually landed in the destination.
+    # The cp above can fail non-fatally, and a stale .mf file from an earlier
+    # successful run can still satisfy an existence check — check the
+    # captured exit status first so this run's failure is never masked by
+    # what a prior run already left in the destination.
     MF_LANDED=0
     for mf_file in "$TEXMFHOME/fonts/source/public/oxsz/"*.mf; do
       [ -e "$mf_file" ] && MF_LANDED=1
     done
 
-    if [ "$MF_LANDED" = "1" ]; then
+    if [ "$CP_MF_OK" = "0" ]; then
+      echo "! oxsz .mf sources not found in" >&2
+      echo "  $TEXMFHOME/fonts/source/public/oxsz — pdflatex will not" >&2
+      echo "  compile a spec to PDF; /z-spec:check (fuzz type-checking) is" >&2
+      echo "  unaffected" >&2
+    elif [ "$MF_LANDED" = "1" ]; then
       echo "oxsz .mf sources: $TEXMFHOME/fonts/source/public/oxsz"
     else
       echo "! oxsz .mf sources not found in" >&2
@@ -400,15 +409,15 @@ if command -v kpsewhich >/dev/null 2>&1; then
       }
     fi
 
-    if FUZZ_STY="$(kpsewhich fuzz.sty 2>/dev/null)" && [ -n "$FUZZ_STY" ]; then
+    if [ "$STY_COPIED" = "0" ]; then
+      echo "! could not copy fuzz.sty into $TEXMFHOME — pdflatex will not" >&2
+      echo "  compile a spec to PDF; /z-spec:check is unaffected" >&2
+    elif FUZZ_STY="$(kpsewhich fuzz.sty 2>/dev/null)" && [ -n "$FUZZ_STY" ]; then
       echo "fuzz.sty: $FUZZ_STY"
-    elif [ "$STY_COPIED" = "1" ]; then
+    else
       echo "! fuzz.sty was copied into $TEXMFHOME but kpsewhich still" >&2
       echo "  cannot find it. See 'Common Issues' below. /z-spec:check" >&2
       echo "  (fuzz type-checking) is unaffected." >&2
-    else
-      echo "! could not copy fuzz.sty into $TEXMFHOME — pdflatex will not" >&2
-      echo "  compile a spec to PDF; /z-spec:check is unaffected" >&2
     fi
   else
     echo "! could not resolve or create a TEXMFHOME tree — fuzz.sty will" >&2
