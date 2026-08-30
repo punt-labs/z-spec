@@ -44,7 +44,13 @@ mkdir -p docs
 # the same fuzz.sty every other z-spec command would find.
 if [ ! -f docs/fuzz.sty ]; then
     if FUZZ_STY="$(kpsewhich fuzz.sty 2>/dev/null)" && [ -n "$FUZZ_STY" ]; then
-        cp "$FUZZ_STY" docs/
+        if cp "$FUZZ_STY" docs/; then
+            STY_COPIED=1
+        else
+            STY_COPIED=0
+            echo "! could not copy $FUZZ_STY into docs/ -- pdflatex will not compile" >&2
+            echo "  a spec to PDF; fuzz type-checking is unaffected" >&2
+        fi
         # The oxsz Metafont sources live in a separate texmf subtree
         # (fonts/source/public/oxsz) from fuzz.sty (tex/latex) -- resolve each
         # one through kpsewhich too, rather than assuming they share fuzz.sty's
@@ -71,21 +77,26 @@ if [ ! -f docs/fuzz.sty ]; then
         # alongside those two, after auditing the commits in between; -fsSL (with
         # -f) aborts loudly on a 404/5xx instead of writing the error page to
         # docs/fuzz.sty as if it were the real file -- but that protection is
-        # theatre unless the resulting nonzero exit is actually checked.
-        # --remove-on-error closes the other half of the same gap: -f alone
-        # still leaves the empty -o target on disk on failure, and the outer
-        # guard is `[ ! -f docs/fuzz.sty ]` -- a zero-byte file satisfies that
-        # forever, so a failed fetch would make every future run of this
-        # command silently skip the whole block, believing it already
-        # succeeded.
+        # theatre unless the resulting nonzero exit is actually checked. The
+        # explicit `rm -f` on the failure path closes the other half of the same
+        # gap: -f alone still leaves the empty -o target created (but empty) on
+        # disk after a 404/5xx, and the outer guard is `[ ! -f docs/fuzz.sty ]`
+        # -- a zero-byte file satisfies that forever, so a failed fetch would
+        # make every future run of this command silently skip the whole block,
+        # believing it already succeeded. (`--remove-on-error` would do the same
+        # job but needs curl >= 7.83.0 -- older than what Ubuntu 22.04 LTS and
+        # macOS 12 ship, where curl rejects the flag before any request is even
+        # made; `rm -f` needs nothing beyond POSIX.)
         FUZZ_REF="2a202a0b6f7328e729b54ef352d3bb4c6dfeb2e5"
-        curl -fsSL --remove-on-error -o docs/fuzz.sty "https://raw.githubusercontent.com/Spivoxity/fuzz/$FUZZ_REF/tex/fuzz.sty" || {
+        curl -fsSL -o docs/fuzz.sty "https://raw.githubusercontent.com/Spivoxity/fuzz/$FUZZ_REF/tex/fuzz.sty" || {
+            rm -f docs/fuzz.sty
             echo "! could not download fuzz.sty from GitHub -- pdflatex will not" >&2
             echo "  compile a spec to PDF; fuzz type-checking is unaffected" >&2
         }
         MF_MISSING=""
         for mf in oxsz.mf oxsz10.mf oxsz5.mf oxsz6.mf oxsz7.mf oxsz8.mf oxsz9.mf zarrow.mf zletter.mf zsymbol.mf; do
-            curl -fsSL --remove-on-error -o "docs/$mf" "https://raw.githubusercontent.com/Spivoxity/fuzz/$FUZZ_REF/tex/$mf" || MF_MISSING="$MF_MISSING $mf"
+            curl -fsSL -o "docs/$mf" "https://raw.githubusercontent.com/Spivoxity/fuzz/$FUZZ_REF/tex/$mf" \
+                || { rm -f "docs/$mf"; MF_MISSING="$MF_MISSING $mf"; }
         done
         if [ -n "$MF_MISSING" ]; then
             echo "! could not download Metafont sources:$MF_MISSING -- pdflatex" >&2
