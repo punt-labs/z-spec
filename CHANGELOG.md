@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.20.3] - 2026-08-30
+
 ### Changed
 
 - **Four MCP tool names renamed to match their CLI verbs.** `get_report`,
