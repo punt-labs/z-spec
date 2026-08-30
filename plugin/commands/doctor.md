@@ -93,8 +93,8 @@ Present results as a status table, then a summary:
 |-------|--------|
 | Platform | macOS arm64 |
 | Plugin | ✓ version 0.16.0 |
-| fuzz | ✓ Installed (/opt/homebrew/bin/fuzz) |
-| fuzz.sty | ✓ Found at /usr/local/texlive/.../fuzz.sty |
+| fuzz | ✓ Installed (~/.local/bin/fuzz) |
+| fuzz.sty | ✓ Found at $TEXMFHOME/tex/latex/fuzz.sty |
 | probcli | ✗ Not found |
 | Tcl/Tk | ✓ Available |
 | elan | ✓ Installed (version 3.1.1) |
