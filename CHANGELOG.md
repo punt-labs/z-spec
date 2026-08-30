@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Installing `fuzz` no longer requires `sudo`, and `install.sh` now installs
+  it automatically.** `fuzz`'s upstream `Makefile.in` derives its install
+  paths from autoconf's `prefix` variable, which defaults to root-owned
+  `/usr/local` only when `./configure` runs with none — that default, not
+  anything inherent to `fuzz`, is why the old instructions said
+  `sudo make install`. Both `install.sh` (a new `install_fuzz()`, mirroring
+  the existing `install_probcli()`) and `/z-spec:setup fuzz` now build with
+  `./configure --prefix="$HOME/.local"`, copy `fuzz.sty` and the `oxsz`
+  Metafont sources into `kpsewhich -var-value TEXMFHOME`, and run `mktexlsr`
+  on that one directory — no privileged step anywhere in the chain. `fuzz`
+  now lands at `~/.local/bin/fuzz` instead of the old `~/Applications/fuzz`
+  convention; anyone with the old location on `PATH` should remove it.
+- **`/z-spec:doctor`'s remediation text no longer suggests `sudo texhash`**
+  after `/z-spec:setup fuzz` — that was the sudo step this change removes,
+  and it was also the wrong remedy for a `TEXMFHOME`-installed `fuzz.sty`
+  (`texhash` only refreshes system TeX trees; the new flow refreshes the
+  user's own tree with unprivileged `mktexlsr`).
+
 ## [0.20.3] - 2026-08-30
 
 ### Changed
