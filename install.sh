@@ -432,7 +432,7 @@ install_fuzz() (
   # never touches git/make at all.
   info "Installing fuzz (compiling from source)..."
 
-  FUZZ_BUILD_DIR="$(mktemp -d)" || {
+  FUZZ_BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/z-spec-fuzz-build.XXXXXXXX")" || {
     echo "  ! could not create a scratch build directory for fuzz" >&2
     return 1
   }
