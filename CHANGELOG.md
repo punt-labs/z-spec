@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **CI now proves the software itself — not just the installer — on every
+  supported OS.** `unit`, `e2e`, and `specs` are matrixed over Ubuntu and
+  macOS (previously Ubuntu-only; the test suite had never run on macOS).
+  `specs` downloads the per-OS probcli archive (`ProB.macos.zip` /
+  `ProB.linux64.tar.gz`) and builds fuzz with per-OS prerequisites.
+- **The installer matrix gained a TeX dimension** (`tex: absent | present`,
+  4 legs). `tex=present` installs a real TeX distribution (texlive-base /
+  BasicTeX) before running `install.sh` and then requires
+  `kpsewhich fuzz.sty` to succeed — the first CI proof of the
+  `TEXMFHOME` copy + `mktexlsr` chain, which a bare runner can never
+  exercise. `tex=absent` keeps proving the no-TeX path degrades gracefully.
+
 - **CI's `specs` job now builds `fuzz` via `install.sh`'s own `install_fuzz()`,
   not a second, separate build script.** The sudo-free installer shipped in
   v0.20.4 had never been exercised by CI or on a genuinely clean machine —
