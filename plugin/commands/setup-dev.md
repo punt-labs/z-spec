@@ -191,28 +191,35 @@ picks them up. No `sudo` there either — `TEXMFHOME` is a tree the account
 already owns.
 
 ```bash
-# Check the tools first. A missing git, gcc, make, bison, flex, gawk, or cpp
-# surfaces here by name, rather than however deep into the clone or the build
-# it would otherwise fail.
+# Check the tools first, and report every missing one in a single pass — not
+# just the first. A reader who fixes the one named tool and re-runs, only to
+# be told about the next missing one, has paid for two round trips a single
+# list would have avoided.
+MISSING_TOOLS=""
 for tool in git make gcc bison flex gawk cpp; do
-  command -v "$tool" >/dev/null || {
-    echo "ERROR: $tool is not installed, and this block needs it" >&2
-    exit 1
-  }
+  command -v "$tool" >/dev/null || MISSING_TOOLS="$MISSING_TOOLS $tool"
 done
+if [ -n "$MISSING_TOOLS" ]; then
+  echo "ERROR: missing required tools:$MISSING_TOOLS" >&2
+  echo "       install all of them, then re-run this step." >&2
+  exit 1
+fi
 
 mkdir -p ~/Applications || {
   echo "ERROR: could not create ~/Applications" >&2
   exit 1
 }
 
-# Idempotent: a re-run after a failed build updates the existing checkout
-# instead of failing on "destination path already exists".
+# Idempotent: a re-run after a failed build re-fetches the existing checkout
+# instead of failing on "destination path already exists". A plain 'git pull'
+# would not work here even so, once the pin below lands: pull needs a branch
+# checked out that tracks upstream, and the checkout step leaves the tree in
+# detached HEAD at the pinned commit.
 if [ -d ~/Applications/fuzz-src/.git ]; then
-  git -C ~/Applications/fuzz-src pull --ff-only || {
-    echo "ERROR: ~/Applications/fuzz-src already exists and could not be" >&2
-    echo "       updated with 'git pull --ff-only'. Resolve it by hand, or" >&2
-    echo "       move it aside and re-run this step." >&2
+  git -C ~/Applications/fuzz-src fetch --quiet origin || {
+    echo "ERROR: ~/Applications/fuzz-src already exists and 'git fetch'" >&2
+    echo "       failed. Resolve it by hand, or move it aside and re-run" >&2
+    echo "       this step." >&2
     exit 1
   }
 else
@@ -226,6 +233,20 @@ fi
 
 cd ~/Applications/fuzz-src || {
   echo "ERROR: ~/Applications/fuzz-src does not exist after the clone step" >&2
+  exit 1
+}
+
+# Pinned commit, not a moving branch tip. install.sh's install_fuzz() pins
+# the same SHA (its FUZZ_REF) for the same reason: Spivoxity/fuzz has one
+# stale tag and infrequent doc-only commits since, and a manual-surface
+# install that tracked master while the automated installer tracked an
+# audited commit would give the two surfaces two different trust models for
+# the same upstream. Bump this only alongside install.sh's FUZZ_REF, after
+# auditing the commits in between.
+FUZZ_REF="2a202a0b6f7328e729b54ef352d3bb4c6dfeb2e5"
+git checkout --quiet "$FUZZ_REF" || {
+  echo "ERROR: could not check out pinned commit $FUZZ_REF in" >&2
+  echo "       ~/Applications/fuzz-src" >&2
   exit 1
 }
 
@@ -244,6 +265,20 @@ cd ~/Applications/fuzz-src || {
 make || {
   echo "ERROR: make failed while building fuzz. Read the compiler output" >&2
   echo "       above for the specific error." >&2
+  exit 1
+}
+
+# fuzz's own Makefile.in only creates $(TEXDIR) and $(MFDIR) via 'install -d'
+# before installing into them; it never creates $(bindir) or $(libdir) the
+# same way. 'install -c SRC DEST' does not fail when DEST does not exist —
+# it silently creates DEST as a regular FILE standing in for the directory,
+# not the directory itself. On a fresh --prefix, with neither
+# $HOME/.local/bin nor $HOME/.local/lib pre-existing, that turns both into
+# ordinary files instead of directories, corrupting the install prefix in a
+# way the exit code of 'make install' does not report. Create both
+# directories ourselves before 'make install' ever runs.
+mkdir -p "$HOME/.local/bin" "$HOME/.local/lib" || {
+  echo "ERROR: could not create $HOME/.local/bin or $HOME/.local/lib" >&2
   exit 1
 }
 
@@ -275,48 +310,56 @@ printf '%s\n' "$FUZZ_OUT"
 # Metafont sources under $HOME/.local/share/texmf, which a conventional TeX
 # Live install does not search. Copy the same two file sets into the tree
 # kpsewhich actually looks in, then rebuild that tree's file database.
-TEXMFHOME="$(kpsewhich -var-value TEXMFHOME)"
-[ -n "$TEXMFHOME" ] || {
-  echo "ERROR: kpsewhich -var-value TEXMFHOME printed nothing. Is a TeX" >&2
-  echo "       distribution installed? fuzz's binary and library are" >&2
-  echo "       installed regardless — only fuzz.sty's discoverability" >&2
-  echo "       depends on this." >&2
-  exit 1
-}
+#
+# Everything from here down is a convenience for pdflatex, never a reason to
+# fail the fuzz install already built and verified above — fuzz itself does
+# not read fuzz.sty, and neither /z-spec-dev:check-dev nor /z-spec-dev:test-dev needs it. So
+# every step below warns and continues instead of exiting: a machine with no
+# TeX distribution, an unwritable TEXMFHOME, or a stale filename database
+# still leaves a fully working fuzz binary behind.
+if command -v kpsewhich >/dev/null 2>&1; then
+  TEXMFHOME="$(kpsewhich -var-value TEXMFHOME)" || TEXMFHOME=""
+  if [ -n "$TEXMFHOME" ] && mkdir -p "$TEXMFHOME/tex/latex" "$TEXMFHOME/fonts/source/public/oxsz" 2>/dev/null; then
+    cp tex/fuzz.sty "$TEXMFHOME/tex/latex/" 2>/dev/null || {
+      echo "! could not copy tex/fuzz.sty into $TEXMFHOME/tex/latex —" >&2
+      echo "  pdflatex will not compile a spec to PDF, but /z-spec-dev:check-dev" >&2
+      echo "  (fuzz type-checking) is unaffected" >&2
+    }
 
-mkdir -p "$TEXMFHOME/tex/latex" "$TEXMFHOME/fonts/source/public/oxsz" || {
-  echo "ERROR: could not create $TEXMFHOME/tex/latex or" >&2
-  echo "       $TEXMFHOME/fonts/source/public/oxsz" >&2
-  exit 1
-}
+    cp tex/*.mf "$TEXMFHOME/fonts/source/public/oxsz/" 2>/dev/null || {
+      echo "! could not copy tex/*.mf into" >&2
+      echo "  $TEXMFHOME/fonts/source/public/oxsz — pdflatex will not compile" >&2
+      echo "  a spec to PDF, but /z-spec-dev:check-dev (fuzz type-checking) is" >&2
+      echo "  unaffected" >&2
+    }
 
-cp tex/fuzz.sty "$TEXMFHOME/tex/latex/" || {
-  echo "ERROR: could not copy tex/fuzz.sty into $TEXMFHOME/tex/latex" >&2
-  exit 1
-}
+    # Scoped to $TEXMFHOME alone — no sudo, and no touching trees this
+    # account does not own.
+    if command -v mktexlsr >/dev/null 2>&1; then
+      mktexlsr "$TEXMFHOME" >/dev/null 2>&1 || {
+        echo "! mktexlsr failed to rebuild the file database for" >&2
+        echo "  $TEXMFHOME. fuzz.sty was copied there, but kpsewhich may not" >&2
+        echo "  find it until this succeeds — re-run mktexlsr on that" >&2
+        echo "  directory by hand." >&2
+      }
+    fi
 
-cp tex/*.mf "$TEXMFHOME/fonts/source/public/oxsz/" || {
-  echo "ERROR: could not copy tex/*.mf into" >&2
-  echo "       $TEXMFHOME/fonts/source/public/oxsz" >&2
-  exit 1
-}
-
-# Scoped to $TEXMFHOME alone — no sudo, and no touching trees this account
-# does not own.
-mktexlsr "$TEXMFHOME" || {
-  echo "ERROR: mktexlsr failed to rebuild the file database for" >&2
-  echo "       $TEXMFHOME. fuzz.sty was copied there, but kpsewhich may not" >&2
-  echo "       find it until this succeeds — re-run mktexlsr on that" >&2
-  echo "       directory by hand." >&2
-  exit 1
-}
-
-FUZZ_STY="$(kpsewhich fuzz.sty 2>/dev/null)" || {
-  echo "ERROR: fuzz.sty was copied into $TEXMFHOME but kpsewhich still" >&2
-  echo "       cannot find it. See 'Common Issues' below." >&2
-  exit 1
-}
-echo "fuzz.sty: $FUZZ_STY"
+    if FUZZ_STY="$(kpsewhich fuzz.sty 2>/dev/null)" && [ -n "$FUZZ_STY" ]; then
+      echo "fuzz.sty: $FUZZ_STY"
+    else
+      echo "! fuzz.sty was copied into $TEXMFHOME but kpsewhich still" >&2
+      echo "  cannot find it. See 'Common Issues' below. /z-spec-dev:check-dev" >&2
+      echo "  (fuzz type-checking) is unaffected." >&2
+    fi
+  else
+    echo "! could not resolve or create a TEXMFHOME tree — fuzz.sty will" >&2
+    echo "  not be on the TeX path, but /z-spec-dev:check-dev (fuzz type-checking)" >&2
+    echo "  is unaffected" >&2
+  fi
+else
+  echo "! no TeX distribution found (kpsewhich absent) — fuzz.sty was not" >&2
+  echo "  installed; /z-spec-dev:check-dev (fuzz type-checking) is unaffected" >&2
+fi
 ```
 
 #### Add to PATH
