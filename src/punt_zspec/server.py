@@ -11,9 +11,7 @@ from mcp.server.fastmcp import FastMCP
 
 from punt_zspec import __version__
 from punt_zspec.commands.enablement import RepoEnablement
-from punt_zspec.gate import EnablementGate
-from punt_zspec.lux import ZSpecLuxSession
-from punt_zspec.lux.project import ProjectRoot
+from punt_zspec.server_context import ServerContext
 from punt_zspec.types import EnablementAction
 
 if TYPE_CHECKING:
@@ -26,44 +24,20 @@ if TYPE_CHECKING:
 __all__ = ["lifespan", "mcp"]
 
 
-# The repo the user has open. Never ``Path.cwd()``: plugin.json runs the server
-# as ``uv run --directory ${CLAUDE_PLUGIN_ROOT}``, and uv chdirs before exec, so
-# for every plugin user the cwd is the z-spec checkout. It is fixed for the life
-# of the process, so one resolution serves the session.
-_PROJECT_ROOT = ProjectRoot.resolve().path
-
-# What the directory-taking tools default to. A ``"."`` default meant the cwd,
-# which is that same checkout: ``/z-spec:enable`` deposited the guide, wrote the
-# marker, and edited CLAUDE.md inside z-spec's own repo and reported success
-# while the user's repo went untouched.
-_PROJECT_DIR = str(_PROJECT_ROOT)
-
-# The one gate (punt-kit tool-enable-disable.md §2.3). The marker under the
-# project root is re-read on every call, so no state outlives an ``enable`` run.
-_GATE = EnablementGate(_PROJECT_ROOT)
-
-# One per MCP server process: the persistent applet-identity lux client, the display
-# every render tool shares, and the menu listener. Constructed lazily-connecting,
-# so a down luxd never blocks import or the check/test/animate tool surface. It
-# is handed the same gate the tools are guarded by, so the menu answers to the
-# marker exactly as they do, and re-reads it — never a startup snapshot.
-_SESSION = ZSpecLuxSession(_GATE.is_open, cwd=_PROJECT_ROOT)
+_ctx = ServerContext()
 
 
 @asynccontextmanager
-async def lifespan(_server: FastMCP) -> AsyncGenerator[None]:
-    """Sync the menu listener to the marker on entry, drain it on shutdown.
+async def lifespan(server: FastMCP) -> AsyncGenerator[None]:
+    """Delegate lifespan management to the process's shared server context.
 
-    In a repo with no marker nothing connects, so z-spec contributes no entries
-    to the shared lux menu. The plugin loads in every Claude Code session
-    against one daemon serving one window; without this, every session would
-    register its entries in every repo.
+    A named module-level function, not a bare ``_ctx.lifespan`` alias, keeps
+    ``lifespan`` — the one name this module promises FastMCP and the plugin
+    tests (PL-CU-3) — a real function this module owns, rather than a bound
+    method borrowed from an internal singleton.
     """
-    await _SESSION.sync()
-    try:
+    async with _ctx.lifespan(server):
         yield
-    finally:
-        await _SESSION.stop()
 
 
 mcp = FastMCP(
@@ -84,7 +58,7 @@ if hasattr(mcp, "_mcp_server") and hasattr(mcp._mcp_server, "version"):  # pyrig
 
 
 @mcp.tool()
-@_GATE.guard
+@_ctx.gate.guard
 def check(file: str) -> str:
     """Type-check a Z specification with fuzz.
 
@@ -101,7 +75,7 @@ def check(file: str) -> str:
 
 
 @mcp.tool()
-@_GATE.guard
+@_ctx.gate.guard
 def test(
     file: str,
     setsize: int = 2,
@@ -127,7 +101,7 @@ def test(
 
 
 @mcp.tool()
-@_GATE.guard
+@_ctx.gate.guard
 def animate(file: str, steps: int = 20, setsize: int = 2) -> str:
     """Animate a Z specification with probcli.
 
@@ -147,7 +121,7 @@ def animate(file: str, steps: int = 20, setsize: int = 2) -> str:
 
 
 @mcp.tool()
-@_GATE.guard
+@_ctx.gate.guard
 def model_check(
     file: str,
     setsize: int = 2,
@@ -173,7 +147,7 @@ def model_check(
 
 
 @mcp.tool()
-@_GATE.guard
+@_ctx.gate.guard
 def doctor() -> str:
     """Report Z-toolkit environment health.
 
@@ -186,7 +160,7 @@ def doctor() -> str:
 
 
 @mcp.tool()
-@_GATE.guard
+@_ctx.gate.guard
 def show(file: str) -> str:
     """Parse a Z spec and display it in lux.
 
@@ -212,11 +186,13 @@ def show(file: str) -> str:
             audit=reports.audit,
         )
 
-    return ShowCommand(build=build, display=_SESSION.display).run(Path(file)).to_json()
+    return (
+        ShowCommand(build=build, display=_ctx.session.display).run(Path(file)).to_json()
+    )
 
 
 @mcp.tool()
-@_GATE.guard
+@_ctx.gate.guard
 def report(file: str) -> str:
     """Load an existing ProB report for a Z specification.
 
@@ -232,7 +208,7 @@ def report(file: str) -> str:
 
 
 @mcp.tool()
-@_GATE.guard
+@_ctx.gate.guard
 def partition(file: str, report_json: str) -> str:
     """Validate and save a partition report for a Z specification.
 
@@ -251,7 +227,7 @@ def partition(file: str, report_json: str) -> str:
 
 
 @mcp.tool()
-@_GATE.guard
+@_ctx.gate.guard
 def browse(manifest: str) -> str:
     """Open a Z spec collection in the tutorial browser.
 
@@ -271,15 +247,15 @@ def browse(manifest: str) -> str:
         return build_browser_scene(collection, specs)
 
     return (
-        BrowseCommand(build=build, display=_SESSION.display)
+        BrowseCommand(build=build, display=_ctx.session.display)
         .run(Path(manifest))
         .to_json()
     )
 
 
 @mcp.tool()
-@_GATE.guard
-def pick(directory: str = _PROJECT_DIR) -> str:
+@_ctx.gate.guard
+def pick(directory: str = _ctx.project_dir) -> str:
     """Discover a directory's Z specs and display them in a tabbed picker.
 
     Globs ``directory`` for ``.tex`` specs (skipping templates and LaTeX
@@ -298,7 +274,7 @@ def pick(directory: str = _PROJECT_DIR) -> str:
 
     # build_spec_picker satisfies PickerSceneBuilder structurally — pass it directly.
     return (
-        PickerCommand(build=build_spec_picker, display=_SESSION.display)
+        PickerCommand(build=build_spec_picker, display=_ctx.session.display)
         .run(Path(directory))
         .to_json()
     )
@@ -306,7 +282,7 @@ def pick(directory: str = _PROJECT_DIR) -> str:
 
 @mcp.tool()
 async def enablement(
-    action: Literal["enable", "disable"], directory: str = _PROJECT_DIR
+    action: Literal["enable", "disable"], directory: str = _ctx.project_dir
 ) -> str:
     """Turn z-spec on or off in this repository.
 
@@ -334,12 +310,12 @@ async def enablement(
     result = await asyncio.to_thread(
         RepoEnablement.apply, EnablementAction(action), Path(directory)
     )
-    await _SESSION.sync()
+    await _ctx.session.sync()
     return result.to_json()
 
 
 @mcp.tool()
-@_GATE.guard
+@_ctx.gate.guard
 def audit(file: str, report_json: str) -> str:
     """Validate and save an audit report for a Z specification.
 

@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from punt_lux import HubUnavailableError
 
+import punt_zspec.server as server
 from punt_zspec.commands.enablement import RepoEnablement
 from punt_zspec.gate import EnablementGate
 from punt_zspec.lux import ZSpecLuxSession
@@ -353,7 +354,7 @@ def _enablement(action: str, directory: str, monkeypatch: pytest.MonkeyPatch) ->
 
     session = MagicMock()
     session.sync = AsyncMock()
-    monkeypatch.setattr("punt_zspec.server._SESSION", session)
+    monkeypatch.setattr(server._ctx, "_session", session)  # pyright: ignore[reportPrivateUsage]
     return json.loads(asyncio.run(enablement(action, directory)))
 
 
@@ -412,7 +413,7 @@ def test_enablement_tool_syncs_the_menu_to_the_marker_it_wrote(
 
     session = MagicMock()
     session.sync = AsyncMock()
-    monkeypatch.setattr("punt_zspec.server._SESSION", session)
+    monkeypatch.setattr(server._ctx, "_session", session)  # pyright: ignore[reportPrivateUsage]
 
     asyncio.run(enablement("enable", str(_repo(tmp_path))))
 
@@ -438,10 +439,10 @@ def _enabled_repo(root: Path) -> Path:
     return root
 
 
-# The probe program. ``_SESSION`` is replaced before the call: these tests
-# assert on where the gate and the tool defaults point, and a probe that let
-# the enablement tool sync for real would reach the developer's running luxd
-# and register menu entries from a throwaway subprocess.
+# The probe program. The context's session is replaced before the call: these
+# tests assert on where the gate and the tool defaults point, and a probe that
+# let the enablement tool sync for real would reach the developer's running
+# luxd and register menu entries from a throwaway subprocess.
 _PROBE = '''\
 import asyncio
 import punt_zspec.server as s
@@ -457,7 +458,7 @@ class _NoMenu:
         pass
 
 
-s._SESSION = _NoMenu()
+s._ctx._session = _NoMenu()
 print({call})
 '''
 
@@ -552,7 +553,7 @@ def test_the_lifespan_syncs_the_menu_to_the_marker_and_drains_on_shutdown(
     session = MagicMock()
     session.sync = AsyncMock()
     session.stop = AsyncMock()
-    monkeypatch.setattr("punt_zspec.server._SESSION", session)
+    monkeypatch.setattr(server._ctx, "_session", session)  # pyright: ignore[reportPrivateUsage]
 
     asyncio.run(_drive_lifespan())
 
