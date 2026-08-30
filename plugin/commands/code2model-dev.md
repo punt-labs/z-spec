@@ -48,6 +48,7 @@ if [ ! -f docs/fuzz.sty ]; then
             STY_COPIED=1
         else
             STY_COPIED=0
+            rm -f docs/fuzz.sty
             echo "! could not copy $FUZZ_STY into docs/ -- pdflatex will not compile" >&2
             echo "  a spec to PDF; fuzz type-checking is unaffected" >&2
         fi
