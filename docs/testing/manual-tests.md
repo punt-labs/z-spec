@@ -33,6 +33,14 @@ registry, the display, the lux session) runs the whole flight.
 
 ## Flight
 
+### Setup
+
+| # | Action | Context | Expected |
+|---|--------|---------|----------|
+| S1 | `/z-spec:setup fuzz` | slash command; fuzz absent; `$HOME/.local/share/texmf` not on `kpsewhich`'s search path | clone, `./configure --prefix="$HOME/.local"`, `make`, and `make install` all run with no privilege prompt at any step; `fuzz.sty` and `tex/*.mf` are copied into `kpsewhich -var-value TEXMFHOME` and `mktexlsr` run against it; the report shows fuzz at `~/.local/bin/fuzz` and `fuzz.sty` found by `kpsewhich fuzz.sty` |
+| S2 | `/z-spec:setup fuzz` | slash command; a required build tool (e.g. `cpp`) missing from `PATH` | the preflight loop names the missing tool and exits before `git clone` or `./configure` runs — not a bare "command not found" partway through the build |
+| S3 | `/z-spec:setup check` | slash command; fuzz installed via S1 | fuzz reported present with its version banner (via `-Dv`, not `-version`); `fuzz.sty` reported found in the TeX path |
+
 ### Environment
 
 | # | Action | Context | Expected |
