@@ -187,7 +187,7 @@ def doctor() -> str:
 
 @mcp.tool()
 @_GATE.guard
-def show_z_spec(file: str) -> str:
+def show(file: str) -> str:
     """Parse a Z spec and display it in lux.
 
     Loads all available reports (fuzz, ProB, partition, audit) and
@@ -217,7 +217,7 @@ def show_z_spec(file: str) -> str:
 
 @mcp.tool()
 @_GATE.guard
-def get_report(file: str) -> str:
+def report(file: str) -> str:
     """Load an existing ProB report for a Z specification.
 
     Args:
@@ -233,7 +233,7 @@ def get_report(file: str) -> str:
 
 @mcp.tool()
 @_GATE.guard
-def save_partition_report(file: str, report_json: str) -> str:
+def partition(file: str, report_json: str) -> str:
     """Validate and save a partition report for a Z specification.
 
     The report is saved as <stem>.partition.json alongside the .tex file.
@@ -340,7 +340,7 @@ async def enablement(
 
 @mcp.tool()
 @_GATE.guard
-def save_audit_report(file: str, report_json: str) -> str:
+def audit(file: str, report_json: str) -> str:
     """Validate and save an audit report for a Z specification.
 
     The report is saved as <stem>.audit.json alongside the .tex file.
