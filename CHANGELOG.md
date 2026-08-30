@@ -41,6 +41,12 @@ All notable changes to this project will be documented in this file.
   `plugin/commands/cleanup.md` now name `code2model` specifically instead of
   the inaccurate "z-spec commands" plural, and `/z-spec:setup`'s note keeps
   the `/z-spec:cleanup` pointer that had been dropped.
+- **`/z-spec:setup`'s "emit, verbatim" report template embedded prose, not a
+  placeholder path**, in its `fuzz.sty` row — an agent following the verbatim
+  instruction literally could print `(wherever kpsewhich fuzz.sty resolved —
+  typically under $TEXMFHOME)` straight into a user's report. Now a
+  path-shaped placeholder consistent with the table's other rows and with
+  `/z-spec:doctor`'s style.
 
 ## [0.20.3] - 2026-08-30
 

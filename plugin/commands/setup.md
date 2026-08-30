@@ -1087,7 +1087,7 @@ The report to emit, verbatim backticks and all:
 | Tool | Status | Location |
 |------|--------|----------|
 | fuzz | ✓ Installed | ~/.local/bin/fuzz |
-| fuzz.sty | ✓ Installed | (wherever kpsewhich fuzz.sty resolved — typically under $TEXMFHOME) |
+| fuzz.sty | ✓ Installed | $TEXMFHOME/tex/latex/fuzz.sty |
 | probcli | ✓ Installed 1.15.1 | ~/Applications/ProB/probcli |
 | elan | ✓ Installed | ~/.elan/bin/elan |
 | lean | ✓ Installed | ~/.elan/bin/lean |
