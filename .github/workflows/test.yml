@@ -12,8 +12,14 @@ permissions:
 jobs:
   # Tier 1 + 4: unit tests and CLI/MCP surface parity. No external binaries, so
   # this job stays green even when an upstream tool download is unavailable.
+  # Matrixed over every supported OS: the software, not just the installer,
+  # must be proven on each platform this repo claims to support.
   unit:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -29,7 +35,11 @@ jobs:
   # packaging faults (a data file missing from the wheel, an entry point that
   # does not resolve), which no in-process test can see.
   e2e:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,11 +52,16 @@ jobs:
       - run: make test-e2e
 
   # Tiers 2 + 3: the Z spec corpus, type-checked with fuzz and model-checked
-  # with probcli. Both are external binaries: fuzz builds from source, probcli
-  # ships as a Linux archive. A failure here is a real gate failure — the specs
-  # this repo publishes are its documentation of the notation.
+  # with probcli, on every supported OS. Both are external binaries: fuzz
+  # builds from source, probcli ships per-OS archives. A failure here is a
+  # real gate failure — the specs this repo publishes are its documentation
+  # of the notation.
   specs:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -56,32 +71,62 @@ jobs:
           python-version: "3.13"
       - run: uv sync --frozen --all-extras
 
+      - name: Install build prerequisites (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential bison flex
+
+      # bison and flex are keg-only Homebrew formulas on macOS: installed but
+      # not linked onto PATH, since the system ships older same-name versions.
+      - name: Install build prerequisites (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install bison flex
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
+
       # This is the same install_fuzz() this repo ships in install.sh --
       # --fuzz-only builds it from source and lands it under $HOME/.local,
       # no sudo. Running the real function here (not a second, separate
       # build script) is the regression guard for the sudo-free installer
       # itself: a change that breaks install_fuzz() breaks this job, not
       # just the parts of the corpus gate downstream of it.
-      - name: Install build prerequisites
-        run: sudo apt-get update && sudo apt-get install -y build-essential bison flex
       - name: Build fuzz from source (install.sh --fuzz-only)
         run: |
           ./install.sh --fuzz-only
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # The ProB release tarball carries probcli; pinned rather than "latest" so
-      # a spec gate failure means the specs changed, not the tool. The archive
-      # layout is not contracted, so locate the binary instead of assuming a
-      # path, and fail loudly if it is absent. PROBCLI/PROB_HOME go to the env
-      # because the Makefile declares `PROBCLI ?=`.
+      # The ProB release archives carry probcli; pinned rather than "latest"
+      # so a spec gate failure means the specs changed, not the tool. The
+      # archive name and format differ per OS, and the layout inside is not
+      # contracted, so locate the binary instead of assuming a path, and fail
+      # loudly if it is absent. PROBCLI/PROB_HOME go to the env because the
+      # Makefile declares `PROBCLI ?=`.
       - name: Install probcli
         env:
           PROB_VERSION: "1.15.1"
         run: |
           mkdir -p "${RUNNER_TEMP}/ProB"
-          curl -fL -o "${RUNNER_TEMP}/prob.tar.gz" \
-            "https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/${PROB_VERSION}/ProB.linux64.tar.gz"
-          tar -xzf "${RUNNER_TEMP}/prob.tar.gz" -C "${RUNNER_TEMP}/ProB"
+          case "$(uname -s)" in
+            Darwin) ARCHIVE="ProB.macos.zip" ;;
+            *)      ARCHIVE="ProB.linux64.tar.gz" ;;
+          esac
+          curl -fL -o "${RUNNER_TEMP}/${ARCHIVE}" \
+            "https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/${PROB_VERSION}/${ARCHIVE}"
+          # Same zip-slip/tar-slip guard as install.sh's install_probcli():
+          # an absolute path or ../ segment in the listing could write
+          # outside the dest dir if the archive host is compromised.
+          case "${ARCHIVE}" in
+            *.zip) LISTING="$(unzip -Z1 "${RUNNER_TEMP}/${ARCHIVE}")" ;;
+            *)     LISTING="$(tar -tzf "${RUNNER_TEMP}/${ARCHIVE}")" ;;
+          esac
+          if printf '%s\n' "${LISTING}" | grep -qE '^/|(^|/)\.\./'; then
+            echo "FATAL: probcli archive contains unsafe paths (absolute or ../)" >&2
+            exit 1
+          fi
+          case "${ARCHIVE}" in
+            *.zip) unzip -q "${RUNNER_TEMP}/${ARCHIVE}" -d "${RUNNER_TEMP}/ProB" ;;
+            *)     tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}/ProB" ;;
+          esac
           PROBCLI="$(find "${RUNNER_TEMP}/ProB" -type f -name probcli | head -n 1)"
           if [ -z "${PROBCLI}" ]; then
             echo "FATAL: no probcli in the ProB ${PROB_VERSION} archive" >&2
@@ -101,20 +146,29 @@ jobs:
       - run: make type
       - run: make test
 
-  # The shipped installer, run whole, on every supported OS (z-spec-58u).
-  # Matrix entries run in parallel, so this adds no wall time over a single
-  # platform. Each entry runs install.sh end to end -- the CLI via uv tool
-  # install, probcli via its per-OS archive (install_probcli's own
-  # Darwin/Linux branch), and the sudo-free fuzz source build -- then
-  # verifies through the installed artifact itself: doctor must report both
-  # tools, a real spec must type-check (fuzz) and model-check (probcli).
-  # --no-plugin because CI runners have no claude CLI; the plugin step
-  # would auto-skip anyway, and this job's subject is the toolchain.
+  # The shipped installer, run whole, on every supported OS × every TeX
+  # availability state (z-spec-58u + operator rule: installer and software
+  # proven on each platform). Matrix entries run in parallel, so this adds
+  # no wall time over a single platform. Each entry runs install.sh end to
+  # end -- the CLI via uv tool install, probcli via its per-OS archive
+  # (install_probcli's own Darwin/Linux branch), and the sudo-free fuzz
+  # source build -- then verifies through the installed artifact itself:
+  # doctor must report both tools, a real spec must type-check (fuzz) and
+  # model-check (probcli).
+  #
+  # The tex dimension covers install_fuzz()'s two TEXMFHOME branches:
+  # tex=absent (bare runner) proves the no-TeX path degrades gracefully
+  # instead of failing the install; tex=present installs a real TeX
+  # distribution first and then REQUIRES kpsewhich to find fuzz.sty
+  # afterward -- the copy + mktexlsr chain, which a bare runner can never
+  # exercise. --no-plugin because CI runners have no claude CLI; the plugin
+  # step would auto-skip anyway, and this job's subject is the toolchain.
   installer:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
+        tex: [absent, present]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -136,6 +190,20 @@ jobs:
           echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
           echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
 
+      # texlive-base carries kpsewhich and mktexlsr -- the minimal footprint
+      # that makes install_fuzz()'s TEXMFHOME branch run for real.
+      - name: Install TeX (Linux, tex=present)
+        if: runner.os == 'Linux' && matrix.tex == 'present'
+        run: sudo apt-get install -y texlive-base
+
+      # BasicTeX is the slim MacTeX distribution; its binaries land in
+      # /Library/TeX/texbin, which is not on PATH until added.
+      - name: Install TeX (macOS, tex=present)
+        if: runner.os == 'macOS' && matrix.tex == 'present'
+        run: |
+          brew install --cask basictex
+          echo "/Library/TeX/texbin" >> "$GITHUB_PATH"
+
       - name: Run the full installer (CLI + probcli + fuzz)
         run: |
           ./install.sh --no-plugin
@@ -151,3 +219,10 @@ jobs:
           z-spec doctor
           z-spec check examples/animation-hints-good.tex
           z-spec test examples/animation-hints-good.tex
+
+      # With a real TeX tree present, the TEXMFHOME copy is REQUIRED to have
+      # landed and been indexed -- a miss here means the copy or mktexlsr
+      # chain regressed, exactly the branch a bare runner cannot see.
+      - name: Verify fuzz.sty reached the TeX path (tex=present)
+        if: matrix.tex == 'present'
+        run: kpsewhich fuzz.sty
