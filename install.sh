@@ -353,6 +353,147 @@ install_probcli() (
 
 install_probcli || warn "probcli install failed -- see the error above"
 
+FUZZ_REPO="https://github.com/Spivoxity/fuzz.git"
+# Pinned commit, not a moving branch tip -- same discipline as PROB_VERSION
+# above, audited before it is bumped. Spivoxity/fuzz has one stale tag
+# (2022-01-01) and infrequent doc-only commits since; this is the tip as of
+# the z-spec-5te investigation.
+FUZZ_REF="2a202a0b6f7328e729b54ef352d3bb4c6dfeb2e5"
+FUZZ_HOME="$HOME/.local"
+
+install_fuzz() (
+  # Subshell, same discipline as install_probcli: a failure anywhere here
+  # returns nonzero without aborting the rest of install.sh under set -e,
+  # and every path below is explicit so a partial build/install never gets
+  # reported as success.
+  set -eu
+
+  # Already resolves ($FUZZ or PATH, same precedence as resolve_fuzz() in
+  # src/punt_zspec/fuzz.py) to something that actually runs? Skip the
+  # clone-and-build entirely. fuzz has no -version flag and no numbered
+  # release to compare against, so "resolves and answers the usage probe"
+  # is the only signal that what is already there is a genuine working
+  # install, not a stale or broken one left over from something else.
+  EXISTING="$(resolve_fuzz_path)" && [ -x "$EXISTING" ] || EXISTING=""
+  if [ -n "$EXISTING" ]; then
+    EXISTING_OUT="$("$EXISTING" -bogusflag 2>&1)" || EXISTING_OUT=""
+    if printf '%s\n' "$EXISTING_OUT" | grep -q '^Usage: fuzz'; then
+      echo "  ✓ fuzz $EXISTING (already installed)"
+      return 0
+    fi
+  fi
+
+  # bison and flex are invoked by literal name in src/Makefile.in with no
+  # autoconf detection at all -- unlike the awk/preprocessor variables
+  # configure resolves itself, a missing bison or flex fails make with a
+  # bare "command not found" three steps in. Check the ones configure does
+  # not check, so a missing tool is named here instead of surfacing as a
+  # cryptic build failure. gcc is a hard dependency too: src/Makefile.in
+  # hardcodes CC=gcc, ignoring configure's own compiler detection.
+  for tool in git make gcc bison flex; do
+    command -v "$tool" >/dev/null 2>&1 || {
+      echo "  ! $tool not found -- cannot build fuzz from source" >&2
+      return 1
+    }
+  done
+
+  FUZZ_BUILD_DIR="$(mktemp -d)" || {
+    echo "  ! could not create a scratch build directory for fuzz" >&2
+    return 1
+  }
+  # The clone is pure build scratch -- nothing in it is the install, which
+  # lands under $FUZZ_HOME via `make install` below. Remove it on every exit
+  # path, success or failure, so a curl | sh run never leaves a source tree
+  # behind either way -- the same cleanup-after-verify discipline as
+  # install_probcli's own rm -f "$ARCHIVE", just via a trap because this
+  # scratch dir accumulates across several steps instead of one download.
+  trap 'rm -rf "$FUZZ_BUILD_DIR"' EXIT
+
+  git clone --quiet "$FUZZ_REPO" "$FUZZ_BUILD_DIR" || {
+    echo "  ! could not clone $FUZZ_REPO -- check network access" >&2
+    return 1
+  }
+  cd "$FUZZ_BUILD_DIR"
+  git checkout --quiet "$FUZZ_REF" || {
+    echo "  ! could not check out pinned commit $FUZZ_REF" >&2
+    return 1
+  }
+
+  # --prefix="$FUZZ_HOME" is the whole fix for z-spec-5te: fuzz's own
+  # Makefile.in derives bindir/datadir from autoconf's standard prefix
+  # variable, which defaults to root-owned /usr/local only when configure
+  # runs with none. Passed explicitly, configure/make/make install below
+  # need no sudo anywhere -- everything lands under $FUZZ_HOME.
+  ./configure --prefix="$FUZZ_HOME" || {
+    echo "  ! ./configure --prefix=$FUZZ_HOME failed -- see the output above" >&2
+    return 1
+  }
+  make || {
+    echo "  ! make failed -- see the build output above" >&2
+    return 1
+  }
+  make install || {
+    echo "  ! make install failed -- see the output above" >&2
+    return 1
+  }
+
+  test -x "$FUZZ_HOME/bin/fuzz" || {
+    echo "  ! make install reported success but there is no executable" >&2
+    echo "    fuzz at $FUZZ_HOME/bin/fuzz -- the build layout is not what" >&2
+    echo "    this script expects" >&2
+    return 1
+  }
+
+  FUZZ_PROBE_OUT="$("$FUZZ_HOME/bin/fuzz" -bogusflag 2>&1)" || true
+  printf '%s\n' "$FUZZ_PROBE_OUT" | grep -q '^Usage: fuzz' || {
+    echo "  ! $FUZZ_HOME/bin/fuzz is installed but would not run:" >&2
+    printf '%s\n' "$FUZZ_PROBE_OUT" | while IFS= read -r line; do echo "    $line" >&2; done
+    return 1
+  }
+
+  # `make install` also drops fuzz.sty and the Metafont sources under
+  # $datadir/texmf/tex/latex and .../fonts/source/public/oxsz -- a path
+  # kpsewhich does not search by default (verified empirically: with only
+  # that install done, `kpsewhich fuzz.sty` still misses it). TEXMFHOME is
+  # the one texmf tree every TeX Live/MacTeX install both defines and
+  # treats as writable with no sudo, so copy the same two file groups there
+  # directly and refresh that tree's own filename database. fuzz itself
+  # does not read fuzz.sty -- only pdflatex compiling a spec to PDF does --
+  # so a machine with no TeX distribution at all (no kpsewhich) skips this
+  # with a warning, never a failure of the fuzz install itself.
+  if command -v kpsewhich >/dev/null 2>&1; then
+    TEXMFHOME_DIR="$(kpsewhich -var-value TEXMFHOME)" || TEXMFHOME_DIR=""
+    if [ -n "$TEXMFHOME_DIR" ] && mkdir -p "$TEXMFHOME_DIR/tex/latex" "$TEXMFHOME_DIR/fonts/source/public/oxsz" 2>/dev/null; then
+      # A failed copy here degrades to the warning below, same as a failed
+      # mkdir above -- fuzz.sty is a convenience for pdflatex, never a
+      # reason to report the fuzz binary itself (already verified above)
+      # as failed to install.
+      cp "$FUZZ_BUILD_DIR/tex/fuzz.sty" "$TEXMFHOME_DIR/tex/latex/" 2>/dev/null || true
+      cp "$FUZZ_BUILD_DIR"/tex/*.mf "$TEXMFHOME_DIR/fonts/source/public/oxsz/" 2>/dev/null || true
+      if command -v mktexlsr >/dev/null 2>&1; then
+        mktexlsr "$TEXMFHOME_DIR" >/dev/null 2>&1 || true
+      fi
+      if kpsewhich fuzz.sty >/dev/null 2>&1; then
+        echo "  ✓ fuzz.sty $(kpsewhich fuzz.sty)"
+      else
+        echo "  ! fuzz.sty was copied to $TEXMFHOME_DIR but kpsewhich still" >&2
+        echo "    cannot find it -- pdflatex will not compile a spec to PDF," >&2
+        echo "    but /z-spec:check (fuzz type-checking) is unaffected" >&2
+      fi
+    else
+      echo "  ! could not create $TEXMFHOME_DIR -- fuzz.sty will not be on" >&2
+      echo "    the TeX path; /z-spec:check (fuzz type-checking) is unaffected" >&2
+    fi
+  else
+    echo "  ! no TeX distribution found (kpsewhich absent) -- fuzz.sty was" >&2
+    echo "    not installed; /z-spec:check (fuzz type-checking) is unaffected" >&2
+  fi
+
+  echo "  ✓ fuzz $FUZZ_HOME/bin/fuzz"
+)
+
+install_fuzz || warn "fuzz install failed -- see the error above"
+
 # The pointer to /z-spec:setup only makes sense when the plugin is
 # installed; a CLI-only install has no slash commands to run, and no local
 # checkout of this repo either -- a repo-relative path like
@@ -450,7 +591,8 @@ FUZZ_STATUS="absent"
 RESOLVED_FUZZ="$(resolve_fuzz_path)" || RESOLVED_FUZZ=""
 if [ -z "$RESOLVED_FUZZ" ]; then
   warn "fuzz not found -- type-checking (/z-spec:check) needs it"
-  warn "fuzz must be built from source; $FUZZ_SETUP_HINT"
+  warn "the automatic build (see install_fuzz above) did not succeed;"
+  warn "$FUZZ_SETUP_HINT"
 elif [ ! -x "$RESOLVED_FUZZ" ]; then
   FUZZ_STATUS="not-executable"
   warn "fuzz resolves to $RESOLVED_FUZZ, but it is not executable"
