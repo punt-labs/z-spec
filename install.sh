@@ -606,17 +606,14 @@ install_fuzz() (
 # its already-installed and missing-tools early returns -- not here -- so it
 # never precedes a "✓ fuzz ... (already installed)" line with a claim that a
 # build is about to happen when it is not.
-
-# Capture the real outcome instead of discarding it: the final summary
-# below distinguishes "the build genuinely failed" from "the build
-# succeeded but $HOME/.local/bin isn't on PATH in this shell yet", and
-# can only make that distinction if it knows which one actually happened.
-if install_fuzz; then
-  FUZZ_BUILD_OK=1
-else
-  FUZZ_BUILD_OK=0
-  warn "fuzz install failed -- see the error above"
-fi
+#
+# The outcome does not need to be captured for later branching: the PATH
+# export below runs unconditionally before resolve_fuzz_path() is ever
+# called, so a successful build (which always lands at
+# $FUZZ_HOME/bin/fuzz = $HOME/.local/bin/fuzz) is guaranteed to resolve --
+# there is no "build succeeded but isn't on PATH yet" case left to
+# distinguish from "build failed" once PATH already carries that directory.
+install_fuzz || warn "fuzz install failed -- see the error above"
 
 # The pointer to /z-spec:setup only makes sense when the plugin is
 # installed; a CLI-only install has no slash commands to run, and no local
@@ -721,14 +718,8 @@ FUZZ_STATUS="absent"
 RESOLVED_FUZZ="$(resolve_fuzz_path)" || RESOLVED_FUZZ=""
 if [ -z "$RESOLVED_FUZZ" ]; then
   warn "fuzz not found -- type-checking (/z-spec:check) needs it"
-  if [ "$FUZZ_BUILD_OK" = "1" ]; then
-    warn "the automatic build (see install_fuzz above) succeeded, but"
-    warn "\$HOME/.local/bin is still not on PATH -- restart your shell,"
-    warn "or $FUZZ_SETUP_HINT"
-  else
-    warn "the automatic build (see install_fuzz above) did not succeed;"
-    warn "$FUZZ_SETUP_HINT"
-  fi
+  warn "the automatic build (see install_fuzz above) did not succeed;"
+  warn "$FUZZ_SETUP_HINT"
 elif [ ! -x "$RESOLVED_FUZZ" ]; then
   FUZZ_STATUS="not-executable"
   warn "fuzz resolves to $RESOLVED_FUZZ, but it is not executable"
