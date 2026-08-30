@@ -107,8 +107,15 @@ jobs:
   # corpus sweep on macOS would not exercise anything install_fuzz() itself
   # doesn't already prove on Linux. This job's only job is proving the
   # same install_fuzz() -- git clone, configure --prefix, make, make
-  # install, TEXMFHOME copy, no sudo -- also works on the other platform
-  # this repo claims to support.
+  # install, no sudo -- also works on the other platform this repo claims
+  # to support. Neither this runner nor the Linux specs job's runner has a
+  # TeX distribution installed, so kpsewhich is absent on both and the
+  # TEXMFHOME copy step's non-fatal "no TeX distribution found" branch is
+  # what actually runs here, not the copy itself -- confirmed by reading
+  # this job's own log output. That branch not aborting is still a real,
+  # useful assertion (install_fuzz()'s TeX-absent path degrades gracefully
+  # rather than failing the build), just not the same claim as "the copy
+  # was exercised."
   fuzz-macos:
     runs-on: macos-latest
     timeout-minutes: 15
