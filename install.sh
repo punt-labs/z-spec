@@ -396,12 +396,18 @@ install_fuzz() (
   # not check, so a missing tool is named here instead of surfacing as a
   # cryptic build failure. gcc is a hard dependency too: src/Makefile.in
   # hardcodes CC=gcc, ignoring configure's own compiler detection.
+  #
+  # Collect every missing tool in one pass rather than failing on the
+  # first found: a user missing two tools who only ever hears about one
+  # has to install-and-retry twice for no reason.
+  MISSING_TOOLS=""
   for tool in git make gcc bison flex; do
-    command -v "$tool" >/dev/null 2>&1 || {
-      echo "  ! $tool not found -- cannot build fuzz from source" >&2
-      return 1
-    }
+    command -v "$tool" >/dev/null 2>&1 || MISSING_TOOLS="$MISSING_TOOLS $tool"
   done
+  if [ -n "$MISSING_TOOLS" ]; then
+    echo "  !$MISSING_TOOLS not found -- cannot build fuzz from source" >&2
+    return 1
+  fi
 
   FUZZ_BUILD_DIR="$(mktemp -d)" || {
     echo "  ! could not create a scratch build directory for fuzz" >&2
@@ -419,7 +425,10 @@ install_fuzz() (
     echo "  ! could not clone $FUZZ_REPO -- check network access" >&2
     return 1
   }
-  cd "$FUZZ_BUILD_DIR"
+  cd "$FUZZ_BUILD_DIR" || {
+    echo "  ! could not cd into $FUZZ_BUILD_DIR" >&2
+    return 1
+  }
   git checkout --quiet "$FUZZ_REF" || {
     echo "  ! could not check out pinned commit $FUZZ_REF" >&2
     return 1
@@ -438,6 +447,20 @@ install_fuzz() (
     echo "  ! make failed -- see the build output above" >&2
     return 1
   }
+
+  # Makefile.in creates $(TEXDIR)/$(MFDIR) via `install -d` but NOT
+  # $(bindir)/$(libdir) -- and `install -c SRC DEST` with a non-existent
+  # DEST does not fail, it silently creates DEST as a regular FILE. On a
+  # fresh account with no prior $FUZZ_HOME/{bin,lib}, that turns the fuzz
+  # binary and its data files into files sitting where a directory should
+  # be, and every subsequent install (probcli, a later fuzz rebuild) then
+  # fails in ways that look unrelated to this one. Create both ourselves,
+  # the same discipline as install_probcli's own `mkdir -p "$PROB_HOME"`.
+  mkdir -p "$FUZZ_HOME/bin" "$FUZZ_HOME/lib" || {
+    echo "  ! could not create $FUZZ_HOME/bin and $FUZZ_HOME/lib" >&2
+    return 1
+  }
+
   make install || {
     echo "  ! make install failed -- see the output above" >&2
     return 1
