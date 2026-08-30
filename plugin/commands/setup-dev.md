@@ -45,9 +45,9 @@ Always start by checking what's already installed:
 
 ```bash
 # Check fuzz. $FUZZ wins, then PATH — the order resolve_fuzz() uses. Note
-# there is no conventional-path fallback for fuzz: a binary sitting in
-# ~/Applications/fuzz that is neither on PATH nor named by $FUZZ is a binary
-# the engine will not find, however well it runs when you type its full path.
+# there is no conventional-path fallback for fuzz: a binary sitting outside
+# PATH and unnamed by $FUZZ is a binary the engine will not find, however
+# well it runs when you type its full path.
 if [ -n "${FUZZ:-}" ] && [ -f "$FUZZ" ]; then
   FUZZ_BIN="$FUZZ"
 else
@@ -344,28 +344,21 @@ printf '%s\n' "$FUZZ_OUT"
 # TeX distribution, an unwritable TEXMFHOME, or a stale filename database
 # still leaves a fully working fuzz binary behind.
 if command -v kpsewhich >/dev/null 2>&1; then
-  TEXMFHOME="$(kpsewhich -var-value TEXMFHOME)" || TEXMFHOME=""
-  if [ -n "$TEXMFHOME" ] && mkdir -p "$TEXMFHOME/tex/latex" "$TEXMFHOME/fonts/source/public/oxsz" 2>/dev/null; then
-    # Capture the cp's real exit status: the messages further down (mktexlsr
-    # failing, kpsewhich still not finding it) must not assert a copy that
-    # never happened, so every one of them checks this flag first.
-    if cp tex/fuzz.sty "$TEXMFHOME/tex/latex/" 2>/dev/null; then
-      STY_COPIED=1
+  TEXMFHOME_DIR="$(kpsewhich -var-value TEXMFHOME)" || TEXMFHOME_DIR=""
+  if [ -n "$TEXMFHOME_DIR" ] && mkdir -p "$TEXMFHOME_DIR/tex/latex" "$TEXMFHOME_DIR/fonts/source/public/oxsz" 2>/dev/null; then
+    # Capture each cp's real exit status: the consolidated report below, and
+    # the mktexlsr branch below that, must not assert a copy that never
+    # happened, so both flags are checked before anything is printed.
+    if cp tex/fuzz.sty "$TEXMFHOME_DIR/tex/latex/" 2>/dev/null; then
+      CP_STY_OK=1
     else
-      STY_COPIED=0
-      echo "! could not copy tex/fuzz.sty into $TEXMFHOME/tex/latex —" >&2
-      echo "  pdflatex will not compile a spec to PDF, but /z-spec-dev:check-dev" >&2
-      echo "  (fuzz type-checking) is unaffected" >&2
+      CP_STY_OK=0
     fi
 
-    if cp tex/*.mf "$TEXMFHOME/fonts/source/public/oxsz/" 2>/dev/null; then
+    if cp tex/*.mf "$TEXMFHOME_DIR/fonts/source/public/oxsz/" 2>/dev/null; then
       CP_MF_OK=1
     else
       CP_MF_OK=0
-      echo "! could not copy tex/*.mf into" >&2
-      echo "  $TEXMFHOME/fonts/source/public/oxsz — pdflatex will not compile" >&2
-      echo "  a spec to PDF, but /z-spec-dev:check-dev (fuzz type-checking) is" >&2
-      echo "  unaffected" >&2
     fi
 
     # The cp above can fail non-fatally, and a stale .mf file from an earlier
@@ -373,51 +366,61 @@ if command -v kpsewhich >/dev/null 2>&1; then
     # captured exit status first so this run's failure is never masked by
     # what a prior run already left in the destination.
     MF_LANDED=0
-    for mf_file in "$TEXMFHOME/fonts/source/public/oxsz/"*.mf; do
+    for mf_file in "$TEXMFHOME_DIR/fonts/source/public/oxsz/"*.mf; do
       [ -e "$mf_file" ] && MF_LANDED=1
     done
 
-    if [ "$CP_MF_OK" = "0" ]; then
-      echo "! oxsz .mf sources not found in" >&2
-      echo "  $TEXMFHOME/fonts/source/public/oxsz — pdflatex will not" >&2
-      echo "  compile a spec to PDF; /z-spec-dev:check-dev (fuzz type-checking) is" >&2
-      echo "  unaffected" >&2
-    elif [ "$MF_LANDED" = "1" ]; then
-      echo "oxsz .mf sources: $TEXMFHOME/fonts/source/public/oxsz"
-    else
-      echo "! oxsz .mf sources not found in" >&2
-      echo "  $TEXMFHOME/fonts/source/public/oxsz — pdflatex will not" >&2
-      echo "  compile a spec to PDF; /z-spec-dev:check-dev (fuzz type-checking) is" >&2
-      echo "  unaffected" >&2
-    fi
-
-    # Scoped to $TEXMFHOME alone — no sudo, and no touching trees this
-    # account does not own.
+    # Scoped to $TEXMFHOME_DIR alone — no sudo, and no touching trees this
+    # account does not own. Check mktexlsr is on PATH before attempting it:
+    # leaving the OK flag true when the tool is simply absent would make a
+    # later kpsewhich miss get reported as a mktexlsr failure, when
+    # mktexlsr was never run at all.
+    MKTEXLSR_OK=1
     if command -v mktexlsr >/dev/null 2>&1; then
-      mktexlsr "$TEXMFHOME" >/dev/null 2>&1 || {
-        if [ "$STY_COPIED" = "1" ]; then
-          echo "! mktexlsr failed to rebuild the file database for" >&2
-          echo "  $TEXMFHOME. fuzz.sty was copied there, but kpsewhich may" >&2
-          echo "  not find it until this succeeds — re-run mktexlsr on that" >&2
-          echo "  directory by hand." >&2
-        else
-          echo "! mktexlsr failed to rebuild the file database for" >&2
-          echo "  $TEXMFHOME, and fuzz.sty was never copied there —" >&2
-          echo "  pdflatex will not compile a spec to PDF; /z-spec-dev:check-dev" >&2
-          echo "  is unaffected." >&2
-        fi
-      }
+      MKTEXLSR_PRESENT=1
+      mktexlsr "$TEXMFHOME_DIR" >/dev/null 2>&1 || MKTEXLSR_OK=0
+    else
+      MKTEXLSR_PRESENT=0
+      MKTEXLSR_OK=0
     fi
 
-    if [ "$STY_COPIED" = "0" ]; then
-      echo "! could not copy fuzz.sty into $TEXMFHOME — pdflatex will not" >&2
-      echo "  compile a spec to PDF; /z-spec-dev:check-dev is unaffected" >&2
+    # One consolidated report per file group — never an echo at the point of
+    # failure AND another echo in this summary for the same event.
+    if [ "$CP_STY_OK" = "0" ]; then
+      echo "! could not copy tex/fuzz.sty into $TEXMFHOME_DIR/tex/latex —" >&2
+      echo "  pdflatex will not compile a spec to PDF; /z-spec-dev:check-dev" >&2
+      echo "  (fuzz type-checking) is unaffected" >&2
     elif FUZZ_STY="$(kpsewhich fuzz.sty 2>/dev/null)" && [ -n "$FUZZ_STY" ]; then
       echo "fuzz.sty: $FUZZ_STY"
+    elif [ "$MKTEXLSR_OK" = "0" ]; then
+      if [ "$MKTEXLSR_PRESENT" = "0" ]; then
+        echo "! mktexlsr is not installed, so the file database for" >&2
+        echo "  $TEXMFHOME_DIR was never rebuilt. fuzz.sty was copied" >&2
+        echo "  there, but kpsewhich will not find it until mktexlsr runs." >&2
+      else
+        echo "! mktexlsr failed to rebuild the file database for" >&2
+        echo "  $TEXMFHOME_DIR. fuzz.sty was copied there, but kpsewhich" >&2
+        echo "  may not find it until this succeeds — re-run mktexlsr on" >&2
+        echo "  that directory by hand." >&2
+      fi
     else
-      echo "! fuzz.sty was copied into $TEXMFHOME but kpsewhich still" >&2
+      echo "! fuzz.sty was copied into $TEXMFHOME_DIR but kpsewhich still" >&2
       echo "  cannot find it. See 'Common Issues' below. /z-spec-dev:check-dev" >&2
       echo "  (fuzz type-checking) is unaffected." >&2
+    fi
+
+    if [ "$CP_MF_OK" = "0" ]; then
+      echo "! could not copy tex/*.mf into" >&2
+      echo "  $TEXMFHOME_DIR/fonts/source/public/oxsz — pdflatex will not" >&2
+      echo "  render the oxsz font; /z-spec-dev:check-dev (fuzz type-checking) is" >&2
+      echo "  unaffected" >&2
+    elif [ "$MF_LANDED" = "1" ]; then
+      echo "oxsz .mf sources: $TEXMFHOME_DIR/fonts/source/public/oxsz"
+    else
+      echo "! oxsz .mf sources were copied to" >&2
+      echo "  $TEXMFHOME_DIR/fonts/source/public/oxsz but none can be found" >&2
+      echo "  there — pdflatex will not render the oxsz font; /z-spec-dev:check-dev" >&2
+      echo "  is unaffected" >&2
     fi
   else
     echo "! could not resolve or create a TEXMFHOME tree — fuzz.sty will" >&2

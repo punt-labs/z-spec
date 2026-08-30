@@ -44,10 +44,7 @@ mkdir -p docs
 # the same fuzz.sty every other z-spec command would find.
 if [ ! -f docs/fuzz.sty ]; then
     if FUZZ_STY="$(kpsewhich fuzz.sty 2>/dev/null)" && [ -n "$FUZZ_STY" ]; then
-        if cp "$FUZZ_STY" docs/; then
-            STY_COPIED=1
-        else
-            STY_COPIED=0
+        if ! cp "$FUZZ_STY" docs/; then
             rm -f docs/fuzz.sty
             echo "! could not copy $FUZZ_STY into docs/ -- pdflatex will not compile" >&2
             echo "  a spec to PDF; fuzz type-checking is unaffected" >&2
