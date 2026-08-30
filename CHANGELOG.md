@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **CI's `specs` job now builds `fuzz` via `install.sh`'s own `install_fuzz()`,
+  not a second, separate build script.** The sudo-free installer shipped in
+  v0.20.4 had never been exercised by CI or on a genuinely clean machine —
+  the `specs` job built `fuzz` with its own inline `./configure && make &&
+  sudo make install`, unrelated to and untested against the new sudo-free
+  path. Added `install.sh --fuzz-only` (build and install `fuzz` only, no
+  CLI/probcli/plugin steps) and pointed CI at it, so a regression in the
+  sudo-free build now fails the `specs` job instead of going unnoticed.
+  Verified locally by removing the installed `fuzz` binary and re-running
+  `install.sh --fuzz-only` from a genuinely clean state — real `git clone`,
+  `configure --prefix`, `make`, `make install`, and `TEXMFHOME` copy, no sudo,
+  no privilege prompt.
+
 ## [0.20.4] - 2026-08-30
 
 ### Changed
