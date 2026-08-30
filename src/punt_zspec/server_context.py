@@ -4,16 +4,18 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Self, final
+from typing import TYPE_CHECKING, ClassVar, Self, final
 
 from punt_zspec.gate import EnablementGate
 from punt_zspec.lux import ZSpecLuxSession
 from punt_zspec.lux.project import ProjectRoot
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
+    from collections.abc import AsyncGenerator, Callable
 
     from mcp.server.fastmcp import FastMCP
+
+    from punt_zspec.commands.show import Display
 
 __all__ = ["ServerContext"]
 
@@ -26,7 +28,13 @@ class ServerContext:
     lifespan that operated on one of them from outside — state and its
     behavior live together, instead of globals and a free function reaching
     into one of them.
+
+    One per MCP server process — ``__new__`` enforces it, rather than
+    trusting the docstring: the duplicate-engine-instance failure vox paid
+    for once, before ``voxd`` (architecture.md).
     """
+
+    _constructed: ClassVar[bool] = False
 
     _project_root: Path
     _gate: EnablementGate
@@ -34,6 +42,10 @@ class ServerContext:
     __slots__ = ("_gate", "_project_root", "_session")
 
     def __new__(cls) -> Self:
+        if cls._constructed:
+            msg = "ServerContext already constructed once in this process"
+            raise RuntimeError(msg)
+        cls._constructed = True
         self = super().__new__(cls)
         # Never ``Path.cwd()``: plugin.json's ``uv run --directory`` chdirs
         # before exec, so a plugin user's cwd is the z-spec checkout, not
@@ -49,16 +61,35 @@ class ServerContext:
 
     @property
     def project_dir(self) -> str:
-        """Return the project root as a string, the tools' directory default."""
+        """Return the project root as a string, the tools' directory default.
+
+        What the directory-taking tools default to. A "." default meant the
+        cwd, which is that same checkout: /z-spec:enable deposited the
+        guide, wrote the marker, and edited CLAUDE.md inside z-spec's own
+        repo and reported success while the user's repo went untouched.
+        """
         return str(self._project_root)
 
-    @property
-    def gate(self) -> EnablementGate:
-        return self._gate
+    def guard[**P](self, tool: Callable[P, str]) -> Callable[P, str]:
+        """Return *tool* wrapped so it declines wherever the marker is absent.
+
+        Delegates to ``EnablementGate.guard`` — callers reach the behavior
+        they use, not the gate object that owns it.
+        """
+        return self._gate.guard(tool)
 
     @property
-    def session(self) -> ZSpecLuxSession:
-        return self._session
+    def display(self) -> Display:
+        """Return the session's applet-identity display the tools render through."""
+        return self._session.display
+
+    async def sync(self) -> None:
+        """Bring the receive leg into line with the repo's ``enabled`` marker.
+
+        Delegates to ``ZSpecLuxSession.sync`` — also the enablement tool's
+        way to refresh the menu right after an enable or disable.
+        """
+        await self._session.sync()
 
     @asynccontextmanager
     async def lifespan(self, _server: FastMCP) -> AsyncGenerator[None]:
