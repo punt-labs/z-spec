@@ -76,7 +76,7 @@ For every D row, capture **both**:
 
 | # | Action | Context | Expected |
 |---|--------|---------|----------|
-| R1 | `partition` with a valid payload | MCP | report persists; `report` reads it back unchanged |
+| R1 | `partition` with a valid payload | MCP | `<stem>.partition.json` is written; the returned path exists on disk with the submitted content |
 | R2 | `audit` with a malformed payload | MCP | a validation error naming the offending field; nothing half-written on disk |
 
 ## Post-flight
