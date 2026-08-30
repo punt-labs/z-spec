@@ -1,7 +1,7 @@
 ---
 description: Create a Z specification for stateful entities in a system
 argument-hint: "[focus area or system description]"
-allowed-tools: Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(which:*), Bash(pdflatex:*), Read, Glob, Grep
+allowed-tools: Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(which:*), Bash(pdflatex:*), Bash(kpsewhich:*), Bash(mkdir:*), Bash(cp:*), Bash(rm:*), Bash(curl:*), Bash(grep:*), Read, Glob, Grep
 ---
 
 # /z-spec-dev:code2model-dev - Code to Model
@@ -36,19 +36,82 @@ Before creating a specification, ensure the required TeX files are in the projec
 ```bash
 mkdir -p docs
 
-# Check for fuzz.sty
+# Check for fuzz.sty. kpsewhich is the actual, current source of truth: both
+# install.sh and /z-spec-dev:setup-dev land fuzz.sty in whatever TEXMFHOME tree
+# kpsewhich resolves, never in a fixed filesystem path -- there is no
+# "conventional local install" location left to check for. Resolving through
+# kpsewhich, the same way resolve_fuzz()'s callers do, means this step finds
+# the same fuzz.sty every other z-spec command would find.
 if [ ! -f docs/fuzz.sty ]; then
-    # Try local install first
-    if [ -f /usr/local/share/texmf/tex/latex/fuzz.sty ]; then
-        cp /usr/local/share/texmf/tex/latex/fuzz.sty docs/
-        cp /usr/local/share/texmf/fonts/source/public/oxsz/*.mf docs/
-    else
-        # Download from GitHub
-        curl -sL -o docs/fuzz.sty "https://raw.githubusercontent.com/Spivoxity/fuzz/master/tex/fuzz.sty"
+    if FUZZ_STY="$(kpsewhich fuzz.sty 2>/dev/null)" && [ -n "$FUZZ_STY" ]; then
+        if ! cp "$FUZZ_STY" docs/; then
+            rm -f docs/fuzz.sty
+            echo "! could not copy $FUZZ_STY into docs/ -- pdflatex will not compile" >&2
+            echo "  a spec to PDF; fuzz type-checking is unaffected" >&2
+        fi
+        # The oxsz Metafont sources live in a separate texmf subtree
+        # (fonts/source/public/oxsz) from fuzz.sty (tex/latex) -- resolve each
+        # one through kpsewhich too, rather than assuming they share fuzz.sty's
+        # directory. Track which ones actually land, same discipline as
+        # install.sh's install_fuzz() and /z-spec-dev:setup-dev's fuzz-install block:
+        # a missing .mf file here is silent until pdflatex fails much later
+        # (step 10, "Format and Regenerate PDF"), with nothing pointing back
+        # at this step, unless it is reported now.
+        MF_MISSING=""
         for mf in oxsz.mf oxsz10.mf oxsz5.mf oxsz6.mf oxsz7.mf oxsz8.mf oxsz9.mf zarrow.mf zletter.mf zsymbol.mf; do
-            curl -sL -o "docs/$mf" "https://raw.githubusercontent.com/Spivoxity/fuzz/master/tex/$mf"
+            if MF_PATH="$(kpsewhich "$mf" 2>/dev/null)" && [ -n "$MF_PATH" ]; then
+                cp "$MF_PATH" docs/ || { rm -f "docs/$mf"; MF_MISSING="$MF_MISSING $mf"; }
+            else
+                MF_MISSING="$MF_MISSING $mf"
+            fi
         done
+        if [ -n "$MF_MISSING" ]; then
+            echo "! could not resolve/copy Metafont sources:$MF_MISSING -- pdflatex" >&2
+            echo "  will not render the oxsz font; fuzz type-checking is unaffected" >&2
+        fi
+    else
+        # kpsewhich found nothing -- fetch the exact pinned commit install.sh's
+        # FUZZ_REF and /z-spec-dev:setup-dev's FUZZ_REF use, never master. Bump only
+        # alongside those two, after auditing the commits in between; -fsSL (with
+        # -f) aborts loudly on a 404/5xx instead of writing the error page to
+        # docs/fuzz.sty as if it were the real file -- but that protection is
+        # theatre unless the resulting nonzero exit is actually checked. The
+        # explicit `rm -f` on the failure path closes the other half of the same
+        # gap: -f alone still leaves the empty -o target created (but empty) on
+        # disk after a 404/5xx, and the outer guard is `[ ! -f docs/fuzz.sty ]`
+        # -- a zero-byte file satisfies that forever, so a failed fetch would
+        # make every future run of this command silently skip the whole block,
+        # believing it already succeeded. (`--remove-on-error` would do the same
+        # job but needs curl >= 7.83.0 -- older than what Ubuntu 22.04 LTS and
+        # macOS 12 ship, where curl rejects the flag before any request is even
+        # made; `rm -f` needs nothing beyond POSIX.)
+        FUZZ_REF="2a202a0b6f7328e729b54ef352d3bb4c6dfeb2e5"
+        curl -fsSL -o docs/fuzz.sty "https://raw.githubusercontent.com/Spivoxity/fuzz/$FUZZ_REF/tex/fuzz.sty" || {
+            rm -f docs/fuzz.sty
+            echo "! could not download fuzz.sty from GitHub -- pdflatex will not" >&2
+            echo "  compile a spec to PDF; fuzz type-checking is unaffected" >&2
+        }
+        MF_MISSING=""
+        for mf in oxsz.mf oxsz10.mf oxsz5.mf oxsz6.mf oxsz7.mf oxsz8.mf oxsz9.mf zarrow.mf zletter.mf zsymbol.mf; do
+            curl -fsSL -o "docs/$mf" "https://raw.githubusercontent.com/Spivoxity/fuzz/$FUZZ_REF/tex/$mf" \
+                || { rm -f "docs/$mf"; MF_MISSING="$MF_MISSING $mf"; }
+        done
+        if [ -n "$MF_MISSING" ]; then
+            echo "! could not download Metafont sources:$MF_MISSING -- pdflatex" >&2
+            echo "  will not render the oxsz font; fuzz type-checking is unaffected" >&2
+        fi
     fi
+fi
+
+# Whichever branch ran above, or neither (docs/fuzz.sty already existed before
+# this step), confirm the gating file actually landed. This is the one check
+# that catches a failed cp in the kpsewhich branch, a failed curl in the
+# fallback branch, and a docs/ that was never populated at all, in a single
+# place -- fuzz itself does not read fuzz.sty, so its absence is silent right
+# up until pdflatex runs in step 10, far from this step and its warnings.
+if [ ! -f docs/fuzz.sty ]; then
+    echo "! docs/fuzz.sty is not present -- pdflatex will not compile a spec" >&2
+    echo "  to PDF; fuzz type-checking (step 8) is unaffected" >&2
 fi
 ```
 

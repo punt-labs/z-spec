@@ -41,7 +41,10 @@ probcli handles both Z specifications (`.tex`) and B machines (`.mch`, `.ref`, `
 kpsewhich fuzz.sty
 ```
 
-If missing: suggest `Run /z-spec:setup fuzz` then `sudo texhash`.
+If missing: suggest `Run /z-spec:setup fuzz`. That installs `fuzz.sty` into
+`TEXMFHOME` and refreshes that tree's filename database itself, unprivileged
+— no `sudo texhash` step is needed or effective, since `TEXMFHOME` is not
+the system tree `texhash` rebuilds.
 
 ### 4. Tcl/Tk (conditional — macOS only)
 
@@ -90,8 +93,8 @@ Present results as a status table, then a summary:
 |-------|--------|
 | Platform | macOS arm64 |
 | Plugin | ✓ version 0.16.0 |
-| fuzz | ✓ Installed (/opt/homebrew/bin/fuzz) |
-| fuzz.sty | ✓ Found at /usr/local/texlive/.../fuzz.sty |
+| fuzz | ✓ Installed (~/.local/bin/fuzz) |
+| fuzz.sty | ✓ Found at $TEXMFHOME/tex/latex/fuzz.sty |
 | probcli | ✗ Not found |
 | Tcl/Tk | ✓ Available |
 | elan | ✓ Installed (version 3.1.1) |

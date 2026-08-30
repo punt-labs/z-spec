@@ -16,7 +16,7 @@ Arguments: $ARGUMENTS
 
 ## Files to Remove
 
-**TeX tooling (auto-copied by z-spec commands):**
+**TeX tooling (auto-copied by `/z-spec:code2model`):**
 - `fuzz.sty` - LaTeX style file
 - `*.mf` - Metafont source files
 - `*.pk` - Packed font files

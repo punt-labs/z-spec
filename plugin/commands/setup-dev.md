@@ -1,7 +1,7 @@
 ---
 description: Install and configure fuzz, probcli, and lean dependencies
 argument-hint: "[check|fuzz|probcli|lean|all]"
-allowed-tools: Bash(uname:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash($PROBCLI_BIN:*), Bash($FUZZ:*), Bash($FUZZ_BIN:*), Bash($lean_tool:*), Bash($LEAN_BIN:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(cat:*), Bash(xattr:*), Bash(~/Applications/ProB/probcli:*), Bash(~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
+allowed-tools: Bash(uname:*), Bash(git:*), Bash(make:*), Bash(./configure:*), Bash(cd:*), Bash(cp:*), Bash(mktexlsr:*), Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash($PROBCLI_BIN:*), Bash($FUZZ:*), Bash($FUZZ_BIN:*), Bash($lean_tool:*), Bash($LEAN_BIN:*), Bash(elan:*), Bash(lean:*), Bash(lake:*), Bash(curl:*), Bash(mkdir:*), Bash(tar:*), Bash(unzip:*), Bash(file:*), Bash(test:*), Bash(grep:*), Bash(kpsewhich:*), Bash(brew:*), Bash(cat:*), Bash(xattr:*), Bash(~/Applications/ProB/probcli:*), Bash($HOME/.local/bin/fuzz:*), Bash(~/elan-init.sh:*), Bash(chmod:*), Bash(command:*), Bash(head:*), Read, Glob
 ---
 
 # Setup Z Specification Tools
@@ -21,7 +21,14 @@ Parse as:
 - `all` - Install fuzz, probcli, and lean
 - (no argument) - Same as `check`
 
-**Note**: TeX files (fuzz.sty, *.mf) are automatically copied to your project's `docs/` directory when you run `/z-spec-dev:create-dev`, `/z-spec-dev:check-dev`, or `/z-spec-dev:test-dev`. Use `/z-spec-dev:cleanup-dev` to remove them.
+**Note**: `/z-spec-dev:setup-dev fuzz` installs `fuzz.sty` and the `oxsz` Metafont
+sources into your TeX distribution's home tree (`kpsewhich -var-value
+TEXMFHOME`) once, for your user account — not per project. Neither
+`/z-spec-dev:check-dev` nor `/z-spec-dev:test-dev` copies TeX files anywhere; both simply read
+whatever `kpsewhich` already resolves. `/z-spec-dev:code2model-dev` is the one command
+that copies `fuzz.sty` and the Metafont sources into a project's `docs/`
+directory; run `/z-spec-dev:cleanup-dev` to remove what it copied. `/z-spec-dev:create-dev`
+does not exist.
 
 ## Process
 
@@ -38,9 +45,9 @@ Always start by checking what's already installed:
 
 ```bash
 # Check fuzz. $FUZZ wins, then PATH — the order resolve_fuzz() uses. Note
-# there is no conventional-path fallback for fuzz: a binary sitting in
-# ~/Applications/fuzz that is neither on PATH nor named by $FUZZ is a binary
-# the engine will not find, however well it runs when you type its full path.
+# there is no conventional-path fallback for fuzz: a binary sitting outside
+# PATH and unnamed by $FUZZ is a binary the engine will not find, however
+# well it runs when you type its full path.
 if [ -n "${FUZZ:-}" ] && [ -f "$FUZZ" ]; then
   FUZZ_BIN="$FUZZ"
 else
@@ -49,7 +56,11 @@ fi
 
 if test -x "$FUZZ_BIN"; then
   echo "fuzz: $FUZZ_BIN"
-  "$FUZZ_BIN" -version
+  # fuzz has no -version flag: passing one lands on the 'e' in "version" and
+  # prints the usage banner instead, with exit 2. -Dv is the debug flag that
+  # prints the real version banner, and it needs input on stdin because fuzz
+  # always reads a file — or, given none, stdin — before doing anything else.
+  "$FUZZ_BIN" -Dv < /dev/null
 elif test -e "$FUZZ_BIN"; then
   echo "fuzz: NOT EXECUTABLE at $FUZZ_BIN"
 else
@@ -155,44 +166,306 @@ xcode-select --install
 **Linux (Debian/Ubuntu):** run this yourself, for the same reason:
 
 ```text
-sudo apt-get install build-essential texlive-base
+sudo apt-get install build-essential texlive-base bison flex git
 ```
 
 #### Installation Steps
 
-Building fuzz is a human procedure from end to end — `git`, `make` and `sudo`
-are all outside this command's tools — so the block below is what to type, not
-something the agent will run for you.
+Building fuzz needs `git`, a C toolchain, `bison`, `flex`, and some flavour of
+`awk` (`gawk`, `mawk`, `nawk`, or the plain `awk` — fuzz's `configure` runs
+`AC_PROG_AWK`, which accepts any of them), plus `cpp`, which ships with the
+compiler. Not all of this comes from the blocks above: Debian's
+`build-essential` is `dpkg-dev`, `g++`, `gcc`, `libc6-dev`, and `make` — it
+supplies the C toolchain but not `bison` or `flex`, which is why the
+`apt-get` line above now lists them explicitly. An `awk` of some kind is
+preinstalled on essentially every Unix — Debian/Ubuntu ship `mawk`, macOS
+ships BSD `awk` — so no separate install is needed for it.
+`./configure --prefix="$HOME/.local"` is the whole
+difference between this and the traditional `sudo make install`: fuzz's own
+`Makefile.in` installs the `fuzz` binary under `$(bindir)`, its runtime
+library under `$(libdir)`, and `fuzz.sty` plus the `oxsz` Metafont sources
+under `$(datadir)/texmf`, and every one of those directories descends from
+`--prefix`. Point `--prefix` at `$HOME/.local` and every file this step writes
+lands inside the home directory — no `sudo` anywhere in the chain, confirmed
+by building fuzz this way and reading the install log: every `install -c`
+targets a path under `$HOME/.local`.
 
-```text
-# Clone fuzz repository
-cd ~/Applications  # or user's preferred location
-git clone https://github.com/Spivoxity/fuzz.git
-cd fuzz
+That one flag does **not** put `fuzz.sty` somewhere TeX will find it, though.
+`$(datadir)/texmf` comes out as `$HOME/.local/share/texmf`, and on a
+conventional TeX Live install that tree is not on `kpsewhich`'s search
+path — `TEXMFHOME` is usually `$HOME/texmf` instead, a directory `--prefix`
+knows nothing about. The block below runs `make install`, then closes that
+gap itself: copy `tex/fuzz.sty` and `tex/*.mf` straight into `kpsewhich
+-var-value TEXMFHOME`, and run `mktexlsr` scoped to that one directory so TeX
+picks them up. No `sudo` there either — `TEXMFHOME` is a tree the account
+already owns.
 
-# Build
-make
+```bash
+# Check the tools first, and report every missing one in a single pass — not
+# just the first. A reader who fixes the one named tool and re-runs, only to
+# be told about the next missing one, has paid for two round trips a single
+# list would have avoided.
+MISSING_TOOLS=""
+for tool in git make gcc bison flex; do
+  command -v "$tool" >/dev/null || MISSING_TOOLS="$MISSING_TOOLS $tool"
+done
+# fuzz's configure.ac does AC_PATH_PROG(CPP, cpp, ..., $PATH:/lib:/usr/lib) —
+# it searches /lib and /usr/lib in addition to $PATH, and aborts outright if
+# none of the three has it. A bare `command -v cpp` would false-negative on a
+# system where cpp lives only in one of those two extra directories.
+# install.sh's own preflight (install_fuzz()) uses this same three-way check.
+if ! command -v cpp >/dev/null 2>&1 && [ ! -x /lib/cpp ] && [ ! -x /usr/lib/cpp ]; then
+  MISSING_TOOLS="$MISSING_TOOLS cpp"
+fi
+# fuzz's configure (AC_PROG_AWK) accepts gawk, mawk, nawk, or plain awk — not
+# gawk specifically. Debian/Ubuntu ship mawk by default and macOS ships BSD
+# awk; requiring gawk by name would abort the preflight on a machine that
+# would build fuzz fine.
+if ! command -v gawk >/dev/null 2>&1 && ! command -v mawk >/dev/null 2>&1 \
+   && ! command -v nawk >/dev/null 2>&1 && ! command -v awk >/dev/null 2>&1; then
+  MISSING_TOOLS="$MISSING_TOOLS awk"
+fi
+if [ -n "$MISSING_TOOLS" ]; then
+  echo "ERROR: missing required tools:$MISSING_TOOLS" >&2
+  echo "       install all of them, then re-run this step." >&2
+  exit 1
+fi
 
-# Install fuzz.sty to TeX path (may need sudo)
-sudo make install
+mkdir -p ~/Applications || {
+  echo "ERROR: could not create ~/Applications" >&2
+  exit 1
+}
 
-# Verify
-fuzz -version
-kpsewhich fuzz.sty
+# Idempotent: a re-run after a failed build re-fetches the existing checkout
+# instead of failing on "destination path already exists". A plain 'git pull'
+# would not work here even so, once the pin below lands: pull needs a branch
+# checked out that tracks upstream, and the checkout step leaves the tree in
+# detached HEAD at the pinned commit.
+if [ -d ~/Applications/fuzz-src/.git ]; then
+  git -C ~/Applications/fuzz-src fetch --quiet origin || {
+    echo "ERROR: ~/Applications/fuzz-src already exists and 'git fetch'" >&2
+    echo "       failed. Resolve it by hand, or move it aside and re-run" >&2
+    echo "       this step." >&2
+    exit 1
+  }
+else
+  git clone https://github.com/Spivoxity/fuzz.git ~/Applications/fuzz-src || {
+    echo "ERROR: could not clone https://github.com/Spivoxity/fuzz.git into" >&2
+    echo "       ~/Applications/fuzz-src. Check network connectivity and" >&2
+    echo "       that the repository is reachable." >&2
+    exit 1
+  }
+fi
+
+cd ~/Applications/fuzz-src || {
+  echo "ERROR: ~/Applications/fuzz-src does not exist after the clone step" >&2
+  exit 1
+}
+
+# Pinned commit, not a moving branch tip. install.sh's install_fuzz() pins
+# the same SHA (its FUZZ_REF) for the same reason: Spivoxity/fuzz has one
+# stale tag and infrequent doc-only commits since, and a manual-surface
+# install that tracked master while the automated installer tracked an
+# audited commit would give the two surfaces two different trust models for
+# the same upstream. Bump this only alongside install.sh's FUZZ_REF, after
+# auditing the commits in between.
+FUZZ_REF="2a202a0b6f7328e729b54ef352d3bb4c6dfeb2e5"
+git checkout --quiet "$FUZZ_REF" || {
+  echo "ERROR: could not check out pinned commit $FUZZ_REF in" >&2
+  echo "       ~/Applications/fuzz-src" >&2
+  exit 1
+}
+
+# --prefix is the whole sudo-free story: everything make install writes below
+# descends from it, and $HOME/.local is writable without elevation. Omitting
+# this flag lets configure default to /usr/local, which make install cannot
+# write to without sudo — see 'Common Issues' if that happens.
+./configure --prefix="$HOME/.local" || {
+  echo "ERROR: ./configure failed. Read its own output above for the" >&2
+  echo "       specific check that failed — the preflight loop above already" >&2
+  echo "       ruled out a missing git/gcc/make/bison/flex/awk/cpp, so a" >&2
+  echo "       failure here is something configure itself is unhappy about." >&2
+  exit 1
+}
+
+make || {
+  echo "ERROR: make failed while building fuzz. Read the compiler output" >&2
+  echo "       above for the specific error." >&2
+  exit 1
+}
+
+# fuzz's own Makefile.in only creates $(TEXDIR) and $(MFDIR) via 'install -d'
+# before installing into them; it never creates $(bindir) or $(libdir) the
+# same way. 'install -c SRC DEST' does not fail when DEST does not exist —
+# it silently creates DEST as a regular FILE standing in for the directory,
+# not the directory itself. On a fresh --prefix, with neither
+# $HOME/.local/bin nor $HOME/.local/lib pre-existing, that turns both into
+# ordinary files instead of directories, corrupting the install prefix in a
+# way the exit code of 'make install' does not report. Create both
+# directories ourselves before 'make install' ever runs.
+mkdir -p "$HOME/.local/bin" "$HOME/.local/lib" || {
+  echo "ERROR: could not create $HOME/.local/bin or $HOME/.local/lib" >&2
+  exit 1
+}
+
+make install || {
+  echo "ERROR: make install failed. The usual cause is a stale configure" >&2
+  echo "       run: if ./configure ran without --prefix=\"\$HOME/.local\" it" >&2
+  echo "       defaults to /usr/local, and this step cannot write there" >&2
+  echo "       without sudo. Re-run ./configure with the flag above, then" >&2
+  echo "       make and make install again." >&2
+  exit 1
+}
+
+test -x "$HOME/.local/bin/fuzz" || {
+  echo "ERROR: make install reported success but there is no executable at" >&2
+  echo "       $HOME/.local/bin/fuzz." >&2
+  exit 1
+}
+
+# fuzz has no -version flag; -Dv is the debug flag that prints the version
+# banner — see the note in 'Check Current Status' above.
+FUZZ_OUT="$("$HOME/.local/bin/fuzz" -Dv < /dev/null 2>&1)" || {
+  echo "ERROR: $HOME/.local/bin/fuzz is installed but would not run:" >&2
+  printf '%s\n' "$FUZZ_OUT" >&2
+  exit 1
+}
+printf '%s\n' "$FUZZ_OUT"
+
+# Close the TEXMFHOME gap: make install already wrote fuzz.sty and the oxsz
+# Metafont sources under $HOME/.local/share/texmf, which a conventional TeX
+# Live install does not search. Copy the same two file sets into the tree
+# kpsewhich actually looks in, then rebuild that tree's file database.
+#
+# Everything from here down is a convenience for pdflatex, never a reason to
+# fail the fuzz install already built and verified above — fuzz itself does
+# not read fuzz.sty, and neither /z-spec-dev:check-dev nor /z-spec-dev:test-dev needs it. So
+# every step below warns and continues instead of exiting: a machine with no
+# TeX distribution, an unwritable TEXMFHOME, or a stale filename database
+# still leaves a fully working fuzz binary behind.
+if command -v kpsewhich >/dev/null 2>&1; then
+  TEXMFHOME_DIR="$(kpsewhich -var-value TEXMFHOME)" || TEXMFHOME_DIR=""
+  if [ -n "$TEXMFHOME_DIR" ] && mkdir -p "$TEXMFHOME_DIR/tex/latex" "$TEXMFHOME_DIR/fonts/source/public/oxsz" 2>/dev/null; then
+    # Capture each cp's real exit status: the consolidated report below, and
+    # the mktexlsr branch below that, must not assert a copy that never
+    # happened, so both flags are checked before anything is printed.
+    if cp tex/fuzz.sty "$TEXMFHOME_DIR/tex/latex/" 2>/dev/null; then
+      CP_STY_OK=1
+    else
+      CP_STY_OK=0
+    fi
+
+    if cp tex/*.mf "$TEXMFHOME_DIR/fonts/source/public/oxsz/" 2>/dev/null; then
+      CP_MF_OK=1
+    else
+      CP_MF_OK=0
+    fi
+
+    # The cp above can fail non-fatally, and a stale .mf file from an earlier
+    # successful run can still satisfy an existence check — check the
+    # captured exit status first so this run's failure is never masked by
+    # what a prior run already left in the destination.
+    MF_LANDED=0
+    for mf_file in "$TEXMFHOME_DIR/fonts/source/public/oxsz/"*.mf; do
+      [ -e "$mf_file" ] && MF_LANDED=1
+    done
+
+    # Scoped to $TEXMFHOME_DIR alone — no sudo, and no touching trees this
+    # account does not own. Check mktexlsr is on PATH before attempting it:
+    # leaving the OK flag true when the tool is simply absent would make a
+    # later kpsewhich miss get reported as a mktexlsr failure, when
+    # mktexlsr was never run at all.
+    MKTEXLSR_OK=1
+    if command -v mktexlsr >/dev/null 2>&1; then
+      MKTEXLSR_PRESENT=1
+      mktexlsr "$TEXMFHOME_DIR" >/dev/null 2>&1 || MKTEXLSR_OK=0
+    else
+      MKTEXLSR_PRESENT=0
+      MKTEXLSR_OK=0
+    fi
+
+    # One consolidated report per file group — never an echo at the point of
+    # failure AND another echo in this summary for the same event.
+    if [ "$CP_STY_OK" = "0" ]; then
+      echo "! could not copy tex/fuzz.sty into $TEXMFHOME_DIR/tex/latex —" >&2
+      echo "  pdflatex will not compile a spec to PDF; /z-spec-dev:check-dev" >&2
+      echo "  (fuzz type-checking) is unaffected" >&2
+    elif FUZZ_STY="$(kpsewhich fuzz.sty 2>/dev/null)" && [ -n "$FUZZ_STY" ]; then
+      echo "fuzz.sty: $FUZZ_STY"
+    elif [ "$MKTEXLSR_OK" = "0" ]; then
+      if [ "$MKTEXLSR_PRESENT" = "0" ]; then
+        echo "! mktexlsr is not installed, so the file database for" >&2
+        echo "  $TEXMFHOME_DIR was never rebuilt. fuzz.sty was copied" >&2
+        echo "  there, but kpsewhich will not find it until mktexlsr runs." >&2
+      else
+        echo "! mktexlsr failed to rebuild the file database for" >&2
+        echo "  $TEXMFHOME_DIR. fuzz.sty was copied there, but kpsewhich" >&2
+        echo "  may not find it until this succeeds — re-run mktexlsr on" >&2
+        echo "  that directory by hand." >&2
+      fi
+    else
+      echo "! fuzz.sty was copied into $TEXMFHOME_DIR but kpsewhich still" >&2
+      echo "  cannot find it. See 'Common Issues' below. /z-spec-dev:check-dev" >&2
+      echo "  (fuzz type-checking) is unaffected." >&2
+    fi
+
+    if [ "$CP_MF_OK" = "0" ]; then
+      echo "! could not copy tex/*.mf into" >&2
+      echo "  $TEXMFHOME_DIR/fonts/source/public/oxsz — pdflatex will not" >&2
+      echo "  render the oxsz font; /z-spec-dev:check-dev (fuzz type-checking) is" >&2
+      echo "  unaffected" >&2
+    elif [ "$MF_LANDED" = "1" ]; then
+      echo "oxsz .mf sources: $TEXMFHOME_DIR/fonts/source/public/oxsz"
+    else
+      echo "! oxsz .mf sources were copied to" >&2
+      echo "  $TEXMFHOME_DIR/fonts/source/public/oxsz but none can be found" >&2
+      echo "  there — pdflatex will not render the oxsz font; /z-spec-dev:check-dev" >&2
+      echo "  is unaffected" >&2
+    fi
+  else
+    echo "! could not resolve or create a TEXMFHOME tree — fuzz.sty will" >&2
+    echo "  not be on the TeX path, but /z-spec-dev:check-dev (fuzz type-checking)" >&2
+    echo "  is unaffected" >&2
+  fi
+else
+  echo "! no TeX distribution found (kpsewhich absent) — fuzz.sty was not" >&2
+  echo "  installed; /z-spec-dev:check-dev (fuzz type-checking) is unaffected" >&2
+fi
 ```
 
 #### Add to PATH
 
-If `fuzz` isn't in PATH after building:
+`$HOME/.local/bin` is already on `PATH` on many systems — it is the default
+target for `pip install --user`, `pipx`, and `uv tool install`. If `fuzz`
+still isn't found after installing:
 
 ```bash
 # Add to shell profile (~/.zshrc or ~/.bashrc)
-export PATH="$HOME/Applications/fuzz:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 #### Common Issues
 
-**"fuzz.sty not found"**: Run `sudo make install` in the fuzz directory, then `sudo texhash`.
+**"fuzz.sty not found" after a successful install**: `make install` writes
+`fuzz.sty` under `$HOME/.local/share/texmf`, which a conventional TeX Live
+install does not search — `TEXMFHOME` is usually `$HOME/texmf` instead.
+Confirm with `kpsewhich -var-value TEXMFHOME`, then re-run the copy-and-`mktexlsr`
+step above by hand. If `kpsewhich -var-value TEXMFHOME` prints nothing, no TeX
+distribution is on `PATH` yet — install one first (see 'Prerequisites' above);
+`fuzz` and `fuzz.sty` being reinstalled does not fix a missing TeX toolchain.
+
+**`./configure` fails**: fuzz's `configure` script has one hard requirement
+beyond the compiler toolchain — `cpp` — and reports `configure: error: no cpp
+found` if it is missing from `PATH`, `/lib`, or `/usr/lib`. The preflight loop
+in the block above already checks for `git`, `gcc`, `make`, `bison`, `flex`,
+some flavour of `awk`, and `cpp` before `configure` ever runs, so a failure past that point
+means reading `configure`'s own output for the specific check it failed.
+
+**`make install` fails with "Permission denied"**: `./configure` ran without
+`--prefix="$HOME/.local"`, so it defaulted to `/usr/local`, which this account
+cannot write to without `sudo`. Re-run `./configure --prefix="$HOME/.local"`
+in `~/Applications/fuzz-src`, then `make` and `make install` again — nothing
+from the failed attempt needs cleaning up first.
 
 **"make: gcc: command not found"**: Install Xcode command line tools: `xcode-select --install`
 
@@ -825,8 +1098,8 @@ The report to emit, verbatim backticks and all:
 
 | Tool | Status | Location |
 |------|--------|----------|
-| fuzz | ✓ Installed | ~/Applications/fuzz/fuzz |
-| fuzz.sty | ✓ Installed | /usr/local/texlive/.../fuzz.sty |
+| fuzz | ✓ Installed | ~/.local/bin/fuzz |
+| fuzz.sty | ✓ Installed | $TEXMFHOME/tex/latex/fuzz.sty |
 | probcli | ✓ Installed 1.15.1 | ~/Applications/ProB/probcli |
 | elan | ✓ Installed | ~/.elan/bin/elan |
 | lean | ✓ Installed | ~/.elan/bin/lean |
@@ -837,7 +1110,7 @@ The report to emit, verbatim backticks and all:
 Add to ~/.zshrc:
 
 ```bash
-export PATH="$HOME/Applications/fuzz:$HOME/Applications/ProB:$HOME/.elan/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/Applications/ProB:$HOME/.elan/bin:$PATH"
 export PROBCLI="$HOME/Applications/ProB/probcli"
 ```
 

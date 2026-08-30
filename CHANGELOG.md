@@ -4,6 +4,54 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Installing `fuzz` no longer requires `sudo`, and `install.sh` now installs
+  it automatically.** `fuzz`'s upstream `Makefile.in` derives its install
+  paths from autoconf's `prefix` variable, which defaults to root-owned
+  `/usr/local` only when `./configure` runs with none — that default, not
+  anything inherent to `fuzz`, is why the old instructions said
+  `sudo make install`. Both `install.sh` (a new `install_fuzz()`, mirroring
+  the existing `install_probcli()`) and `/z-spec:setup fuzz` now build with
+  `./configure --prefix="$HOME/.local"`, copy `fuzz.sty` and the `oxsz`
+  Metafont sources into `kpsewhich -var-value TEXMFHOME`, and run `mktexlsr`
+  on that one directory — no privileged step anywhere in the chain. `fuzz`
+  now lands at `~/.local/bin/fuzz` instead of the old `~/Applications/fuzz`
+  convention; anyone with the old location on `PATH` should remove it.
+- **`/z-spec:doctor`'s remediation text no longer suggests `sudo texhash`**
+  after `/z-spec:setup fuzz` — that was the sudo step this change removes,
+  and it was also the wrong remedy for a `TEXMFHOME`-installed `fuzz.sty`
+  (`texhash` only refreshes system TeX trees; the new flow refreshes the
+  user's own tree with unprivileged `mktexlsr`).
+
+### Fixed
+
+- **`/z-spec:code2model` resolved `fuzz.sty` from the dead pre-sudo-free
+  install path** (`/usr/local/share/texmf/tex/latex/fuzz.sty`), which the new
+  `install.sh`/`/z-spec:setup fuzz` flow never writes to. On a machine
+  installed by this branch, the check always missed and fell through to 11
+  unpinned `curl -sL` fetches from `Spivoxity/fuzz@master` with no `-f` flag —
+  defeating the pin discipline the sudo-free rewrite established elsewhere,
+  and silently writing an HTTP error page as `fuzz.sty` on a 404. Now resolves
+  through `kpsewhich`, the actual source of truth, falling back to the same
+  pinned commit `install.sh`/`/z-spec:setup` use, fetched with `curl -fsSL`.
+- **`/z-spec:help` and `/z-spec:setup` claimed `/z-spec:check` and
+  `/z-spec:test` copy TeX tooling files** — they don't; only
+  `/z-spec:code2model` does. `plugin/commands/cleanup.md`'s body now names
+  `code2model` specifically instead of the inaccurate "z-spec commands"
+  plural, and `/z-spec:setup`'s note keeps the `/z-spec:cleanup` pointer that
+  had been dropped.
+- **`/z-spec:setup`'s "emit, verbatim" report template embedded prose, not a
+  placeholder path**, in its `fuzz.sty` row — an agent following the verbatim
+  instruction literally could print `(wherever kpsewhich fuzz.sty resolved —
+  typically under $TEXMFHOME)` straight into a user's report. Now a
+  path-shaped placeholder consistent with the table's other rows and with
+  `/z-spec:doctor`'s style.
+- **`/z-spec:setup check` printed a usage banner where a fuzz version belongs.**
+  `fuzz` has no `-version` flag; `"$FUZZ_BIN" -version` printed the getopt
+  usage banner and exited 2 in the slot a user reads as a version. Now uses
+  `-Dv < /dev/null`, the real debug flag that prints the version banner.
+
 ## [0.20.3] - 2026-08-30
 
 ### Changed

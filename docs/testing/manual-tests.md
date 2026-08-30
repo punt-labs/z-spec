@@ -33,6 +33,16 @@ registry, the display, the lux session) runs the whole flight.
 
 ## Flight
 
+### Setup
+
+| # | Action | Context | Expected |
+|---|--------|---------|----------|
+| S1 | `/z-spec:setup fuzz` | slash command; fuzz absent; `$HOME/.local/share/texmf` not on `kpsewhich`'s search path | clone, `./configure --prefix="$HOME/.local"`, `make`, and `make install` all run with no privilege prompt at any step; `fuzz.sty` and `tex/*.mf` are copied into `kpsewhich -var-value TEXMFHOME` and `mktexlsr` run against it; the report shows fuzz at `~/.local/bin/fuzz` and `fuzz.sty` found by `kpsewhich fuzz.sty` |
+| S2 | `/z-spec:setup fuzz` | slash command; a required build tool (e.g. `cpp`) missing from `PATH` | the preflight loop names the missing tool and exits before `git clone` or `./configure` runs — not a bare "command not found" partway through the build |
+| S3 | `/z-spec:setup check` | slash command; fuzz installed via S1 | fuzz reported present with its version banner (via `-Dv`, not `-version`); `fuzz.sty` reported found in the TeX path |
+| S4 | `curl -fsSL <install.sh URL> \| sh` (install.sh's automated `install_fuzz` path) | fuzz absent, a machine reachable only via the installer, not the slash command | `install.sh` clones the pinned `FUZZ_REF` commit, builds and installs fuzz with no privilege prompt; **and** a real `z-spec check examples/<spec>.tex` run afterward actually type-checks a spec — a corrupted install prefix (the CRITICAL bug in S1/`setup.md` this row exists to catch) still leaves `fuzz` resolvable on `PATH` but unable to type-check anything, so resolving the binary is not sufficient evidence; the row must run `check`, not just confirm the binary exists |
+| S5 | `/z-spec:setup fuzz` or `install.sh` | fuzz absent, **no TeX distribution installed at all** (`kpsewhich` not on `PATH`) | the fuzz binary still builds, installs, and is reported working (`-Dv` banner prints); the TEXMFHOME step prints a `!`-prefixed warning that no TeX distribution was found and does not exit nonzero or abort the rest of setup; `/z-spec:check` on a real spec still works — confirming the non-fatal TEXMFHOME design is real, not just documented prose |
+
 ### Environment
 
 | # | Action | Context | Expected |

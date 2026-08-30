@@ -163,11 +163,17 @@ ok "$BINARY $(command -v "$BINARY")"
 # success while the tool cannot do most of what it is for. So probcli install
 # is part of the default flow, not a follow-up step.
 #
-# fuzz is deliberately NOT auto-installed here: it must be compiled from
-# source (git clone + make + sudo make install into a TeX distribution most
-# machines do not have), which is a fundamentally riskier and slower operation
-# to run unattended inside a piped curl | sh than downloading a static binary.
-# HAVE_FUZZ below only detects it for the final summary, never installs it.
+# fuzz has no distributed binary, only source (git clone + configure + make +
+# make install), which used to read as too risky to run unattended inside a
+# piped curl | sh. That reasoning conflated two separate things: compiling
+# from source (no privilege needed, and no riskier than probcli's own
+# extract-and-chmod) and installing to the *default* location, which is where
+# the sudo requirement actually comes from. fuzz's Makefile.in derives its
+# install paths (bindir, datadir) from autoconf's standard prefix variable,
+# which defaults to root-owned /usr/local only when configure runs with none.
+# install_fuzz() below passes --prefix="$HOME/.local" explicitly, so both the
+# fuzz binary and fuzz.sty install into user-writable paths -- no sudo
+# anywhere, same discipline as install_probcli() just below it.
 
 info "Installing probcli..."
 
@@ -347,6 +353,292 @@ install_probcli() (
 
 install_probcli || warn "probcli install failed -- see the error above"
 
+FUZZ_REPO="https://github.com/Spivoxity/fuzz.git"
+# Pinned commit, not a moving branch tip -- same discipline as PROB_VERSION
+# above, audited before it is bumped. Spivoxity/fuzz has one stale tag
+# (2022-01-01) and infrequent doc-only commits since; this is the tip as of
+# the z-spec-5te investigation.
+FUZZ_REF="2a202a0b6f7328e729b54ef352d3bb4c6dfeb2e5"
+FUZZ_HOME="$HOME/.local"
+
+install_fuzz() (
+  # Subshell, same discipline as install_probcli: a failure anywhere here
+  # returns nonzero without aborting the rest of install.sh under set -e,
+  # and every path below is explicit so a partial build/install never gets
+  # reported as success.
+  set -eu
+
+  # Already resolves ($FUZZ or PATH, same precedence as resolve_fuzz() in
+  # src/punt_zspec/fuzz.py) to something that actually runs? Skip the
+  # clone-and-build entirely. fuzz has no -version flag specifically, but
+  # it does have a version-reporting one, -Dv, which only exits 0 when
+  # fuzz can genuinely reach its prelude file -- a stale or corrupted
+  # install (e.g. the bindir/libdir bug above) fails this probe even
+  # though the binary itself is present and executable, which a mere
+  # usage-banner probe (any unrecognised flag prints that and exits
+  # nonzero) cannot tell apart from a working install. < /dev/null: -Dv
+  # reads stdin when given no file argument, and under a piped
+  # curl | sh install the shell's stdin is the rest of the script --
+  # $EXISTING could name anything on PATH, not necessarily fuzz.
+  EXISTING="$(resolve_fuzz_path)" && [ -x "$EXISTING" ] || EXISTING=""
+  if [ -n "$EXISTING" ] && "$EXISTING" -Dv < /dev/null >/dev/null 2>&1; then
+    echo "  ✓ fuzz $EXISTING (already installed)"
+    return 0
+  fi
+
+  # bison and flex are invoked by literal name in src/Makefile.in with no
+  # autoconf detection at all. cpp and awk below are both resolved by
+  # configure.ac, but not the same way: AC_PATH_PROG(CPP, ...) has an
+  # AC_MSG_ERROR fallback and aborts configure outright if cpp is missing;
+  # AC_PROG_AWK has no such fallback, so configure succeeds with @AWK@
+  # empty and the failure only surfaces three steps later, opaquely, when
+  # src/Makefile.in's `$(AWK) -f absyn.k ...` rule runs as a bare
+  # "-f: command not found". Check both here so either one is named up
+  # front instead of failing deep in the build. gcc is a hard dependency
+  # too: src/Makefile.in hardcodes CC=gcc, ignoring configure's own
+  # compiler detection.
+  #
+  # Collect every missing tool in one pass rather than failing on the
+  # first found: a user missing two tools who only ever hears about one
+  # has to install-and-retry twice for no reason.
+  MISSING_TOOLS=""
+  for tool in git make gcc bison flex; do
+    command -v "$tool" >/dev/null 2>&1 || MISSING_TOOLS="$MISSING_TOOLS $tool"
+  done
+  # configure.ac's AC_PATH_PROG(CPP, cpp, ..., $PATH:/lib:/usr/lib) searches
+  # /lib and /usr/lib in addition to $PATH and AC_MSG_ERROR-aborts outright
+  # if none of the three has it -- a bare `command -v cpp` would false-
+  # negative on a system where cpp sits only in one of those two extra
+  # directories.
+  if ! command -v cpp >/dev/null 2>&1 && [ ! -x /lib/cpp ] && [ ! -x /usr/lib/cpp ]; then
+    MISSING_TOOLS="$MISSING_TOOLS cpp"
+  fi
+  # configure.ac's AC_PROG_AWK accepts gawk, mawk, nawk, or plain awk — not
+  # gawk specifically. Debian/Ubuntu ship mawk by default and macOS ships BSD
+  # awk; requiring gawk by name would abort the preflight on a machine that
+  # would build fuzz fine. Same four-way check as setup.md's.
+  if ! command -v gawk >/dev/null 2>&1 && ! command -v mawk >/dev/null 2>&1 \
+     && ! command -v nawk >/dev/null 2>&1 && ! command -v awk >/dev/null 2>&1; then
+    MISSING_TOOLS="$MISSING_TOOLS awk"
+  fi
+  if [ -n "$MISSING_TOOLS" ]; then
+    echo "  ! missing required tools:$MISSING_TOOLS -- cannot build fuzz from source" >&2
+    return 1
+  fi
+
+  # Both early-return paths above (already-installed, missing-tools) exit
+  # before this point -- so the banner only fires once a build is genuinely
+  # about to happen, never ahead of "already installed" or an abort that
+  # never touches git/make at all.
+  info "Installing fuzz (compiling from source)..."
+
+  FUZZ_BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/z-spec-fuzz-build.XXXXXXXX")" || {
+    echo "  ! could not create a scratch build directory for fuzz" >&2
+    return 1
+  }
+  # The clone is pure build scratch -- nothing in it is the install, which
+  # lands under $FUZZ_HOME via `make install` below. Remove it on every exit
+  # path, success or failure, so a curl | sh run never leaves a source tree
+  # behind either way -- the same cleanup-after-verify discipline as
+  # install_probcli's own rm -f "$ARCHIVE", just via a trap because this
+  # scratch dir accumulates across several steps instead of one download.
+  # Capture the real exit status before cleanup runs, then re-assert it
+  # explicitly: an EXIT trap's own last command becomes the function's final
+  # reported status otherwise, so a cleanup failure (read-only scratch fs, an
+  # immutable file, an NFS staleness error) would overwrite a genuinely
+  # successful build/install/verify with failure.
+  # ec is assigned by this very trap ($? captured before cleanup runs); the
+  # static analyzer's trap-string parser does not see the assignment.
+  # shellcheck disable=SC2154
+  trap 'ec=$?; rm -rf "$FUZZ_BUILD_DIR" 2>/dev/null || echo "  ! could not remove scratch dir $FUZZ_BUILD_DIR" >&2; exit $ec' EXIT
+
+  git clone --quiet "$FUZZ_REPO" "$FUZZ_BUILD_DIR" || {
+    echo "  ! could not clone $FUZZ_REPO -- check network access" >&2
+    return 1
+  }
+  cd "$FUZZ_BUILD_DIR" || {
+    echo "  ! could not cd into $FUZZ_BUILD_DIR" >&2
+    return 1
+  }
+  git checkout --quiet "$FUZZ_REF" || {
+    echo "  ! could not check out pinned commit $FUZZ_REF" >&2
+    return 1
+  }
+
+  # --prefix="$FUZZ_HOME" is the whole fix for z-spec-5te: fuzz's own
+  # Makefile.in derives bindir/datadir from autoconf's standard prefix
+  # variable, which defaults to root-owned /usr/local only when configure
+  # runs with none. Passed explicitly, configure/make/make install below
+  # need no sudo anywhere -- everything lands under $FUZZ_HOME.
+  ./configure --prefix="$FUZZ_HOME" || {
+    echo "  ! ./configure --prefix=$FUZZ_HOME failed -- see the output above" >&2
+    return 1
+  }
+  make || {
+    echo "  ! make failed -- see the build output above" >&2
+    return 1
+  }
+
+  # Makefile.in creates $(TEXDIR)/$(MFDIR) via `install -d` but NOT
+  # $(bindir)/$(libdir) -- and `install -c SRC DEST` with a non-existent
+  # DEST does not fail, it silently creates DEST as a regular FILE. On a
+  # fresh account with no prior $FUZZ_HOME/{bin,lib}, that turns the fuzz
+  # binary and its data files into files sitting where a directory should
+  # be, and every subsequent install (probcli, a later fuzz rebuild) then
+  # fails in ways that look unrelated to this one. Create both ourselves,
+  # the same discipline as install_probcli's own `mkdir -p "$PROB_HOME"`.
+  mkdir -p "$FUZZ_HOME/bin" "$FUZZ_HOME/lib" || {
+    echo "  ! could not create $FUZZ_HOME/bin and $FUZZ_HOME/lib" >&2
+    return 1
+  }
+
+  make install || {
+    echo "  ! make install failed -- see the output above" >&2
+    return 1
+  }
+
+  test -x "$FUZZ_HOME/bin/fuzz" || {
+    echo "  ! make install reported success but there is no executable" >&2
+    echo "    fuzz at $FUZZ_HOME/bin/fuzz -- the build layout is not what" >&2
+    echo "    this script expects" >&2
+    return 1
+  }
+
+  # -Dv is a genuine liveness probe, not just an executable-bit check: it
+  # only exits 0 when fuzz can load its own prelude, so a build that
+  # produced an executable but landed in a corrupted prefix (e.g. the
+  # bindir/libdir bug above, had the mkdir -p above been missing) still
+  # fails here. A usage-banner probe on an unrecognised flag cannot tell
+  # that apart from a working install -- it prints the banner and exits
+  # nonzero either way. < /dev/null: -Dv reads stdin when given no file
+  # argument.
+  FUZZ_PROBE_OUT="$("$FUZZ_HOME/bin/fuzz" -Dv < /dev/null 2>&1)" || {
+    echo "  ! $FUZZ_HOME/bin/fuzz is installed but would not run:" >&2
+    printf '%s\n' "$FUZZ_PROBE_OUT" | while IFS= read -r line; do echo "    $line" >&2; done
+    return 1
+  }
+
+  # `make install` also drops fuzz.sty and the Metafont sources under
+  # $datadir/texmf/tex/latex and .../fonts/source/public/oxsz -- a path
+  # kpsewhich does not search by default (verified empirically: with only
+  # that install done, `kpsewhich fuzz.sty` still misses it). TEXMFHOME is
+  # the one texmf tree every TeX Live/MacTeX install both defines and
+  # treats as writable with no sudo, so copy the same two file groups there
+  # directly and refresh that tree's own filename database. fuzz itself
+  # does not read fuzz.sty -- only pdflatex compiling a spec to PDF does --
+  # so a machine with no TeX distribution at all (no kpsewhich) skips this
+  # with a warning, never a failure of the fuzz install itself.
+  if command -v kpsewhich >/dev/null 2>&1; then
+    TEXMFHOME_DIR="$(kpsewhich -var-value TEXMFHOME)" || TEXMFHOME_DIR=""
+    # Capture the real mkdir failure (permission denied, disk full,
+    # path-exists-as-a-file) instead of discarding it to /dev/null -- same
+    # capture-then-conditionally-print discipline as CHMOD_ERR above, so the
+    # failure message below names the actual OS error instead of only "could
+    # not create".
+    MKDIR_TEXMF_OK=0
+    MKDIR_TEXMF_ERR=""
+    if [ -n "$TEXMFHOME_DIR" ]; then
+      MKDIR_TEXMF_ERR="$(mkdir -p "$TEXMFHOME_DIR/tex/latex" "$TEXMFHOME_DIR/fonts/source/public/oxsz" 2>&1)" && MKDIR_TEXMF_OK=1
+    fi
+    if [ -n "$TEXMFHOME_DIR" ] && [ "$MKDIR_TEXMF_OK" = "1" ]; then
+      # A failed copy here degrades to the warnings below, same as a failed
+      # mkdir above -- fuzz.sty and the .mf sources are a convenience for
+      # pdflatex, never a reason to report the fuzz binary itself (already
+      # verified above) as failed to install. Each copy's own exit status is
+      # captured, not discarded, so the message below attributes a failure
+      # to the copy that actually failed rather than to kpsewhich/mktexlsr,
+      # which only observe the result afterward.
+      CP_STY_OK=1
+      cp "$FUZZ_BUILD_DIR/tex/fuzz.sty" "$TEXMFHOME_DIR/tex/latex/" 2>/dev/null || CP_STY_OK=0
+      CP_MF_OK=1
+      cp "$FUZZ_BUILD_DIR"/tex/*.mf "$TEXMFHOME_DIR/fonts/source/public/oxsz/" 2>/dev/null || CP_MF_OK=0
+      # Capture mktexlsr's real exit status and stderr instead of discarding
+      # both with `|| true` -- same capture-then-conditionally-print
+      # discipline as MKDIR_TEXMF_ERR above. Without this, a genuine
+      # mktexlsr failure (read-only or full TEXMFHOME, an NFS staleness
+      # error) is indistinguishable from mktexlsr succeeding and kpsewhich
+      # simply not finding the file, so the message below would name only
+      # the symptom and never the one fact -- mktexlsr itself failed --
+      # that tells the user how to actually fix it. An absent mktexlsr is a
+      # third, distinct cause from either of those -- name it explicitly
+      # instead of leaving MKTEXLSR_OK=1 and letting a later kpsewhich
+      # failure blame "mktexlsr failed" for a command that never ran.
+      MKTEXLSR_OK=1
+      MKTEXLSR_ERR=""
+      MKTEXLSR_MISSING=0
+      if command -v mktexlsr >/dev/null 2>&1; then
+        MKTEXLSR_ERR="$(mktexlsr "$TEXMFHOME_DIR" 2>&1)" || MKTEXLSR_OK=0
+      else
+        MKTEXLSR_OK=0
+        MKTEXLSR_MISSING=1
+      fi
+      if [ "$CP_STY_OK" = "0" ]; then
+        echo "  ! could not copy fuzz.sty into $TEXMFHOME_DIR -- pdflatex" >&2
+        echo "    will not compile a spec to PDF; /z-spec:check is unaffected" >&2
+      elif kpsewhich fuzz.sty >/dev/null 2>&1; then
+        echo "  ✓ fuzz.sty $(kpsewhich fuzz.sty)"
+      elif [ "$MKTEXLSR_MISSING" = "1" ]; then
+        echo "  ! mktexlsr not found -- fuzz.sty was copied to" >&2
+        echo "    $TEXMFHOME_DIR, but kpsewhich will not find it until" >&2
+        echo "    mktexlsr is installed and run on that directory by hand." >&2
+        echo "    /z-spec:check is unaffected" >&2
+      elif [ "$MKTEXLSR_OK" = "0" ]; then
+        echo "  ! mktexlsr failed to rebuild the file database for" >&2
+        echo "    $TEXMFHOME_DIR -- fuzz.sty was copied there, but kpsewhich" >&2
+        echo "    may not find it until this succeeds; re-run mktexlsr on" >&2
+        echo "    that directory by hand. /z-spec:check is unaffected" >&2
+        if [ -n "$MKTEXLSR_ERR" ]; then
+          printf '%s\n' "$MKTEXLSR_ERR" | while IFS= read -r line; do echo "    ($line)" >&2; done
+        fi
+      else
+        echo "  ! fuzz.sty was copied to $TEXMFHOME_DIR but kpsewhich still" >&2
+        echo "    cannot find it -- pdflatex will not compile a spec to PDF," >&2
+        echo "    but /z-spec:check (fuzz type-checking) is unaffected" >&2
+      fi
+      # kpsewhich fuzz.sty says nothing about whether the .mf (Metafont)
+      # glyph sources landed -- verify at least one file is actually there
+      # instead of inferring it from an unrelated check.
+      if [ "$CP_MF_OK" = "0" ]; then
+        echo "  ! could not copy the fuzz Metafont (.mf) sources into" >&2
+        echo "    $TEXMFHOME_DIR -- pdflatex will not render the oxsz font;" >&2
+        echo "    /z-spec:check (fuzz type-checking) is unaffected" >&2
+      elif [ -n "$(find "$TEXMFHOME_DIR/fonts/source/public/oxsz" -name '*.mf' 2>/dev/null | head -n 1)" ]; then
+        echo "  ✓ fuzz Metafont sources $TEXMFHOME_DIR/fonts/source/public/oxsz"
+      else
+        echo "  ! the fuzz Metafont (.mf) sources were copied to" >&2
+        echo "    $TEXMFHOME_DIR but none can be found there -- pdflatex" >&2
+        echo "    will not render the oxsz font; /z-spec:check is unaffected" >&2
+      fi
+    else
+      echo "  ! could not resolve or create a TEXMFHOME tree -- fuzz.sty" >&2
+      echo "    will not be on the TeX path; /z-spec:check (fuzz" >&2
+      echo "    type-checking) is unaffected" >&2
+      if [ -n "$TEXMFHOME_DIR" ] && [ -n "$MKDIR_TEXMF_ERR" ]; then
+        printf '%s\n' "$MKDIR_TEXMF_ERR" | while IFS= read -r line; do echo "    ($line)" >&2; done
+      fi
+    fi
+  else
+    echo "  ! no TeX distribution found (kpsewhich absent) -- fuzz.sty was" >&2
+    echo "    not installed; /z-spec:check (fuzz type-checking) is unaffected" >&2
+  fi
+
+  echo "  ✓ fuzz $FUZZ_HOME/bin/fuzz"
+)
+
+# The "Installing fuzz..." banner lives inside install_fuzz() itself, after
+# its already-installed and missing-tools early returns -- not here -- so it
+# never precedes a "✓ fuzz ... (already installed)" line with a claim that a
+# build is about to happen when it is not.
+#
+# The outcome does not need to be captured for later branching: the PATH
+# refresh further down guarantees $HOME/.local/bin is on PATH before the
+# resolve_fuzz_path() call that reports fuzz's final status runs, so a
+# successful build (which always lands at $FUZZ_HOME/bin/fuzz =
+# $HOME/.local/bin/fuzz) is guaranteed to resolve there -- there is no
+# "build succeeded but isn't on PATH yet" case left to distinguish from
+# "build failed" once PATH already carries that directory.
+install_fuzz || warn "fuzz install failed -- see the error above"
+
 # The pointer to /z-spec:setup only makes sense when the plugin is
 # installed; a CLI-only install has no slash commands to run, and no local
 # checkout of this repo either -- a repo-relative path like
@@ -431,27 +723,37 @@ else
 fi
 
 # Same resolution order as resolve_fuzz(): $FUZZ then PATH, no conventional
-# fallback. fuzz has no pinned version to check against and no -version
-# flag, so liveness is probed with a deliberately bogus flag: fuzz's own
-# getopt-style usage banner ("Usage: fuzz ...") on stderr, exit 2, is what a
-# genuinely runnable fuzz always prints for that -- a linker-level failure
-# (wrong architecture, a missing shared library) prints a different message
-# from the shell or the dynamic loader instead, never that banner. This is
-# the same "resolves but will not run" case already distinguished for
-# probcli above; -x alone cannot tell the two apart.
+# fallback -- unlike probcli's $PROB_HOME, so a successful install_fuzz
+# above is invisible here unless $HOME/.local/bin is actually on PATH in
+# this shell. install_fuzz runs in a subshell, so any PATH change it made
+# would not reach here; refresh PATH explicitly, same discipline as the uv
+# and CLI installs above -- but only if it is not already there, since this
+# is the third such refresh (after the uv and CLI install steps).
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+
+# fuzz has no -version flag specifically, but it does have a
+# version-reporting one, -Dv, which only exits 0 when fuzz can genuinely
+# load its own prelude -- the same liveness probe used inside install_fuzz
+# above, so a corrupted install (e.g. the bindir/libdir bug) is caught
+# here too, not just masked by "resolves and is executable". < /dev/null:
+# -Dv reads stdin when given no file argument, and $RESOLVED_FUZZ could
+# name anything on PATH, not necessarily fuzz.
 HAVE_FUZZ=0
 FUZZ_STATUS="absent"
 RESOLVED_FUZZ="$(resolve_fuzz_path)" || RESOLVED_FUZZ=""
 if [ -z "$RESOLVED_FUZZ" ]; then
   warn "fuzz not found -- type-checking (/z-spec:check) needs it"
-  warn "fuzz must be built from source; $FUZZ_SETUP_HINT"
+  warn "the automatic fuzz build above did not succeed;"
+  warn "$FUZZ_SETUP_HINT"
 elif [ ! -x "$RESOLVED_FUZZ" ]; then
   FUZZ_STATUS="not-executable"
   warn "fuzz resolves to $RESOLVED_FUZZ, but it is not executable"
   warn "(permissions, or macOS quarantine) -- $FUZZ_SETUP_HINT"
 else
-  FUZZ_PROBE_OUT="$("$RESOLVED_FUZZ" -bogusflag 2>&1)" || true
-  if printf '%s\n' "$FUZZ_PROBE_OUT" | grep -q '^Usage: fuzz'; then
+  if FUZZ_PROBE_OUT="$("$RESOLVED_FUZZ" -Dv < /dev/null 2>&1)"; then
     HAVE_FUZZ=1
     FUZZ_STATUS="ok"
     ok "fuzz $RESOLVED_FUZZ"
@@ -498,9 +800,23 @@ if [ "$SKIP_PLUGIN" = "0" ]; then
 
   info "Installing $PLUGIN_NAME plugin..."
 
-  claude plugin uninstall "${PLUGIN_NAME}@${MARKETPLACE_NAME}" < /dev/null 2>/dev/null || true
+  # Uninstall first so a stale plugin dir from a prior install/version never
+  # shadows the fresh install below. This is expected to fail harmlessly in
+  # the common case -- the plugin is not already installed -- but the error
+  # is captured, not thrown away unconditionally: a genuine failure (e.g. a
+  # corrupted marketplace registration) is worth having on hand even though
+  # the happy/expected-failure path never prints it.
+  UNINSTALL_ERR="$(claude plugin uninstall "${PLUGIN_NAME}@${MARKETPLACE_NAME}" < /dev/null 2>&1)" || true
   if ! claude plugin install "${PLUGIN_NAME}@${MARKETPLACE_NAME}" < /dev/null; then
     cleanup_https_rewrite
+    # The uninstall step above almost always fails harmlessly (nothing was
+    # installed yet), but if the install that depends on it just failed too,
+    # surface what the uninstall actually said -- it may name the real cause
+    # (e.g. a corrupted marketplace registration) instead of "not installed".
+    if [ -n "$UNINSTALL_ERR" ]; then
+      warn "the preceding uninstall step reported:"
+      printf '%s\n' "$UNINSTALL_ERR" | while IFS= read -r line; do warn "  $line"; done
+    fi
     fail "Failed to install $PLUGIN_NAME"
   fi
   if ! claude plugin list < /dev/null | grep -q "$PLUGIN_NAME@$MARKETPLACE_NAME"; then
