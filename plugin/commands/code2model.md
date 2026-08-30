@@ -1,7 +1,7 @@
 ---
 description: Create a Z specification for stateful entities in a system
 argument-hint: "[focus area or system description]"
-allowed-tools: Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(which:*), Bash(pdflatex:*), Read, Glob, Grep
+allowed-tools: Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(which:*), Bash(pdflatex:*), Bash(kpsewhich:*), Bash(mkdir:*), Bash(cp:*), Bash(curl:*), Bash(grep:*), Read, Glob, Grep
 ---
 
 # /z-spec:code2model - Code to Model
@@ -36,17 +36,32 @@ Before creating a specification, ensure the required TeX files are in the projec
 ```bash
 mkdir -p docs
 
-# Check for fuzz.sty
+# Check for fuzz.sty. kpsewhich is the actual, current source of truth: both
+# install.sh and /z-spec:setup land fuzz.sty in whatever TEXMFHOME tree
+# kpsewhich resolves, never in a fixed filesystem path -- there is no
+# "conventional local install" location left to check for. Resolving through
+# kpsewhich, the same way resolve_fuzz()'s callers do, means this step finds
+# the same fuzz.sty every other z-spec command would find.
 if [ ! -f docs/fuzz.sty ]; then
-    # Try local install first
-    if [ -f /usr/local/share/texmf/tex/latex/fuzz.sty ]; then
-        cp /usr/local/share/texmf/tex/latex/fuzz.sty docs/
-        cp /usr/local/share/texmf/fonts/source/public/oxsz/*.mf docs/
-    else
-        # Download from GitHub
-        curl -sL -o docs/fuzz.sty "https://raw.githubusercontent.com/Spivoxity/fuzz/master/tex/fuzz.sty"
+    if FUZZ_STY="$(kpsewhich fuzz.sty 2>/dev/null)" && [ -n "$FUZZ_STY" ]; then
+        cp "$FUZZ_STY" docs/
+        # The oxsz Metafont sources live in a separate texmf subtree
+        # (fonts/source/public/oxsz) from fuzz.sty (tex/latex) -- resolve each
+        # one through kpsewhich too, rather than assuming they share fuzz.sty's
+        # directory.
         for mf in oxsz.mf oxsz10.mf oxsz5.mf oxsz6.mf oxsz7.mf oxsz8.mf oxsz9.mf zarrow.mf zletter.mf zsymbol.mf; do
-            curl -sL -o "docs/$mf" "https://raw.githubusercontent.com/Spivoxity/fuzz/master/tex/$mf"
+            MF_PATH="$(kpsewhich "$mf" 2>/dev/null)" && [ -n "$MF_PATH" ] && cp "$MF_PATH" docs/
+        done
+    else
+        # kpsewhich found nothing -- fetch the exact pinned commit install.sh's
+        # FUZZ_REF and /z-spec:setup's FUZZ_REF use, never master. Bump only
+        # alongside those two, after auditing the commits in between; -fsSL (with
+        # -f) aborts loudly on a 404/5xx instead of writing the error page to
+        # docs/fuzz.sty as if it were the real file.
+        FUZZ_REF="2a202a0b6f7328e729b54ef352d3bb4c6dfeb2e5"
+        curl -fsSL -o docs/fuzz.sty "https://raw.githubusercontent.com/Spivoxity/fuzz/$FUZZ_REF/tex/fuzz.sty"
+        for mf in oxsz.mf oxsz10.mf oxsz5.mf oxsz6.mf oxsz7.mf oxsz8.mf oxsz9.mf zarrow.mf zletter.mf zsymbol.mf; do
+            curl -fsSL -o "docs/$mf" "https://raw.githubusercontent.com/Spivoxity/fuzz/$FUZZ_REF/tex/$mf"
         done
     fi
 fi
