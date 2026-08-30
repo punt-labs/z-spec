@@ -17,7 +17,13 @@ All notable changes to this project will be documented in this file.
   Verified locally by removing the installed `fuzz` binary and re-running
   `install.sh --fuzz-only` from a genuinely clean state — real `git clone`,
   `configure --prefix`, `make`, `make install`, and `TEXMFHOME` copy, no sudo,
-  no privilege prompt.
+  no privilege prompt. Also verified against the exact v0.20.4-tagged
+  `install.sh` (before this fix), run end to end as a real `curl | sh` user
+  would — CLI, probcli, and a genuine fresh sudo-free `fuzz` build all
+  succeeded from a clean state.
+- **CI now also builds `fuzz` on macOS**, via the same `install.sh
+  --fuzz-only`. The sudo-free installer had zero coverage on the other
+  platform this repo claims to support.
 
 ## [0.20.4] - 2026-08-30
 

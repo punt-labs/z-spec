@@ -100,3 +100,36 @@ jobs:
       # type-z-* (fuzz) then test-z-* (probcli) over every examples/*.tex.
       - run: make type
       - run: make test
+
+  # macOS coverage for the sudo-free fuzz build (z-spec-58u). Narrower than
+  # the Linux specs job on purpose: probcli's own distribution here is a
+  # Linux-only archive, so duplicating the full type-check/model-check
+  # corpus sweep on macOS would not exercise anything install_fuzz() itself
+  # doesn't already prove on Linux. This job's only job is proving the
+  # same install_fuzz() -- git clone, configure --prefix, make, make
+  # install, TEXMFHOME copy, no sudo -- also works on the other platform
+  # this repo claims to support.
+  fuzz-macos:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # bison and flex are keg-only Homebrew formulas on macOS -- installed
+      # but not linked onto PATH by default, since the system ships older
+      # versions at the same names. gcc, make, git, cpp, and a POSIX awk
+      # all ship with Xcode's command line tools, already present on
+      # GitHub's macos-latest image.
+      - name: Install build prerequisites
+        run: |
+          brew install bison flex
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
+
+      - name: Build fuzz from source (install.sh --fuzz-only)
+        run: |
+          ./install.sh --fuzz-only
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Verify fuzz resolves and runs
+        run: fuzz -Dv < /dev/null
