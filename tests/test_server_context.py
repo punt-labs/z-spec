@@ -103,6 +103,34 @@ def test_a_second_construction_in_the_same_process_raises(
         ServerContext()
 
 
+def test_a_failed_construction_resets_the_guard_and_a_retry_can_succeed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A raise mid-``__new__`` must not brick the singleton guard forever.
+
+    Without the reset, ``_constructed`` stays ``True`` after the failed
+    attempt and every subsequent call raises "already constructed" instead
+    of the real underlying error — the class can never be retried.
+    """
+    monkeypatch.setattr(ServerContext, "_constructed", False)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        "punt_zspec.server_context.EnablementGate",
+        MagicMock(side_effect=RuntimeError("gate init failed")),
+    )
+
+    with pytest.raises(RuntimeError, match="gate init failed"):
+        ServerContext()
+
+    assert ServerContext._constructed is False  # pyright: ignore[reportPrivateUsage]
+
+    monkeypatch.undo()  # restore the real EnablementGate for the retry
+    monkeypatch.setattr(ServerContext, "_constructed", False)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+
+    ServerContext()  # succeeds now that the guard was reset
+
+
 # ---------------------------------------------------------------------------
 # guard / display / sync — narrow delegation to the collaborators
 # ---------------------------------------------------------------------------

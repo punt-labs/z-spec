@@ -46,17 +46,24 @@ class ServerContext:
             msg = "ServerContext already constructed once in this process"
             raise RuntimeError(msg)
         cls._constructed = True
-        self = super().__new__(cls)
-        # Never ``Path.cwd()``: plugin.json's ``uv run --directory`` chdirs
-        # before exec, so a plugin user's cwd is the z-spec checkout, not
-        # their repo. Fixed for the process, so resolve once.
-        self._project_root = ProjectRoot.resolve().path
-        # §2.3: the marker is re-read on every call, so no state outlives an
-        # ``enable`` run.
-        self._gate = EnablementGate(self._project_root)
-        # Lazily-connecting, so a down luxd never blocks import or the
-        # check/test/animate surface; reads the same gate the tools do.
-        self._session = ZSpecLuxSession(self._gate.is_open, cwd=self._project_root)
+        try:
+            self = super().__new__(cls)
+            # Never ``Path.cwd()``: plugin.json's ``uv run --directory`` chdirs
+            # before exec, so a plugin user's cwd is the z-spec checkout, not
+            # their repo. Fixed for the process, so resolve once.
+            self._project_root = ProjectRoot.resolve().path
+            # §2.3: the marker is re-read on every call, so no state outlives
+            # an ``enable`` run.
+            self._gate = EnablementGate(self._project_root)
+            # Lazily-connecting, so a down luxd never blocks import or the
+            # check/test/animate surface; reads the same gate the tools do.
+            self._session = ZSpecLuxSession(self._gate.is_open, cwd=self._project_root)
+        except Exception:
+            # A failed construction must not brick the singleton guard —
+            # otherwise every retry raises "already constructed" instead of
+            # the real error underneath.
+            cls._constructed = False
+            raise
         return self
 
     @property
