@@ -370,23 +370,20 @@ install_fuzz() (
 
   # Already resolves ($FUZZ or PATH, same precedence as resolve_fuzz() in
   # src/punt_zspec/fuzz.py) to something that actually runs? Skip the
-  # clone-and-build entirely. fuzz has no -version flag and no numbered
-  # release to compare against, so "resolves and answers the usage probe"
-  # is the only signal that what is already there is a genuine working
-  # install, not a stale or broken one left over from something else.
+  # clone-and-build entirely. fuzz has no -version flag specifically, but
+  # it does have a version-reporting one, -Dv, which only exits 0 when
+  # fuzz can genuinely reach its prelude file -- a stale or corrupted
+  # install (e.g. the bindir/libdir bug above) fails this probe even
+  # though the binary itself is present and executable, which a mere
+  # usage-banner probe (any unrecognised flag prints that and exits
+  # nonzero) cannot tell apart from a working install. < /dev/null: -Dv
+  # reads stdin when given no file argument, and under a piped
+  # curl | sh install the shell's stdin is the rest of the script --
+  # $EXISTING could name anything on PATH, not necessarily fuzz.
   EXISTING="$(resolve_fuzz_path)" && [ -x "$EXISTING" ] || EXISTING=""
-  if [ -n "$EXISTING" ]; then
-    # -bogusflag always exits 2 on a genuinely working fuzz (it prints the
-    # usage banner and exits nonzero on any unrecognised flag) -- `|| true`
-    # only swallows that expected nonzero status. A `|| EXISTING_OUT=""`
-    # fallback here would instead overwrite the just-captured banner with
-    # nothing on the exact success path, which is the bug this comment
-    # exists to stop a future edit from reintroducing.
-    EXISTING_OUT="$("$EXISTING" -bogusflag 2>&1)" || true
-    if printf '%s\n' "$EXISTING_OUT" | grep -q '^Usage: fuzz'; then
-      echo "  ✓ fuzz $EXISTING (already installed)"
-      return 0
-    fi
+  if [ -n "$EXISTING" ] && "$EXISTING" -Dv < /dev/null >/dev/null 2>&1; then
+    echo "  ✓ fuzz $EXISTING (already installed)"
+    return 0
   fi
 
   # bison and flex are invoked by literal name in src/Makefile.in with no
@@ -473,8 +470,15 @@ install_fuzz() (
     return 1
   }
 
-  FUZZ_PROBE_OUT="$("$FUZZ_HOME/bin/fuzz" -bogusflag 2>&1)" || true
-  printf '%s\n' "$FUZZ_PROBE_OUT" | grep -q '^Usage: fuzz' || {
+  # -Dv is a genuine liveness probe, not just an executable-bit check: it
+  # only exits 0 when fuzz can load its own prelude, so a build that
+  # produced an executable but landed in a corrupted prefix (e.g. the
+  # bindir/libdir bug above, had the mkdir -p above been missing) still
+  # fails here. A usage-banner probe on an unrecognised flag cannot tell
+  # that apart from a working install -- it prints the banner and exits
+  # nonzero either way. < /dev/null: -Dv reads stdin when given no file
+  # argument.
+  FUZZ_PROBE_OUT="$("$FUZZ_HOME/bin/fuzz" -Dv < /dev/null 2>&1)" || {
     echo "  ! $FUZZ_HOME/bin/fuzz is installed but would not run:" >&2
     printf '%s\n' "$FUZZ_PROBE_OUT" | while IFS= read -r line; do echo "    $line" >&2; done
     return 1
@@ -521,7 +525,16 @@ install_fuzz() (
   echo "  ✓ fuzz $FUZZ_HOME/bin/fuzz"
 )
 
-install_fuzz || warn "fuzz install failed -- see the error above"
+# Capture the real outcome instead of discarding it: the final summary
+# below distinguishes "the build genuinely failed" from "the build
+# succeeded but $HOME/.local/bin isn't on PATH in this shell yet", and
+# can only make that distinction if it knows which one actually happened.
+if install_fuzz; then
+  FUZZ_BUILD_OK=1
+else
+  FUZZ_BUILD_OK=0
+  warn "fuzz install failed -- see the error above"
+fi
 
 # The pointer to /z-spec:setup only makes sense when the plugin is
 # installed; a CLI-only install has no slash commands to run, and no local
@@ -607,28 +620,39 @@ else
 fi
 
 # Same resolution order as resolve_fuzz(): $FUZZ then PATH, no conventional
-# fallback. fuzz has no pinned version to check against and no -version
-# flag, so liveness is probed with a deliberately bogus flag: fuzz's own
-# getopt-style usage banner ("Usage: fuzz ...") on stderr, exit 2, is what a
-# genuinely runnable fuzz always prints for that -- a linker-level failure
-# (wrong architecture, a missing shared library) prints a different message
-# from the shell or the dynamic loader instead, never that banner. This is
-# the same "resolves but will not run" case already distinguished for
-# probcli above; -x alone cannot tell the two apart.
+# fallback -- unlike probcli's $PROB_HOME, so a successful install_fuzz
+# above is invisible here unless $HOME/.local/bin is actually on PATH in
+# this shell. install_fuzz runs in a subshell, so its own `export PATH`
+# (if it had one) would not reach here either; refresh PATH explicitly,
+# same discipline as the uv and CLI installs above.
+export PATH="$HOME/.local/bin:$PATH"
+
+# fuzz has no -version flag specifically, but it does have a
+# version-reporting one, -Dv, which only exits 0 when fuzz can genuinely
+# load its own prelude -- the same liveness probe used inside install_fuzz
+# above, so a corrupted install (e.g. the bindir/libdir bug) is caught
+# here too, not just masked by "resolves and is executable". < /dev/null:
+# -Dv reads stdin when given no file argument, and $RESOLVED_FUZZ could
+# name anything on PATH, not necessarily fuzz.
 HAVE_FUZZ=0
 FUZZ_STATUS="absent"
 RESOLVED_FUZZ="$(resolve_fuzz_path)" || RESOLVED_FUZZ=""
 if [ -z "$RESOLVED_FUZZ" ]; then
   warn "fuzz not found -- type-checking (/z-spec:check) needs it"
-  warn "the automatic build (see install_fuzz above) did not succeed;"
-  warn "$FUZZ_SETUP_HINT"
+  if [ "$FUZZ_BUILD_OK" = "1" ]; then
+    warn "the automatic build (see install_fuzz above) succeeded, but"
+    warn "\$HOME/.local/bin is still not on PATH -- restart your shell,"
+    warn "or $FUZZ_SETUP_HINT"
+  else
+    warn "the automatic build (see install_fuzz above) did not succeed;"
+    warn "$FUZZ_SETUP_HINT"
+  fi
 elif [ ! -x "$RESOLVED_FUZZ" ]; then
   FUZZ_STATUS="not-executable"
   warn "fuzz resolves to $RESOLVED_FUZZ, but it is not executable"
   warn "(permissions, or macOS quarantine) -- $FUZZ_SETUP_HINT"
 else
-  FUZZ_PROBE_OUT="$("$RESOLVED_FUZZ" -bogusflag 2>&1)" || true
-  if printf '%s\n' "$FUZZ_PROBE_OUT" | grep -q '^Usage: fuzz'; then
+  if FUZZ_PROBE_OUT="$("$RESOLVED_FUZZ" -Dv < /dev/null 2>&1)"; then
     HAVE_FUZZ=1
     FUZZ_STATUS="ok"
     ok "fuzz $RESOLVED_FUZZ"
