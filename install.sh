@@ -668,6 +668,19 @@ install_fuzz() (
 # $HOME/.local/bin/fuzz) is guaranteed to resolve there -- there is no
 # "build succeeded but isn't on PATH yet" case left to distinguish from
 # "build failed" once PATH already carries that directory.
+# Under --fuzz-only, Steps 1-4 are skipped entirely, so nothing has put
+# $HOME/.local/bin on PATH yet -- install_fuzz()'s own "already installed"
+# check resolves fuzz via $FUZZ/PATH (same precedence as resolve_fuzz_path),
+# and would miss a genuinely-already-installed fuzz there, triggering a
+# needless rebuild. The normal flow doesn't need this: Step 2 (uv) or
+# Step 4 (CLI) already refreshes PATH by the time install_fuzz runs.
+if [ "$FUZZ_ONLY_REQUESTED" = "1" ]; then
+  case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) export PATH="$HOME/.local/bin:$PATH" ;;
+  esac
+fi
+
 FUZZ_INSTALL_OK=1
 install_fuzz || { FUZZ_INSTALL_OK=0; warn "fuzz install failed -- see the error above"; }
 
@@ -677,7 +690,6 @@ install_fuzz || { FUZZ_INSTALL_OK=0; warn "fuzz install failed -- see the error 
 # job needs to see as red, not green-with-a-warning.
 if [ "$FUZZ_ONLY_REQUESTED" = "1" ]; then
   [ "$FUZZ_INSTALL_OK" = "1" ] || fail "fuzz install failed -- see the error above (--fuzz-only)"
-  export PATH="$HOME/.local/bin:$PATH"
   ok "fuzz ready ($(resolve_fuzz_path))"
   exit 0
 fi
