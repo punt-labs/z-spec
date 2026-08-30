@@ -1,7 +1,7 @@
 ---
 description: Create a Z specification for stateful entities in a system
 argument-hint: "[focus area or system description]"
-allowed-tools: Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(which:*), Bash(pdflatex:*), Bash(kpsewhich:*), Bash(mkdir:*), Bash(cp:*), Bash(curl:*), Bash(grep:*), Read, Glob, Grep
+allowed-tools: Bash(fuzz:*), Bash(probcli:*), Bash($PROBCLI:*), Bash(which:*), Bash(pdflatex:*), Bash(kpsewhich:*), Bash(mkdir:*), Bash(cp:*), Bash(rm:*), Bash(curl:*), Bash(grep:*), Read, Glob, Grep
 ---
 
 # /z-spec-dev:code2model-dev - Code to Model

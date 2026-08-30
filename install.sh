@@ -602,7 +602,7 @@ install_fuzz() (
         echo "  ! could not copy the fuzz Metafont (.mf) sources into" >&2
         echo "    $TEXMFHOME_DIR -- pdflatex will not render the oxsz font;" >&2
         echo "    /z-spec:check (fuzz type-checking) is unaffected" >&2
-      elif [ -n "$(find "$TEXMFHOME_DIR/fonts/source/public/oxsz" -name '*.mf' -print -quit 2>/dev/null)" ]; then
+      elif [ -n "$(find "$TEXMFHOME_DIR/fonts/source/public/oxsz" -name '*.mf' 2>/dev/null | head -n 1)" ]; then
         echo "  ✓ fuzz Metafont sources $TEXMFHOME_DIR/fonts/source/public/oxsz"
       else
         echo "  ! the fuzz Metafont (.mf) sources were copied to" >&2
