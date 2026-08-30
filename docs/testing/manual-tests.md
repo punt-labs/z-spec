@@ -76,8 +76,8 @@ For every D row, capture **both**:
 
 | # | Action | Context | Expected |
 |---|--------|---------|----------|
-| R1 | `save_partition_report` with a valid payload | MCP | report persists; `get_report` reads it back unchanged |
-| R2 | `save_audit_report` with a malformed payload | MCP | a validation error naming the offending field; nothing half-written on disk |
+| R1 | `partition` with a valid payload | MCP | report persists; `report` reads it back unchanged |
+| R2 | `audit` with a malformed payload | MCP | a validation error naming the offending field; nothing half-written on disk |
 
 ## Post-flight
 

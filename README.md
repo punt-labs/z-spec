@@ -285,10 +285,10 @@ JSON, so a plugin, an agent, and a human at a terminal all reach the same engine
 | `animate(file, steps, setsize)` | Animate only, saves `.report.json` |
 | `model_check(file, setsize, max_ops, timeout)` | Model-check only, saves `.report.json` |
 | `doctor()` | Report fuzz/probcli presence, version, and health |
-| `get_report(file)` | Load an existing ProB report |
-| `save_partition_report(file, report_json)` | Validate + persist an authored partition report |
-| `save_audit_report(file, report_json)` | Validate + persist an authored coverage-audit report |
-| `show_z_spec(file)` | Render the spec and all its reports in Lux |
+| `report(file)` | Load an existing ProB report |
+| `partition(file, report_json)` | Validate + persist an authored partition report |
+| `audit(file, report_json)` | Validate + persist an authored coverage-audit report |
+| `show(file)` | Render the spec and all its reports in Lux |
 | `browse(manifest)` | Open a tutorial collection in the tabbed Lux browser |
 | `pick(directory)` | Discover a directory's `.tex` specs and render a tabbed picker |
 | `enablement(action, directory)` | Turn z-spec on or off in a repo — the MCP face of `enable`/`disable` |
@@ -324,7 +324,7 @@ examples/claude-code.tex               → examples/claude-code.report.json     
                                        → examples/claude-code.audit.json      (test coverage)
 ```
 
-All reports are gitignored (generated artifacts). `show_z_spec` loads whichever reports exist and renders each as a tab in the lux display.
+All reports are gitignored (generated artifacts). `show` loads whichever reports exist and renders each as a tab in the lux display.
 
 ### Tutorial Browser
 
@@ -400,7 +400,7 @@ Add `--code swift` (or python, typescript, kotlin) to generate executable test c
 
 ### Visual exploration with Lux
 
-`show_z_spec` displays the spec directly in a Lux window via `LuxClient` with a Spec tab and, when a valid ProB report is available, also adds ProB and (if a counter-example was found) Counter-Example tabs. The Spec tab renders the Z model with collapsible section headers. The ProB tab shows states explored, transitions covered, checks passed, and operation coverage. If a counter-example is found, a third tab shows the trace as a step-by-step table with state values and the violated invariant. If Lux is not running, it degrades gracefully with an error status.
+`show` displays the spec directly in a Lux window via `LuxClient` with a Spec tab and, when a valid ProB report is available, also adds ProB and (if a counter-example was found) Counter-Example tabs. The Spec tab renders the Z model with collapsible section headers. The ProB tab shows states explored, transitions covered, checks passed, and operation coverage. If a counter-example is found, a third tab shows the trace as a step-by-step table with state values and the violated invariant. If Lux is not running, it degrades gracefully with an error status.
 
 ![Z Spec model-check results displayed in Lux](https://github.com/punt-labs/z-spec/raw/main/docs/Z-Spec-Lux-Screenshot.png)
 
