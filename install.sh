@@ -163,11 +163,17 @@ ok "$BINARY $(command -v "$BINARY")"
 # success while the tool cannot do most of what it is for. So probcli install
 # is part of the default flow, not a follow-up step.
 #
-# fuzz is deliberately NOT auto-installed here: it must be compiled from
-# source (git clone + make + sudo make install into a TeX distribution most
-# machines do not have), which is a fundamentally riskier and slower operation
-# to run unattended inside a piped curl | sh than downloading a static binary.
-# HAVE_FUZZ below only detects it for the final summary, never installs it.
+# fuzz has no distributed binary, only source (git clone + configure + make +
+# make install), which used to read as too risky to run unattended inside a
+# piped curl | sh. That reasoning conflated two separate things: compiling
+# from source (no privilege needed, and no riskier than probcli's own
+# extract-and-chmod) and installing to the *default* location, which is where
+# the sudo requirement actually comes from. fuzz's Makefile.in derives its
+# install paths (bindir, datadir) from autoconf's standard prefix variable,
+# which defaults to root-owned /usr/local only when configure runs with none.
+# install_fuzz() below passes --prefix="$HOME/.local" explicitly, so both the
+# fuzz binary and fuzz.sty install into user-writable paths -- no sudo
+# anywhere, same discipline as install_probcli() just below it.
 
 info "Installing probcli..."
 
