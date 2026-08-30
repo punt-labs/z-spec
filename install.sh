@@ -387,14 +387,14 @@ install_fuzz() (
   fi
 
   # bison and flex are invoked by literal name in src/Makefile.in with no
-  # autoconf detection at all -- unlike cpp below, which configure.ac does
-  # resolve, but by aborting hard if the resolution fails rather than
-  # degrading gracefully. Either way, a missing tool fails the build three
-  # steps in with a bare "command not found" or an opaque configure error.
-  # Check what configure won't check, and preempt what it checks but does
-  # not recover from, so a missing tool is named here instead. gcc is a
-  # hard dependency too: src/Makefile.in hardcodes CC=gcc, ignoring
-  # configure's own compiler detection.
+  # autoconf detection at all -- unlike cpp and awk below, which configure.ac
+  # does resolve (AC_PATH_PROG(CPP, ...), AC_PROG_AWK), but by aborting hard
+  # if the resolution fails rather than degrading gracefully. Either way, a
+  # missing tool fails the build three steps in with a bare "command not
+  # found" or an opaque configure error. Check what configure won't check,
+  # and preempt what it checks but does not recover from, so a missing tool
+  # is named here instead. gcc is a hard dependency too: src/Makefile.in
+  # hardcodes CC=gcc, ignoring configure's own compiler detection.
   #
   # Collect every missing tool in one pass rather than failing on the
   # first found: a user missing two tools who only ever hears about one
@@ -411,8 +411,16 @@ install_fuzz() (
   if ! command -v cpp >/dev/null 2>&1 && [ ! -x /lib/cpp ] && [ ! -x /usr/lib/cpp ]; then
     MISSING_TOOLS="$MISSING_TOOLS cpp"
   fi
+  # configure.ac's AC_PROG_AWK accepts gawk, mawk, nawk, or plain awk — not
+  # gawk specifically. Debian/Ubuntu ship mawk by default and macOS ships BSD
+  # awk; requiring gawk by name would abort the preflight on a machine that
+  # would build fuzz fine. Same four-way check as setup.md's.
+  if ! command -v gawk >/dev/null 2>&1 && ! command -v mawk >/dev/null 2>&1 \
+     && ! command -v nawk >/dev/null 2>&1 && ! command -v awk >/dev/null 2>&1; then
+    MISSING_TOOLS="$MISSING_TOOLS awk"
+  fi
   if [ -n "$MISSING_TOOLS" ]; then
-    echo "  !$MISSING_TOOLS not found -- cannot build fuzz from source" >&2
+    echo "  ! missing required tools:$MISSING_TOOLS -- cannot build fuzz from source" >&2
     return 1
   fi
 
@@ -549,17 +557,29 @@ install_fuzz() (
       # error) is indistinguishable from mktexlsr succeeding and kpsewhich
       # simply not finding the file, so the message below would name only
       # the symptom and never the one fact -- mktexlsr itself failed --
-      # that tells the user how to actually fix it.
+      # that tells the user how to actually fix it. An absent mktexlsr is a
+      # third, distinct cause from either of those -- name it explicitly
+      # instead of leaving MKTEXLSR_OK=1 and letting a later kpsewhich
+      # failure blame "mktexlsr failed" for a command that never ran.
       MKTEXLSR_OK=1
       MKTEXLSR_ERR=""
+      MKTEXLSR_MISSING=0
       if command -v mktexlsr >/dev/null 2>&1; then
         MKTEXLSR_ERR="$(mktexlsr "$TEXMFHOME_DIR" 2>&1)" || MKTEXLSR_OK=0
+      else
+        MKTEXLSR_OK=0
+        MKTEXLSR_MISSING=1
       fi
       if [ "$CP_STY_OK" = "0" ]; then
         echo "  ! could not copy fuzz.sty into $TEXMFHOME_DIR -- pdflatex" >&2
         echo "    will not compile a spec to PDF; /z-spec:check is unaffected" >&2
       elif kpsewhich fuzz.sty >/dev/null 2>&1; then
         echo "  ✓ fuzz.sty $(kpsewhich fuzz.sty)"
+      elif [ "$MKTEXLSR_MISSING" = "1" ]; then
+        echo "  ! mktexlsr not found -- fuzz.sty was copied to" >&2
+        echo "    $TEXMFHOME_DIR, but kpsewhich will not find it until" >&2
+        echo "    mktexlsr is installed and run on that directory by hand." >&2
+        echo "    /z-spec:check is unaffected" >&2
       elif [ "$MKTEXLSR_OK" = "0" ]; then
         echo "  ! mktexlsr failed to rebuild the file database for" >&2
         echo "    $TEXMFHOME_DIR -- fuzz.sty was copied there, but kpsewhich" >&2
@@ -588,8 +608,9 @@ install_fuzz() (
         echo "    will not render the oxsz font; /z-spec:check is unaffected" >&2
       fi
     else
-      echo "  ! could not create $TEXMFHOME_DIR -- fuzz.sty will not be on" >&2
-      echo "    the TeX path; /z-spec:check (fuzz type-checking) is unaffected" >&2
+      echo "  ! could not resolve or create a TEXMFHOME tree -- fuzz.sty" >&2
+      echo "    will not be on the TeX path; /z-spec:check (fuzz" >&2
+      echo "    type-checking) is unaffected" >&2
       if [ -n "$TEXMFHOME_DIR" ] && [ -n "$MKDIR_TEXMF_ERR" ]; then
         printf '%s\n' "$MKDIR_TEXMF_ERR" | while IFS= read -r line; do echo "    ($line)" >&2; done
       fi
@@ -701,10 +722,14 @@ fi
 # Same resolution order as resolve_fuzz(): $FUZZ then PATH, no conventional
 # fallback -- unlike probcli's $PROB_HOME, so a successful install_fuzz
 # above is invisible here unless $HOME/.local/bin is actually on PATH in
-# this shell. install_fuzz runs in a subshell, so its own `export PATH`
-# (if it had one) would not reach here either; refresh PATH explicitly,
-# same discipline as the uv and CLI installs above.
-export PATH="$HOME/.local/bin:$PATH"
+# this shell. install_fuzz runs in a subshell, so any PATH change it made
+# would not reach here; refresh PATH explicitly, same discipline as the uv
+# and CLI installs above -- but only if it is not already there, since this
+# is the third such refresh (after the uv and CLI install steps).
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
 
 # fuzz has no -version flag specifically, but it does have a
 # version-reporting one, -Dv, which only exits 0 when fuzz can genuinely
@@ -718,7 +743,7 @@ FUZZ_STATUS="absent"
 RESOLVED_FUZZ="$(resolve_fuzz_path)" || RESOLVED_FUZZ=""
 if [ -z "$RESOLVED_FUZZ" ]; then
   warn "fuzz not found -- type-checking (/z-spec:check) needs it"
-  warn "the automatic build (see install_fuzz above) did not succeed;"
+  warn "the automatic fuzz build above did not succeed;"
   warn "$FUZZ_SETUP_HINT"
 elif [ ! -x "$RESOLVED_FUZZ" ]; then
   FUZZ_STATUS="not-executable"
