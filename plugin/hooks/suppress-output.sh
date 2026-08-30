@@ -85,7 +85,7 @@ if [[ -n "$ERROR_MSG" ]]; then
   exit 0
 fi
 
-# ── ProB report shape (test, animate, model_check, get_report) ───────
+# ── ProB report shape (test, animate, model_check, report) ───────────
 # All four payloads are ProbReport.to_dict(): {ok, states_analysed,
 # transitions_fired, checks:[{name,status,detail}], operations, ...}.
 prob_panel() {
@@ -120,7 +120,7 @@ case "$TOOL_NAME" in
   test)        prob_panel "test" ;;
   animate)     prob_panel "animate" ;;
   model_check) prob_panel "model_check" ;;
-  get_report)  prob_panel "get_report" ;;
+  report)      prob_panel "report" ;;
   doctor)
     # DoctorReport.to_dict(): {version, fuzz, probcli, healthy}. fuzz/probcli
     # are absolute paths or null (binary not installed).
@@ -134,10 +134,10 @@ case "$TOOL_NAME" in
       emit "doctor UNHEALTHY (v${ver}) — fuzz:${fuzz} probcli:${probcli}" "$RESULT"
     fi
     ;;
-  show_z_spec)
+  show)
     # DisplayResult.to_dict(): {ok, scene_id}.
     scene=$(printf '%s' "$RESULT" | jq -r '.scene_id // "spec"' 2>/dev/null)
-    emit "show_z_spec: displayed ${scene}" "$RESULT"
+    emit "show: displayed ${scene}" "$RESULT"
     ;;
   browse)
     # BrowseResult.to_dict(): {ok, total, title}.
@@ -163,12 +163,12 @@ case "$TOOL_NAME" in
     # the payload never carried.
     emit "z-spec ${state:-?} in ${root:-?}" "$RESULT"
     ;;
-  save_partition_report)
+  partition)
     # SavedReport.to_dict(): {ok, path}.
     saved=$(printf '%s' "$RESULT" | jq -r '.path // "?"' 2>/dev/null)
     emit "partition report saved — ${saved}" "$RESULT"
     ;;
-  save_audit_report)
+  audit)
     # SavedReport.to_dict(): {ok, path}.
     saved=$(printf '%s' "$RESULT" | jq -r '.path // "?"' 2>/dev/null)
     emit "audit report saved — ${saved}" "$RESULT"

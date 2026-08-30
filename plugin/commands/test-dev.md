@@ -1,7 +1,7 @@
 ---
 description: Validate and animate a Z specification with probcli
 argument-hint: "[file.tex] [options: -v verbose, -s N setsize]"
-allowed-tools: mcp__plugin_z-spec-dev_zspec__test, mcp__plugin_z-spec-dev_zspec__show_z_spec, Read, Glob
+allowed-tools: mcp__plugin_z-spec-dev_zspec__test, mcp__plugin_z-spec-dev_zspec__show, Read, Glob
 ---
 
 # Test Z Specification with ProB
@@ -74,7 +74,7 @@ specification.
 
 ### 4. Display
 
-Call `mcp__plugin_z-spec-dev_zspec__show_z_spec` with `file`. It reads the
+Call `mcp__plugin_z-spec-dev_zspec__show` with `file`. It reads the
 `<stem>.report.json` just written and renders the Model-Check tab (and a
 Counter-Example tab on failure) beside the Spec tab. No hand-rolled lux.
 

@@ -25,9 +25,9 @@ from punt_zspec.commands.test import TestCommand
 class Capability:
     """One deterministic capability and its verb/tool spelling per surface.
 
-    The CLI verb and MCP tool names differ by design (``model-check`` vs
-    ``model_check``, ``report`` vs ``get_report``), so both are recorded here
-    and the parity test enforces each surface matches this registry.
+    The CLI verb and MCP tool names differ in exactly two cases, both recorded
+    here and enforced by the parity test: ``model-check``/``model_check`` and
+    the ``enable``/``disable`` pair collapsing into one tool, detailed below.
 
     Two capabilities may name the same MCP tool: ``enable`` and ``disable`` are
     two CLI verbs but one ``enablement`` tool taking an action argument, the
@@ -37,7 +37,7 @@ class Capability:
     name: str  # canonical id, e.g. "partition"
     command: type  # the @final command class
     cli_verb: str  # Typer command name, e.g. "partition"
-    mcp_tool: str  # FastMCP tool name, e.g. "save_partition_report"
+    mcp_tool: str  # FastMCP tool name, e.g. "partition"
 
 
 CAPABILITIES: tuple[Capability, ...] = (
@@ -45,11 +45,11 @@ CAPABILITIES: tuple[Capability, ...] = (
     Capability("test", TestCommand, "test", "test"),
     Capability("animate", AnimateCommand, "animate", "animate"),
     Capability("model-check", ModelCheckCommand, "model-check", "model_check"),
-    Capability("report", ReportCommand, "report", "get_report"),
+    Capability("report", ReportCommand, "report", "report"),
     Capability("doctor", DoctorCommand, "doctor", "doctor"),
-    Capability("partition", PartitionCommand, "partition", "save_partition_report"),
-    Capability("audit", AuditCommand, "audit", "save_audit_report"),
-    Capability("show", ShowCommand, "show", "show_z_spec"),
+    Capability("partition", PartitionCommand, "partition", "partition"),
+    Capability("audit", AuditCommand, "audit", "audit"),
+    Capability("show", ShowCommand, "show", "show"),
     Capability("browse", BrowseCommand, "browse", "browse"),
     Capability("pick", PickerCommand, "pick", "pick"),
     Capability("enable", EnableCommand, "enable", "enablement"),

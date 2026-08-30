@@ -6,6 +6,19 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **Four MCP tool names renamed to match their CLI verbs.** `get_report`,
+  `show_z_spec`, `save_partition_report`, and `save_audit_report` are now
+  `report`, `show`, `partition`, and `audit` — the same names the CLI already
+  used, so the `Capability.mcp_tool` values in
+  `src/punt_zspec/commands/registry.py` and the `@mcp.tool()`-decorated
+  functions in `src/punt_zspec/server.py` no longer carry a surface-specific
+  spelling with no reason behind it (`enable`/`disable` → `enablement` remains
+  the one deliberate exception, since it is two CLI verbs sharing one MCP
+  tool). `plugin/hooks/suppress-output.sh` — which formats each tool's MCP
+  output by matching on tool name — is updated in lockstep so its
+  post-processing panel keeps firing for these four tools instead of silently
+  falling through to the generic unhandled-tool branch.
+
 - **README.md rewritten to comply with the updated org README standard.** Copy-paste commands — Quick Start installers, CLI/slash invocations — are now one line per fenced block, so each command can be copied independently. File/spec/config/output listings meant to be read as a coherent unit (the LaTeX schema excerpt, the TOML manifest example, the Reports mapping) stay as single multi-line blocks, per the corrected rule scope. Quick Start moved to immediately follow the project description, as the standard's required section order calls for. The redundant `### Install` subsection under the CLI/MCP reference (which duplicated Quick Start's manual-install steps) is removed; its one new fact — installing as a library dependency via `uv add` — is folded into Quick Start. That section is renamed `## CLI + MCP Reference` to state what it actually documents. The `## Development` section (quality-gate commands) is removed from README.md entirely; `CONTRIBUTING.md` is the new required home for them, linked from the Documentation section.
 
 ## [0.20.2] - 2026-08-29

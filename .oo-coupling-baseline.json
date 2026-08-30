@@ -315,11 +315,18 @@
     "avg_lcom": 0.0
   },
   "src/punt_zspec/server.py": {
-    "efferent_coupling": 5.0,
+    "efferent_coupling": 3.0,
     "public_names": 2.0,
     "circular_imports": 0.0,
     "max_lcom": 0.0,
     "avg_lcom": 0.0
+  },
+  "src/punt_zspec/server_context.py": {
+    "efferent_coupling": 3.0,
+    "public_names": 1.0,
+    "circular_imports": 0.0,
+    "max_lcom": 0.467,
+    "avg_lcom": 0.467
   },
   "src/punt_zspec/types/__init__.py": {
     "efferent_coupling": 2.0,

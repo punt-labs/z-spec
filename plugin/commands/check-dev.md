@@ -38,8 +38,8 @@ show that message to the user and stop — do not render the normal result.
 - `ok: false` → `fuzz: <name> FAIL`, then one line per error, indented two
   spaces: `<line>:<column>: <message>`.
 
-The tool has written `<stem>.fuzz.json`; `/z-spec-dev:show-dev` (or `show_z_spec`)
-will render it in the Fuzz tab.
+The tool has written `<stem>.fuzz.json`; the `show` tool renders it
+in the Fuzz tab.
 
 ### 4. Animation Readiness Warnings
 

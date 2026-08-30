@@ -1,7 +1,7 @@
 ---
 description: Audit test coverage for Z specification constraints
 argument-hint: "[spec.tex] [--json] [--test-dir=DIR]"
-allowed-tools: mcp__plugin_z-spec-dev_zspec__save_audit_report, mcp__plugin_z-spec-dev_zspec__show_z_spec, Read, Glob, Grep
+allowed-tools: mcp__plugin_z-spec-dev_zspec__audit, mcp__plugin_z-spec-dev_zspec__show, Read, Glob, Grep
 ---
 
 # /z-spec-dev:audit-dev - Test Coverage Audit
@@ -201,7 +201,7 @@ The following constraints have no detected test coverage:
 #### JSON Output (--json flag)
 
 This is the authored shape — identical to the `report_json` handed to
-`save_audit_report` in Step 8. `summary` and `byCategory` are **computed by the
+`audit` in Step 8. `summary` and `byCategory` are **computed by the
 engine** on load and rendered in the markdown output and the Audit tab; the
 authored JSON omits them.
 
@@ -254,7 +254,7 @@ category, source, coveredBy?, confidence?}], uncovered:[{text, category,
 source, suggestion, testPattern?}]}`). The `summary` and `byCategory` fields
 are **computed by the engine** — do not author them.
 
-Call `mcp__plugin_z-spec-dev_zspec__save_audit_report` with `file` (the spec path)
+Call `mcp__plugin_z-spec-dev_zspec__audit` with `file` (the spec path)
 and `report_json` (the serialized audit). The tool validates the report against
 the schema and persists `<stem>.audit.json`.
 
@@ -263,7 +263,7 @@ the schema and persists `<stem>.audit.json`.
   `Invalid audit report: ...`) and fix the authored JSON — do not write a
   malformed file.
 
-Then call `mcp__plugin_z-spec-dev_zspec__show_z_spec` with `file` to render the
+Then call `mcp__plugin_z-spec-dev_zspec__show` with `file` to render the
 Audit tab beside the Spec tab. The tool reads the `<stem>.audit.json` just
 written.
 

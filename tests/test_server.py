@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from punt_lux import HubUnavailableError
 
+import punt_zspec.server as server
 from punt_zspec.commands.enablement import RepoEnablement
 from punt_zspec.gate import EnablementGate
 from punt_zspec.lux import ZSpecLuxSession
@@ -88,15 +89,15 @@ def test_doctor_tool_returns_health() -> None:
     assert isinstance(result["healthy"], bool)
 
 
-def test_get_report_missing() -> None:
-    from punt_zspec.server import get_report
+def test_report_missing() -> None:
+    from punt_zspec.server import report
 
-    result = json.loads(get_report("/nonexistent/path.tex"))
+    result = json.loads(report("/nonexistent/path.tex"))
     assert result["ok"] is False
     assert "No report" in result["error"]
 
 
-def test_get_report_found(tmp_path: Path) -> None:
+def test_report_found(tmp_path: Path) -> None:
     from punt_zspec.report import save_report
     from punt_zspec.types import CheckResult, CheckStatus, ProbReport
 
@@ -114,24 +115,24 @@ def test_get_report_found(tmp_path: Path) -> None:
     )
     save_report(tex, report)
 
-    from punt_zspec.server import get_report
+    from punt_zspec.server import report as report_tool
 
-    result = json.loads(get_report(str(tex)))
+    result = json.loads(report_tool(str(tex)))
     assert result["ok"] is True
     assert result["states_analysed"] == 10
 
 
-def test_show_z_spec_file_not_found() -> None:
-    from punt_zspec.server import show_z_spec
+def test_show_file_not_found() -> None:
+    from punt_zspec.server import show
 
-    result = json.loads(show_z_spec("nonexistent.tex"))
+    result = json.loads(show("nonexistent.tex"))
     assert result["ok"] is False
     assert "Spec file not found" in result["error"]
 
 
-def test_show_z_spec_displayed(tmp_path: Path) -> None:
-    """show_z_spec with mocked LuxClient returns displayed status."""
-    from punt_zspec.server import show_z_spec
+def test_show_displayed(tmp_path: Path) -> None:
+    """show with mocked LuxClient returns displayed status."""
+    from punt_zspec.server import show
 
     tex = tmp_path / "spec.tex"
     tex.write_text(
@@ -150,14 +151,14 @@ x \leq 10
     with patch(
         "punt_zspec.lux.clients.LuxClient.for_identity", return_value=mock_client
     ):
-        result = json.loads(show_z_spec(str(tex)))
+        result = json.loads(show(str(tex)))
     assert result["ok"] is True
     assert result["scene_id"] == "z-spec"
 
 
-def test_show_z_spec_lux_error(tmp_path: Path) -> None:
-    """show_z_spec returns error status when lux is unavailable."""
-    from punt_zspec.server import show_z_spec
+def test_show_lux_error(tmp_path: Path) -> None:
+    """show returns error status when lux is unavailable."""
+    from punt_zspec.server import show
 
     tex = tmp_path / "spec.tex"
     tex.write_text(
@@ -174,18 +175,18 @@ x : \nat
         "punt_zspec.lux.clients.LuxClient.for_identity",
         side_effect=HubUnavailableError("lux not running"),
     ):
-        result = json.loads(show_z_spec(str(tex)))
+        result = json.loads(show(str(tex)))
     assert result["ok"] is False
     assert "lux not running" in result["error"]
 
 
 # ---------------------------------------------------------------------------
-# save_partition_report
+# partition
 # ---------------------------------------------------------------------------
 
 
-def test_save_partition_report_success(tmp_path: Path) -> None:
-    from punt_zspec.server import save_partition_report
+def test_partition_success(tmp_path: Path) -> None:
+    from punt_zspec.server import partition
 
     tex = tmp_path / "spec.tex"
     tex.write_text("dummy")
@@ -216,28 +217,28 @@ def test_save_partition_report_success(tmp_path: Path) -> None:
             ],
         }
     )
-    result = json.loads(save_partition_report(str(tex), report_json))
+    result = json.loads(partition(str(tex), report_json))
     assert result["ok"] is True
     assert (tmp_path / "spec.partition.json").exists()
 
 
-def test_save_partition_report_invalid_json(tmp_path: Path) -> None:
-    from punt_zspec.server import save_partition_report
+def test_partition_invalid_json(tmp_path: Path) -> None:
+    from punt_zspec.server import partition
 
     tex = tmp_path / "spec.tex"
     tex.write_text("dummy")
-    result = json.loads(save_partition_report(str(tex), "not json"))
+    result = json.loads(partition(str(tex), "not json"))
     assert result["ok"] is False
     assert "Invalid partition report" in result["error"]
 
 
 # ---------------------------------------------------------------------------
-# save_audit_report
+# audit
 # ---------------------------------------------------------------------------
 
 
-def test_save_audit_report_success(tmp_path: Path) -> None:
-    from punt_zspec.server import save_audit_report
+def test_audit_success(tmp_path: Path) -> None:
+    from punt_zspec.server import audit
 
     tex = tmp_path / "spec.tex"
     tex.write_text("dummy")
@@ -265,17 +266,17 @@ def test_save_audit_report_success(tmp_path: Path) -> None:
             ],
         }
     )
-    result = json.loads(save_audit_report(str(tex), report_json))
+    result = json.loads(audit(str(tex), report_json))
     assert result["ok"] is True
     assert (tmp_path / "spec.audit.json").exists()
 
 
-def test_save_audit_report_invalid_json(tmp_path: Path) -> None:
-    from punt_zspec.server import save_audit_report
+def test_audit_invalid_json(tmp_path: Path) -> None:
+    from punt_zspec.server import audit
 
     tex = tmp_path / "spec.tex"
     tex.write_text("dummy")
-    result = json.loads(save_audit_report(str(tex), "{bad}"))
+    result = json.loads(audit(str(tex), "{bad}"))
     assert result["ok"] is False
     assert "Invalid audit report" in result["error"]
 
@@ -353,7 +354,7 @@ def _enablement(action: str, directory: str, monkeypatch: pytest.MonkeyPatch) ->
 
     session = MagicMock()
     session.sync = AsyncMock()
-    monkeypatch.setattr("punt_zspec.server._SESSION", session)
+    monkeypatch.setattr(server._ctx, "_session", session)  # pyright: ignore[reportPrivateUsage]
     return json.loads(asyncio.run(enablement(action, directory)))
 
 
@@ -412,7 +413,7 @@ def test_enablement_tool_syncs_the_menu_to_the_marker_it_wrote(
 
     session = MagicMock()
     session.sync = AsyncMock()
-    monkeypatch.setattr("punt_zspec.server._SESSION", session)
+    monkeypatch.setattr(server._ctx, "_session", session)  # pyright: ignore[reportPrivateUsage]
 
     asyncio.run(enablement("enable", str(_repo(tmp_path))))
 
@@ -438,10 +439,10 @@ def _enabled_repo(root: Path) -> Path:
     return root
 
 
-# The probe program. ``_SESSION`` is replaced before the call: these tests
-# assert on where the gate and the tool defaults point, and a probe that let
-# the enablement tool sync for real would reach the developer's running luxd
-# and register menu entries from a throwaway subprocess.
+# The probe program. The context's session is replaced before the call: these
+# tests assert on where the gate and the tool defaults point, and a probe that
+# let the enablement tool sync for real would reach the developer's running
+# luxd and register menu entries from a throwaway subprocess.
 _PROBE = '''\
 import asyncio
 import punt_zspec.server as s
@@ -457,7 +458,7 @@ class _NoMenu:
         pass
 
 
-s._SESSION = _NoMenu()
+s._ctx._session = _NoMenu()
 print({call})
 '''
 
@@ -552,7 +553,7 @@ def test_the_lifespan_syncs_the_menu_to_the_marker_and_drains_on_shutdown(
     session = MagicMock()
     session.sync = AsyncMock()
     session.stop = AsyncMock()
-    monkeypatch.setattr("punt_zspec.server._SESSION", session)
+    monkeypatch.setattr(server._ctx, "_session", session)  # pyright: ignore[reportPrivateUsage]
 
     asyncio.run(_drive_lifespan())
 
