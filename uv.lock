@@ -1016,7 +1016,7 @@ wheels = [
 
 [[package]]
 name = "punt-z-spec"
-version = "0.20.3"
+version = "0.20.4"
 source = { editable = "." }
 dependencies = [
     { name = "mcp" },

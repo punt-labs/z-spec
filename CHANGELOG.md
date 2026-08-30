@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.20.4] - 2026-08-30
+
 ### Changed
 
 - **Installing `fuzz` no longer requires `sudo`, and `install.sh` now installs
