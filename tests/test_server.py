@@ -89,9 +89,9 @@ def test_doctor_tool_returns_health() -> None:
 
 
 def test_get_report_missing() -> None:
-    from punt_zspec.server import get_report
+    from punt_zspec.server import report
 
-    result = json.loads(get_report("/nonexistent/path.tex"))
+    result = json.loads(report("/nonexistent/path.tex"))
     assert result["ok"] is False
     assert "No report" in result["error"]
 
@@ -114,24 +114,24 @@ def test_get_report_found(tmp_path: Path) -> None:
     )
     save_report(tex, report)
 
-    from punt_zspec.server import get_report
+    from punt_zspec.server import report as report_tool
 
-    result = json.loads(get_report(str(tex)))
+    result = json.loads(report_tool(str(tex)))
     assert result["ok"] is True
     assert result["states_analysed"] == 10
 
 
 def test_show_z_spec_file_not_found() -> None:
-    from punt_zspec.server import show_z_spec
+    from punt_zspec.server import show
 
-    result = json.loads(show_z_spec("nonexistent.tex"))
+    result = json.loads(show("nonexistent.tex"))
     assert result["ok"] is False
     assert "Spec file not found" in result["error"]
 
 
 def test_show_z_spec_displayed(tmp_path: Path) -> None:
-    """show_z_spec with mocked LuxClient returns displayed status."""
-    from punt_zspec.server import show_z_spec
+    """show with mocked LuxClient returns displayed status."""
+    from punt_zspec.server import show
 
     tex = tmp_path / "spec.tex"
     tex.write_text(
@@ -150,14 +150,14 @@ x \leq 10
     with patch(
         "punt_zspec.lux.clients.LuxClient.for_identity", return_value=mock_client
     ):
-        result = json.loads(show_z_spec(str(tex)))
+        result = json.loads(show(str(tex)))
     assert result["ok"] is True
     assert result["scene_id"] == "z-spec"
 
 
 def test_show_z_spec_lux_error(tmp_path: Path) -> None:
-    """show_z_spec returns error status when lux is unavailable."""
-    from punt_zspec.server import show_z_spec
+    """show returns error status when lux is unavailable."""
+    from punt_zspec.server import show
 
     tex = tmp_path / "spec.tex"
     tex.write_text(
@@ -174,18 +174,18 @@ x : \nat
         "punt_zspec.lux.clients.LuxClient.for_identity",
         side_effect=HubUnavailableError("lux not running"),
     ):
-        result = json.loads(show_z_spec(str(tex)))
+        result = json.loads(show(str(tex)))
     assert result["ok"] is False
     assert "lux not running" in result["error"]
 
 
 # ---------------------------------------------------------------------------
-# save_partition_report
+# partition
 # ---------------------------------------------------------------------------
 
 
 def test_save_partition_report_success(tmp_path: Path) -> None:
-    from punt_zspec.server import save_partition_report
+    from punt_zspec.server import partition
 
     tex = tmp_path / "spec.tex"
     tex.write_text("dummy")
@@ -216,28 +216,28 @@ def test_save_partition_report_success(tmp_path: Path) -> None:
             ],
         }
     )
-    result = json.loads(save_partition_report(str(tex), report_json))
+    result = json.loads(partition(str(tex), report_json))
     assert result["ok"] is True
     assert (tmp_path / "spec.partition.json").exists()
 
 
 def test_save_partition_report_invalid_json(tmp_path: Path) -> None:
-    from punt_zspec.server import save_partition_report
+    from punt_zspec.server import partition
 
     tex = tmp_path / "spec.tex"
     tex.write_text("dummy")
-    result = json.loads(save_partition_report(str(tex), "not json"))
+    result = json.loads(partition(str(tex), "not json"))
     assert result["ok"] is False
     assert "Invalid partition report" in result["error"]
 
 
 # ---------------------------------------------------------------------------
-# save_audit_report
+# audit
 # ---------------------------------------------------------------------------
 
 
 def test_save_audit_report_success(tmp_path: Path) -> None:
-    from punt_zspec.server import save_audit_report
+    from punt_zspec.server import audit
 
     tex = tmp_path / "spec.tex"
     tex.write_text("dummy")
@@ -265,17 +265,17 @@ def test_save_audit_report_success(tmp_path: Path) -> None:
             ],
         }
     )
-    result = json.loads(save_audit_report(str(tex), report_json))
+    result = json.loads(audit(str(tex), report_json))
     assert result["ok"] is True
     assert (tmp_path / "spec.audit.json").exists()
 
 
 def test_save_audit_report_invalid_json(tmp_path: Path) -> None:
-    from punt_zspec.server import save_audit_report
+    from punt_zspec.server import audit
 
     tex = tmp_path / "spec.tex"
     tex.write_text("dummy")
-    result = json.loads(save_audit_report(str(tex), "{bad}"))
+    result = json.loads(audit(str(tex), "{bad}"))
     assert result["ok"] is False
     assert "Invalid audit report" in result["error"]
 
