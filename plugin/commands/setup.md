@@ -25,7 +25,10 @@ Parse as:
 sources into your TeX distribution's home tree (`kpsewhich -var-value
 TEXMFHOME`) once, for your user account — not per project. Neither
 `/z-spec:check` nor `/z-spec:test` copies TeX files anywhere; both simply read
-whatever `kpsewhich` already resolves. `/z-spec:create` does not exist.
+whatever `kpsewhich` already resolves. `/z-spec:code2model` is the one command
+that copies `fuzz.sty` and the Metafont sources into a project's `docs/`
+directory; run `/z-spec:cleanup` to remove what it copied. `/z-spec:create`
+does not exist.
 
 ## Process
 

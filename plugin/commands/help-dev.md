@@ -119,11 +119,12 @@ memorizing them:
 
 ## Automatic TeX File Management
 
-`/z-spec-dev:code2model-dev`, `/z-spec-dev:check-dev`, and `/z-spec-dev:test-dev` automatically
-copy `fuzz.sty` and Metafont files to `docs/` if missing, and add the
-matching patterns to `.gitignore`. Run `/z-spec-dev:cleanup-dev` to remove these
-tooling files when done — your `.tex` source and `.pdf` output are
-preserved.
+`/z-spec-dev:code2model-dev` automatically copies `fuzz.sty` and Metafont files to
+`docs/` if missing, and adds the matching patterns to `.gitignore`. Neither
+`/z-spec-dev:check-dev` nor `/z-spec-dev:test-dev` copies TeX files anywhere — both simply
+read whatever `kpsewhich` already resolves. Run `/z-spec-dev:cleanup-dev` to remove
+the files `/z-spec-dev:code2model-dev` copied when done — your `.tex` source and
+`.pdf` output are preserved.
 
 ## Requirements
 

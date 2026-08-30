@@ -24,6 +24,24 @@ All notable changes to this project will be documented in this file.
   (`texhash` only refreshes system TeX trees; the new flow refreshes the
   user's own tree with unprivileged `mktexlsr`).
 
+### Fixed
+
+- **`/z-spec:code2model` resolved `fuzz.sty` from the dead pre-sudo-free
+  install path** (`/usr/local/share/texmf/tex/latex/fuzz.sty`), which the new
+  `install.sh`/`/z-spec:setup fuzz` flow never writes to. On a machine
+  installed by this branch, the check always missed and fell through to 11
+  unpinned `curl -sL` fetches from `Spivoxity/fuzz@master` with no `-f` flag —
+  defeating the pin discipline the sudo-free rewrite established elsewhere,
+  and silently writing an HTTP error page as `fuzz.sty` on a 404. Now resolves
+  through `kpsewhich`, the actual source of truth, falling back to the same
+  pinned commit `install.sh`/`/z-spec:setup` use, fetched with `curl -fsSL`.
+- **`/z-spec:help` and `/z-spec:setup` claimed `/z-spec:check` and
+  `/z-spec:test` copy TeX tooling files** — they don't; only
+  `/z-spec:code2model` does. `/z-spec:cleanup`'s own description and
+  `plugin/commands/cleanup.md` now name `code2model` specifically instead of
+  the inaccurate "z-spec commands" plural, and `/z-spec:setup`'s note keeps
+  the `/z-spec:cleanup` pointer that had been dropped.
+
 ## [0.20.3] - 2026-08-30
 
 ### Changed
