@@ -203,9 +203,17 @@ already owns.
 # be told about the next missing one, has paid for two round trips a single
 # list would have avoided.
 MISSING_TOOLS=""
-for tool in git make gcc bison flex cpp; do
+for tool in git make gcc bison flex; do
   command -v "$tool" >/dev/null || MISSING_TOOLS="$MISSING_TOOLS $tool"
 done
+# fuzz's configure.ac does AC_PATH_PROG(CPP, cpp, ..., $PATH:/lib:/usr/lib) —
+# it searches /lib and /usr/lib in addition to $PATH, and aborts outright if
+# none of the three has it. A bare `command -v cpp` would false-negative on a
+# system where cpp lives only in one of those two extra directories.
+# install.sh's own preflight (install_fuzz()) uses this same three-way check.
+if ! command -v cpp >/dev/null 2>&1 && [ ! -x /lib/cpp ] && [ ! -x /usr/lib/cpp ]; then
+  MISSING_TOOLS="$MISSING_TOOLS cpp"
+fi
 # fuzz's configure (AC_PROG_AWK) accepts gawk, mawk, nawk, or plain awk — not
 # gawk specifically. Debian/Ubuntu ship mawk by default and macOS ships BSD
 # awk; requiring gawk by name would abort the preflight on a machine that
