@@ -112,6 +112,17 @@ jobs:
           esac
           curl -fL -o "${RUNNER_TEMP}/${ARCHIVE}" \
             "https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/${PROB_VERSION}/${ARCHIVE}"
+          # Same zip-slip/tar-slip guard as install.sh's install_probcli():
+          # an absolute path or ../ segment in the listing could write
+          # outside the dest dir if the archive host is compromised.
+          case "${ARCHIVE}" in
+            *.zip) LISTING="$(unzip -Z1 "${RUNNER_TEMP}/${ARCHIVE}")" ;;
+            *)     LISTING="$(tar -tzf "${RUNNER_TEMP}/${ARCHIVE}")" ;;
+          esac
+          if printf '%s\n' "${LISTING}" | grep -qE '^/|(^|/)\.\./'; then
+            echo "FATAL: probcli archive contains unsafe paths (absolute or ../)" >&2
+            exit 1
+          fi
           case "${ARCHIVE}" in
             *.zip) unzip -q "${RUNNER_TEMP}/${ARCHIVE}" -d "${RUNNER_TEMP}/ProB" ;;
             *)     tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}/ProB" ;;
