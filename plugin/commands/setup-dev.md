@@ -163,14 +163,21 @@ xcode-select --install
 **Linux (Debian/Ubuntu):** run this yourself, for the same reason:
 
 ```text
-sudo apt-get install build-essential texlive-base
+sudo apt-get install build-essential texlive-base bison flex
 ```
 
 #### Installation Steps
 
-Building fuzz needs `git`, a C toolchain, `bison`, `flex`, and `gawk` — the
-same build-essential/Xcode-CLT prerequisites above — plus `cpp`, which ships
-with the compiler. `./configure --prefix="$HOME/.local"` is the whole
+Building fuzz needs `git`, a C toolchain, `bison`, `flex`, and some flavour of
+`awk` (`gawk`, `mawk`, `nawk`, or the plain `awk` — fuzz's `configure` runs
+`AC_PROG_AWK`, which accepts any of them), plus `cpp`, which ships with the
+compiler. Not all of this comes from the blocks above: Debian's
+`build-essential` is `dpkg-dev`, `g++`, `gcc`, `libc6-dev`, and `make` — it
+supplies the C toolchain but not `bison` or `flex`, which is why the
+`apt-get` line above now lists them explicitly. An `awk` of some kind is
+preinstalled on essentially every Unix — Debian/Ubuntu ship `mawk`, macOS
+ships BSD `awk` — so no separate install is needed for it.
+`./configure --prefix="$HOME/.local"` is the whole
 difference between this and the traditional `sudo make install`: fuzz's own
 `Makefile.in` installs the `fuzz` binary under `$(bindir)`, its runtime
 library under `$(libdir)`, and `fuzz.sty` plus the `oxsz` Metafont sources
@@ -196,9 +203,17 @@ already owns.
 # be told about the next missing one, has paid for two round trips a single
 # list would have avoided.
 MISSING_TOOLS=""
-for tool in git make gcc bison flex gawk cpp; do
+for tool in git make gcc bison flex cpp; do
   command -v "$tool" >/dev/null || MISSING_TOOLS="$MISSING_TOOLS $tool"
 done
+# fuzz's configure (AC_PROG_AWK) accepts gawk, mawk, nawk, or plain awk — not
+# gawk specifically. Debian/Ubuntu ship mawk by default and macOS ships BSD
+# awk; requiring gawk by name would abort the preflight on a machine that
+# would build fuzz fine.
+if ! command -v gawk >/dev/null 2>&1 && ! command -v mawk >/dev/null 2>&1 \
+   && ! command -v nawk >/dev/null 2>&1 && ! command -v awk >/dev/null 2>&1; then
+  MISSING_TOOLS="$MISSING_TOOLS awk"
+fi
 if [ -n "$MISSING_TOOLS" ]; then
   echo "ERROR: missing required tools:$MISSING_TOOLS" >&2
   echo "       install all of them, then re-run this step." >&2
@@ -257,7 +272,7 @@ git checkout --quiet "$FUZZ_REF" || {
 ./configure --prefix="$HOME/.local" || {
   echo "ERROR: ./configure failed. Read its own output above for the" >&2
   echo "       specific check that failed — the preflight loop above already" >&2
-  echo "       ruled out a missing git/gcc/make/bison/flex/gawk/cpp, so a" >&2
+  echo "       ruled out a missing git/gcc/make/bison/flex/awk/cpp, so a" >&2
   echo "       failure here is something configure itself is unhappy about." >&2
   exit 1
 }
@@ -320,11 +335,17 @@ printf '%s\n' "$FUZZ_OUT"
 if command -v kpsewhich >/dev/null 2>&1; then
   TEXMFHOME="$(kpsewhich -var-value TEXMFHOME)" || TEXMFHOME=""
   if [ -n "$TEXMFHOME" ] && mkdir -p "$TEXMFHOME/tex/latex" "$TEXMFHOME/fonts/source/public/oxsz" 2>/dev/null; then
-    cp tex/fuzz.sty "$TEXMFHOME/tex/latex/" 2>/dev/null || {
+    # Capture the cp's real exit status: the messages further down (mktexlsr
+    # failing, kpsewhich still not finding it) must not assert a copy that
+    # never happened, so every one of them checks this flag first.
+    if cp tex/fuzz.sty "$TEXMFHOME/tex/latex/" 2>/dev/null; then
+      STY_COPIED=1
+    else
+      STY_COPIED=0
       echo "! could not copy tex/fuzz.sty into $TEXMFHOME/tex/latex —" >&2
       echo "  pdflatex will not compile a spec to PDF, but /z-spec-dev:check-dev" >&2
       echo "  (fuzz type-checking) is unaffected" >&2
-    }
+    fi
 
     cp tex/*.mf "$TEXMFHOME/fonts/source/public/oxsz/" 2>/dev/null || {
       echo "! could not copy tex/*.mf into" >&2
@@ -333,23 +354,50 @@ if command -v kpsewhich >/dev/null 2>&1; then
       echo "  unaffected" >&2
     }
 
+    # The cp above can fail non-fatally, and kpsewhich fuzz.sty (below) says
+    # nothing about the oxsz Metafont glyph sources — verify independently
+    # that at least one .mf file actually landed in the destination.
+    MF_LANDED=0
+    for mf_file in "$TEXMFHOME/fonts/source/public/oxsz/"*.mf; do
+      [ -e "$mf_file" ] && MF_LANDED=1
+    done
+
+    if [ "$MF_LANDED" = "1" ]; then
+      echo "oxsz .mf sources: $TEXMFHOME/fonts/source/public/oxsz"
+    else
+      echo "! oxsz .mf sources not found in" >&2
+      echo "  $TEXMFHOME/fonts/source/public/oxsz — pdflatex will not" >&2
+      echo "  compile a spec to PDF; /z-spec-dev:check-dev (fuzz type-checking) is" >&2
+      echo "  unaffected" >&2
+    fi
+
     # Scoped to $TEXMFHOME alone — no sudo, and no touching trees this
     # account does not own.
     if command -v mktexlsr >/dev/null 2>&1; then
       mktexlsr "$TEXMFHOME" >/dev/null 2>&1 || {
-        echo "! mktexlsr failed to rebuild the file database for" >&2
-        echo "  $TEXMFHOME. fuzz.sty was copied there, but kpsewhich may not" >&2
-        echo "  find it until this succeeds — re-run mktexlsr on that" >&2
-        echo "  directory by hand." >&2
+        if [ "$STY_COPIED" = "1" ]; then
+          echo "! mktexlsr failed to rebuild the file database for" >&2
+          echo "  $TEXMFHOME. fuzz.sty was copied there, but kpsewhich may" >&2
+          echo "  not find it until this succeeds — re-run mktexlsr on that" >&2
+          echo "  directory by hand." >&2
+        else
+          echo "! mktexlsr failed to rebuild the file database for" >&2
+          echo "  $TEXMFHOME, and fuzz.sty was never copied there —" >&2
+          echo "  pdflatex will not compile a spec to PDF; /z-spec-dev:check-dev" >&2
+          echo "  is unaffected." >&2
+        fi
       }
     fi
 
     if FUZZ_STY="$(kpsewhich fuzz.sty 2>/dev/null)" && [ -n "$FUZZ_STY" ]; then
       echo "fuzz.sty: $FUZZ_STY"
-    else
+    elif [ "$STY_COPIED" = "1" ]; then
       echo "! fuzz.sty was copied into $TEXMFHOME but kpsewhich still" >&2
       echo "  cannot find it. See 'Common Issues' below. /z-spec-dev:check-dev" >&2
       echo "  (fuzz type-checking) is unaffected." >&2
+    else
+      echo "! could not copy fuzz.sty into $TEXMFHOME — pdflatex will not" >&2
+      echo "  compile a spec to PDF; /z-spec-dev:check-dev is unaffected" >&2
     fi
   else
     echo "! could not resolve or create a TEXMFHOME tree — fuzz.sty will" >&2
@@ -387,7 +435,7 @@ distribution is on `PATH` yet — install one first (see 'Prerequisites' above);
 beyond the compiler toolchain — `cpp` — and reports `configure: error: no cpp
 found` if it is missing from `PATH`, `/lib`, or `/usr/lib`. The preflight loop
 in the block above already checks for `git`, `gcc`, `make`, `bison`, `flex`,
-`gawk`, and `cpp` before `configure` ever runs, so a failure past that point
+some flavour of `awk`, and `cpp` before `configure` ever runs, so a failure past that point
 means reading `configure`'s own output for the specific check it failed.
 
 **`make install` fails with "Permission denied"**: `./configure` ran without
