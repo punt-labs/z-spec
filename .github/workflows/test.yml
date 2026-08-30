@@ -100,3 +100,54 @@ jobs:
       # type-z-* (fuzz) then test-z-* (probcli) over every examples/*.tex.
       - run: make type
       - run: make test
+
+  # The shipped installer, run whole, on every supported OS (z-spec-58u).
+  # Matrix entries run in parallel, so this adds no wall time over a single
+  # platform. Each entry runs install.sh end to end -- the CLI via uv tool
+  # install, probcli via its per-OS archive (install_probcli's own
+  # Darwin/Linux branch), and the sudo-free fuzz source build -- then
+  # verifies through the installed artifact itself: doctor must report both
+  # tools, a real spec must type-check (fuzz) and model-check (probcli).
+  # --no-plugin because CI runners have no claude CLI; the plugin step
+  # would auto-skip anyway, and this job's subject is the toolchain.
+  installer:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install build prerequisites (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential bison flex
+
+      # bison and flex are keg-only Homebrew formulas on macOS -- installed
+      # but not linked onto PATH by default, since the system ships older
+      # versions at the same names. gcc, make, git, cpp, and a POSIX awk
+      # all ship with Xcode's command line tools, already present on
+      # GitHub's macos-latest image.
+      - name: Install build prerequisites (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install bison flex
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
+
+      - name: Run the full installer (CLI + probcli + fuzz)
+        run: |
+          ./install.sh --no-plugin
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # Verification is through the installed artifact, not the working
+      # tree: doctor exits nonzero if either tool is missing or broken, and
+      # the check/test pair proves fuzz and probcli each do real work on a
+      # real spec -- resolving on PATH is not evidence a binary functions.
+      - name: Verify via the installed artifact
+        run: |
+          z-spec --version
+          z-spec doctor
+          z-spec check examples/animation-hints-good.tex
+          z-spec test examples/animation-hints-good.tex
