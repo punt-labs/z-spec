@@ -387,14 +387,16 @@ install_fuzz() (
   fi
 
   # bison and flex are invoked by literal name in src/Makefile.in with no
-  # autoconf detection at all -- unlike cpp and awk below, which configure.ac
-  # does resolve (AC_PATH_PROG(CPP, ...), AC_PROG_AWK), but by aborting hard
-  # if the resolution fails rather than degrading gracefully. Either way, a
-  # missing tool fails the build three steps in with a bare "command not
-  # found" or an opaque configure error. Check what configure won't check,
-  # and preempt what it checks but does not recover from, so a missing tool
-  # is named here instead. gcc is a hard dependency too: src/Makefile.in
-  # hardcodes CC=gcc, ignoring configure's own compiler detection.
+  # autoconf detection at all. cpp and awk below are both resolved by
+  # configure.ac, but not the same way: AC_PATH_PROG(CPP, ...) has an
+  # AC_MSG_ERROR fallback and aborts configure outright if cpp is missing;
+  # AC_PROG_AWK has no such fallback, so configure succeeds with @AWK@
+  # empty and the failure only surfaces three steps later, opaquely, when
+  # src/Makefile.in's `$(AWK) -f absyn.k ...` rule runs as a bare
+  # "-f: command not found". Check both here so either one is named up
+  # front instead of failing deep in the build. gcc is a hard dependency
+  # too: src/Makefile.in hardcodes CC=gcc, ignoring configure's own
+  # compiler detection.
   #
   # Collect every missing tool in one pass rather than failing on the
   # first found: a user missing two tools who only ever hears about one
@@ -629,11 +631,12 @@ install_fuzz() (
 # build is about to happen when it is not.
 #
 # The outcome does not need to be captured for later branching: the PATH
-# export below runs unconditionally before resolve_fuzz_path() is ever
-# called, so a successful build (which always lands at
-# $FUZZ_HOME/bin/fuzz = $HOME/.local/bin/fuzz) is guaranteed to resolve --
-# there is no "build succeeded but isn't on PATH yet" case left to
-# distinguish from "build failed" once PATH already carries that directory.
+# refresh below guarantees $HOME/.local/bin is on PATH before
+# resolve_fuzz_path() is ever called, so a successful build (which always
+# lands at $FUZZ_HOME/bin/fuzz = $HOME/.local/bin/fuzz) is guaranteed to
+# resolve -- there is no "build succeeded but isn't on PATH yet" case left
+# to distinguish from "build failed" once PATH already carries that
+# directory.
 install_fuzz || warn "fuzz install failed -- see the error above"
 
 # The pointer to /z-spec:setup only makes sense when the plugin is
