@@ -25,9 +25,9 @@ from punt_zspec.commands.test import TestCommand
 class Capability:
     """One deterministic capability and its verb/tool spelling per surface.
 
-    The CLI verb and MCP tool names differ only for ``model-check`` vs
-    ``model_check`` (Typer's hyphens vs. a valid Python identifier); both are
-    recorded here and the parity test enforces each surface matches this.
+    The CLI verb and MCP tool names differ in exactly two cases, both recorded
+    here and enforced by the parity test: ``model-check``/``model_check`` and
+    the ``enable``/``disable`` pair collapsing into one tool, detailed below.
 
     Two capabilities may name the same MCP tool: ``enable`` and ``disable`` are
     two CLI verbs but one ``enablement`` tool taking an action argument, the
