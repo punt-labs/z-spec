@@ -555,11 +555,11 @@ install_fuzz() (
       if command -v mktexlsr >/dev/null 2>&1; then
         MKTEXLSR_ERR="$(mktexlsr "$TEXMFHOME_DIR" 2>&1)" || MKTEXLSR_OK=0
       fi
-      if kpsewhich fuzz.sty >/dev/null 2>&1; then
-        echo "  ✓ fuzz.sty $(kpsewhich fuzz.sty)"
-      elif [ "$CP_STY_OK" = "0" ]; then
+      if [ "$CP_STY_OK" = "0" ]; then
         echo "  ! could not copy fuzz.sty into $TEXMFHOME_DIR -- pdflatex" >&2
         echo "    will not compile a spec to PDF; /z-spec:check is unaffected" >&2
+      elif kpsewhich fuzz.sty >/dev/null 2>&1; then
+        echo "  ✓ fuzz.sty $(kpsewhich fuzz.sty)"
       elif [ "$MKTEXLSR_OK" = "0" ]; then
         echo "  ! mktexlsr failed to rebuild the file database for" >&2
         echo "    $TEXMFHOME_DIR -- fuzz.sty was copied there, but kpsewhich" >&2
@@ -576,12 +576,12 @@ install_fuzz() (
       # kpsewhich fuzz.sty says nothing about whether the .mf (Metafont)
       # glyph sources landed -- verify at least one file is actually there
       # instead of inferring it from an unrelated check.
-      if [ -n "$(find "$TEXMFHOME_DIR/fonts/source/public/oxsz" -name '*.mf' -print -quit 2>/dev/null)" ]; then
-        echo "  ✓ fuzz Metafont sources $TEXMFHOME_DIR/fonts/source/public/oxsz"
-      elif [ "$CP_MF_OK" = "0" ]; then
+      if [ "$CP_MF_OK" = "0" ]; then
         echo "  ! could not copy the fuzz Metafont (.mf) sources into" >&2
         echo "    $TEXMFHOME_DIR -- pdflatex will not render the oxsz font;" >&2
         echo "    /z-spec:check (fuzz type-checking) is unaffected" >&2
+      elif [ -n "$(find "$TEXMFHOME_DIR/fonts/source/public/oxsz" -name '*.mf' -print -quit 2>/dev/null)" ]; then
+        echo "  ✓ fuzz Metafont sources $TEXMFHOME_DIR/fonts/source/public/oxsz"
       else
         echo "  ! the fuzz Metafont (.mf) sources were copied to" >&2
         echo "    $TEXMFHOME_DIR but none can be found there -- pdflatex" >&2
