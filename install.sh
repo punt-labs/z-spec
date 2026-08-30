@@ -542,14 +542,32 @@ install_fuzz() (
       cp "$FUZZ_BUILD_DIR/tex/fuzz.sty" "$TEXMFHOME_DIR/tex/latex/" 2>/dev/null || CP_STY_OK=0
       CP_MF_OK=1
       cp "$FUZZ_BUILD_DIR"/tex/*.mf "$TEXMFHOME_DIR/fonts/source/public/oxsz/" 2>/dev/null || CP_MF_OK=0
+      # Capture mktexlsr's real exit status and stderr instead of discarding
+      # both with `|| true` -- same capture-then-conditionally-print
+      # discipline as MKDIR_TEXMF_ERR above. Without this, a genuine
+      # mktexlsr failure (read-only or full TEXMFHOME, an NFS staleness
+      # error) is indistinguishable from mktexlsr succeeding and kpsewhich
+      # simply not finding the file, so the message below would name only
+      # the symptom and never the one fact -- mktexlsr itself failed --
+      # that tells the user how to actually fix it.
+      MKTEXLSR_OK=1
+      MKTEXLSR_ERR=""
       if command -v mktexlsr >/dev/null 2>&1; then
-        mktexlsr "$TEXMFHOME_DIR" >/dev/null 2>&1 || true
+        MKTEXLSR_ERR="$(mktexlsr "$TEXMFHOME_DIR" 2>&1)" || MKTEXLSR_OK=0
       fi
       if kpsewhich fuzz.sty >/dev/null 2>&1; then
         echo "  ✓ fuzz.sty $(kpsewhich fuzz.sty)"
       elif [ "$CP_STY_OK" = "0" ]; then
         echo "  ! could not copy fuzz.sty into $TEXMFHOME_DIR -- pdflatex" >&2
         echo "    will not compile a spec to PDF; /z-spec:check is unaffected" >&2
+      elif [ "$MKTEXLSR_OK" = "0" ]; then
+        echo "  ! mktexlsr failed to rebuild the file database for" >&2
+        echo "    $TEXMFHOME_DIR -- fuzz.sty was copied there, but kpsewhich" >&2
+        echo "    may not find it until this succeeds; re-run mktexlsr on" >&2
+        echo "    that directory by hand. /z-spec:check is unaffected" >&2
+        if [ -n "$MKTEXLSR_ERR" ]; then
+          printf '%s\n' "$MKTEXLSR_ERR" | while IFS= read -r line; do echo "    ($line)" >&2; done
+        fi
       else
         echo "  ! fuzz.sty was copied to $TEXMFHOME_DIR but kpsewhich still" >&2
         echo "    cannot find it -- pdflatex will not compile a spec to PDF," >&2
