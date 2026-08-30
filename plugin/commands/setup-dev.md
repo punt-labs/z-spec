@@ -166,7 +166,7 @@ xcode-select --install
 **Linux (Debian/Ubuntu):** run this yourself, for the same reason:
 
 ```text
-sudo apt-get install build-essential texlive-base bison flex
+sudo apt-get install build-essential texlive-base bison flex git
 ```
 
 #### Installation Steps
