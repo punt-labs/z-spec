@@ -376,7 +376,13 @@ install_fuzz() (
   # install, not a stale or broken one left over from something else.
   EXISTING="$(resolve_fuzz_path)" && [ -x "$EXISTING" ] || EXISTING=""
   if [ -n "$EXISTING" ]; then
-    EXISTING_OUT="$("$EXISTING" -bogusflag 2>&1)" || EXISTING_OUT=""
+    # -bogusflag always exits 2 on a genuinely working fuzz (it prints the
+    # usage banner and exits nonzero on any unrecognised flag) -- `|| true`
+    # only swallows that expected nonzero status. A `|| EXISTING_OUT=""`
+    # fallback here would instead overwrite the just-captured banner with
+    # nothing on the exact success path, which is the bug this comment
+    # exists to stop a future edit from reintroducing.
+    EXISTING_OUT="$("$EXISTING" -bogusflag 2>&1)" || true
     if printf '%s\n' "$EXISTING_OUT" | grep -q '^Usage: fuzz'; then
       echo "  ✓ fuzz $EXISTING (already installed)"
       return 0
