@@ -21,9 +21,13 @@ All notable changes to this project will be documented in this file.
   `install.sh` (before this fix), run end to end as a real `curl | sh` user
   would — CLI, probcli, and a genuine fresh sudo-free `fuzz` build all
   succeeded from a clean state.
-- **CI now also builds `fuzz` on macOS**, via the same
-  `install.sh --fuzz-only`. The sudo-free installer had zero coverage on
-  the other platform this repo claims to support.
+- **CI now runs the whole installer on both Ubuntu and macOS.** A new
+  `installer` matrix job runs `install.sh --no-plugin` end to end on each
+  OS — the CLI via `uv tool install`, probcli via its per-OS archive, and
+  the sudo-free `fuzz` source build — then verifies through the installed
+  artifact itself: `z-spec doctor`, a real type-check, and a real
+  model-check. The installer previously had zero automated coverage on
+  macOS, the other platform this repo claims to support.
 
 ## [0.20.4] - 2026-08-30
 
