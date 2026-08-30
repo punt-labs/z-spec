@@ -37,16 +37,20 @@ All notable changes to this project will be documented in this file.
   pinned commit `install.sh`/`/z-spec:setup` use, fetched with `curl -fsSL`.
 - **`/z-spec:help` and `/z-spec:setup` claimed `/z-spec:check` and
   `/z-spec:test` copy TeX tooling files** — they don't; only
-  `/z-spec:code2model` does. `/z-spec:cleanup`'s own description and
-  `plugin/commands/cleanup.md` now name `code2model` specifically instead of
-  the inaccurate "z-spec commands" plural, and `/z-spec:setup`'s note keeps
-  the `/z-spec:cleanup` pointer that had been dropped.
+  `/z-spec:code2model` does. `plugin/commands/cleanup.md`'s body now names
+  `code2model` specifically instead of the inaccurate "z-spec commands"
+  plural, and `/z-spec:setup`'s note keeps the `/z-spec:cleanup` pointer that
+  had been dropped.
 - **`/z-spec:setup`'s "emit, verbatim" report template embedded prose, not a
   placeholder path**, in its `fuzz.sty` row — an agent following the verbatim
   instruction literally could print `(wherever kpsewhich fuzz.sty resolved —
   typically under $TEXMFHOME)` straight into a user's report. Now a
   path-shaped placeholder consistent with the table's other rows and with
   `/z-spec:doctor`'s style.
+- **`/z-spec:setup check` printed a usage banner where a fuzz version belongs.**
+  `fuzz` has no `-version` flag; `"$FUZZ_BIN" -version` printed the getopt
+  usage banner and exited 2 in the slot a user reads as a version. Now uses
+  `-Dv < /dev/null`, the real debug flag that prints the version banner.
 
 ## [0.20.3] - 2026-08-30
 
