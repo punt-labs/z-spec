@@ -48,22 +48,61 @@ if [ ! -f docs/fuzz.sty ]; then
         # The oxsz Metafont sources live in a separate texmf subtree
         # (fonts/source/public/oxsz) from fuzz.sty (tex/latex) -- resolve each
         # one through kpsewhich too, rather than assuming they share fuzz.sty's
-        # directory.
+        # directory. Track which ones actually land, same discipline as
+        # install.sh's install_fuzz() and /z-spec-dev:setup-dev's fuzz-install block:
+        # a missing .mf file here is silent until pdflatex fails much later
+        # (step 10, "Format and Regenerate PDF"), with nothing pointing back
+        # at this step, unless it is reported now.
+        MF_MISSING=""
         for mf in oxsz.mf oxsz10.mf oxsz5.mf oxsz6.mf oxsz7.mf oxsz8.mf oxsz9.mf zarrow.mf zletter.mf zsymbol.mf; do
-            MF_PATH="$(kpsewhich "$mf" 2>/dev/null)" && [ -n "$MF_PATH" ] && cp "$MF_PATH" docs/
+            if MF_PATH="$(kpsewhich "$mf" 2>/dev/null)" && [ -n "$MF_PATH" ]; then
+                cp "$MF_PATH" docs/ || MF_MISSING="$MF_MISSING $mf"
+            else
+                MF_MISSING="$MF_MISSING $mf"
+            fi
         done
+        if [ -n "$MF_MISSING" ]; then
+            echo "! could not resolve/copy Metafont sources:$MF_MISSING -- pdflatex" >&2
+            echo "  will not render the oxsz font; fuzz type-checking is unaffected" >&2
+        fi
     else
         # kpsewhich found nothing -- fetch the exact pinned commit install.sh's
         # FUZZ_REF and /z-spec-dev:setup-dev's FUZZ_REF use, never master. Bump only
         # alongside those two, after auditing the commits in between; -fsSL (with
         # -f) aborts loudly on a 404/5xx instead of writing the error page to
-        # docs/fuzz.sty as if it were the real file.
+        # docs/fuzz.sty as if it were the real file -- but that protection is
+        # theatre unless the resulting nonzero exit is actually checked.
+        # --remove-on-error closes the other half of the same gap: -f alone
+        # still leaves the empty -o target on disk on failure, and the outer
+        # guard is `[ ! -f docs/fuzz.sty ]` -- a zero-byte file satisfies that
+        # forever, so a failed fetch would make every future run of this
+        # command silently skip the whole block, believing it already
+        # succeeded.
         FUZZ_REF="2a202a0b6f7328e729b54ef352d3bb4c6dfeb2e5"
-        curl -fsSL -o docs/fuzz.sty "https://raw.githubusercontent.com/Spivoxity/fuzz/$FUZZ_REF/tex/fuzz.sty"
+        curl -fsSL --remove-on-error -o docs/fuzz.sty "https://raw.githubusercontent.com/Spivoxity/fuzz/$FUZZ_REF/tex/fuzz.sty" || {
+            echo "! could not download fuzz.sty from GitHub -- pdflatex will not" >&2
+            echo "  compile a spec to PDF; fuzz type-checking is unaffected" >&2
+        }
+        MF_MISSING=""
         for mf in oxsz.mf oxsz10.mf oxsz5.mf oxsz6.mf oxsz7.mf oxsz8.mf oxsz9.mf zarrow.mf zletter.mf zsymbol.mf; do
-            curl -fsSL -o "docs/$mf" "https://raw.githubusercontent.com/Spivoxity/fuzz/$FUZZ_REF/tex/$mf"
+            curl -fsSL --remove-on-error -o "docs/$mf" "https://raw.githubusercontent.com/Spivoxity/fuzz/$FUZZ_REF/tex/$mf" || MF_MISSING="$MF_MISSING $mf"
         done
+        if [ -n "$MF_MISSING" ]; then
+            echo "! could not download Metafont sources:$MF_MISSING -- pdflatex" >&2
+            echo "  will not render the oxsz font; fuzz type-checking is unaffected" >&2
+        fi
     fi
+fi
+
+# Whichever branch ran above, or neither (docs/fuzz.sty already existed before
+# this step), confirm the gating file actually landed. This is the one check
+# that catches a failed cp in the kpsewhich branch, a failed curl in the
+# fallback branch, and a docs/ that was never populated at all, in a single
+# place -- fuzz itself does not read fuzz.sty, so its absence is silent right
+# up until pdflatex runs in step 10, far from this step and its warnings.
+if [ ! -f docs/fuzz.sty ]; then
+    echo "! docs/fuzz.sty is not present -- pdflatex will not compile a spec" >&2
+    echo "  to PDF; fuzz type-checking (step 8) is unaffected" >&2
 fi
 ```
 
