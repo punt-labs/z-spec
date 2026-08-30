@@ -88,7 +88,7 @@ def test_doctor_tool_returns_health() -> None:
     assert isinstance(result["healthy"], bool)
 
 
-def test_get_report_missing() -> None:
+def test_report_missing() -> None:
     from punt_zspec.server import report
 
     result = json.loads(report("/nonexistent/path.tex"))
@@ -96,7 +96,7 @@ def test_get_report_missing() -> None:
     assert "No report" in result["error"]
 
 
-def test_get_report_found(tmp_path: Path) -> None:
+def test_report_found(tmp_path: Path) -> None:
     from punt_zspec.report import save_report
     from punt_zspec.types import CheckResult, CheckStatus, ProbReport
 
@@ -121,7 +121,7 @@ def test_get_report_found(tmp_path: Path) -> None:
     assert result["states_analysed"] == 10
 
 
-def test_show_z_spec_file_not_found() -> None:
+def test_show_file_not_found() -> None:
     from punt_zspec.server import show
 
     result = json.loads(show("nonexistent.tex"))
@@ -129,7 +129,7 @@ def test_show_z_spec_file_not_found() -> None:
     assert "Spec file not found" in result["error"]
 
 
-def test_show_z_spec_displayed(tmp_path: Path) -> None:
+def test_show_displayed(tmp_path: Path) -> None:
     """show with mocked LuxClient returns displayed status."""
     from punt_zspec.server import show
 
@@ -155,7 +155,7 @@ x \leq 10
     assert result["scene_id"] == "z-spec"
 
 
-def test_show_z_spec_lux_error(tmp_path: Path) -> None:
+def test_show_lux_error(tmp_path: Path) -> None:
     """show returns error status when lux is unavailable."""
     from punt_zspec.server import show
 
@@ -184,7 +184,7 @@ x : \nat
 # ---------------------------------------------------------------------------
 
 
-def test_save_partition_report_success(tmp_path: Path) -> None:
+def test_partition_success(tmp_path: Path) -> None:
     from punt_zspec.server import partition
 
     tex = tmp_path / "spec.tex"
@@ -221,7 +221,7 @@ def test_save_partition_report_success(tmp_path: Path) -> None:
     assert (tmp_path / "spec.partition.json").exists()
 
 
-def test_save_partition_report_invalid_json(tmp_path: Path) -> None:
+def test_partition_invalid_json(tmp_path: Path) -> None:
     from punt_zspec.server import partition
 
     tex = tmp_path / "spec.tex"
@@ -236,7 +236,7 @@ def test_save_partition_report_invalid_json(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_save_audit_report_success(tmp_path: Path) -> None:
+def test_audit_success(tmp_path: Path) -> None:
     from punt_zspec.server import audit
 
     tex = tmp_path / "spec.tex"
@@ -270,7 +270,7 @@ def test_save_audit_report_success(tmp_path: Path) -> None:
     assert (tmp_path / "spec.audit.json").exists()
 
 
-def test_save_audit_report_invalid_json(tmp_path: Path) -> None:
+def test_audit_invalid_json(tmp_path: Path) -> None:
     from punt_zspec.server import audit
 
     tex = tmp_path / "spec.tex"
