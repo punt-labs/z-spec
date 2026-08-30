@@ -42,7 +42,7 @@ output unreadable. Every command works on `.tex` files carrying `zed`,
 
 ## Display
 
-`show_z_spec` renders a spec and its reports as tabs in lux; `pick` discovers
+`show` renders a spec and its reports as tabs in lux; `pick` discovers
 the `.tex` specs under a directory and renders one tab each; `browse` opens a
 tutorial manifest. The lux right-click menu carries the same two entries
 (Tutorial, Browse) — but only in a repo where z-spec is enabled.

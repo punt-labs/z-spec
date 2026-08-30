@@ -1,7 +1,7 @@
 ---
 description: Derive test cases from Z specification using TTF testing tactics
 argument-hint: "[spec.tex] [--code [language]] [--operation=NAME] [--json]"
-allowed-tools: mcp__plugin_z-spec_zspec__save_partition_report, mcp__plugin_z-spec_zspec__show_z_spec, Read, Glob, Grep, Write
+allowed-tools: mcp__plugin_z-spec_zspec__partition, mcp__plugin_z-spec_zspec__show, Read, Glob, Grep, Write
 ---
 
 # /z-spec:partition - Derive Test Cases from Z Specification
@@ -260,7 +260,7 @@ For each operation, produce:
 #### JSON Output (--json flag)
 
 This is the authored shape — identical to the `report_json` handed to
-`save_partition_report` in Step 11. Each operation's `summary` is **computed by
+`partition` in Step 11. Each operation's `summary` is **computed by
 the engine** on load and rendered in the markdown table and the Partition tab;
 the authored JSON omits it.
 
@@ -500,7 +500,7 @@ kind, inputs, stateVars, branches, partitions:[{id, class, status, inputs,
 preState, postState?, branch?, notes}]}]}`). Each operation's `summary` is
 **computed by the engine** on load — do not author it.
 
-Call `mcp__plugin_z-spec_zspec__save_partition_report` with `file` (the spec
+Call `mcp__plugin_z-spec_zspec__partition` with `file` (the spec
 path) and `report_json` (the serialized analysis). The tool validates the
 report against the schema and persists `<stem>.partition.json`.
 
@@ -509,7 +509,7 @@ report against the schema and persists `<stem>.partition.json`.
   `Invalid partition report: ...`) and fix the authored JSON — do not write a
   malformed file.
 
-Then call `mcp__plugin_z-spec_zspec__show_z_spec` with `file` to render the
+Then call `mcp__plugin_z-spec_zspec__show` with `file` to render the
 Partition tab beside the Spec tab. The tool reads the `<stem>.partition.json`
 just written; no hand-rolled lux.
 
