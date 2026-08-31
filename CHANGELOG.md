@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The installer CI seam now conditions on fact, not branch names.** The
+  local-wheel injection fired only on `release/*` head branches, so the
+  release tool's pre-tag `release-readme-pin/*` PR — whose tree also pins
+  a not-yet-published VERSION — failed its installer legs and aborted the
+  release before tagging. The `installer` job now asks PyPI whether the
+  tree's pinned version exists and builds the local wheel exactly when it
+  does not, covering every current and future pre-publish tree with no
+  branch-name list to maintain.
+
 ## [0.20.5] - 2026-08-31
 
 ### Fixed

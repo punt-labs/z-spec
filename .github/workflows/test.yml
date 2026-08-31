@@ -204,22 +204,46 @@ jobs:
           brew install --cask basictex
           echo "/Library/TeX/texbin" >> "$GITHUB_PATH"
 
-      # On a release PR the tree's VERSION pin is not on PyPI yet (the tag
-      # publishes it after merge), so the pinned install can never succeed
-      # there. Build the wheel from the tree under review and inject it via
-      # install.sh's ZSPEC_LOCAL_WHEEL seam — same script, same flow, only
-      # the CLI's download source swapped. Ordinary PRs keep testing the
-      # real PyPI fetch.
+      # Pre-publish trees pin a VERSION that PyPI does not have yet: the
+      # release tool bumps it in the release PR and the pre-tag README-pin
+      # PR, and only the tag push publishes it. On those trees the pinned
+      # install can never succeed, so build the wheel from the tree under
+      # review and inject it via install.sh's ZSPEC_LOCAL_WHEEL seam —
+      # same script, same flow, only the CLI's download source swapped.
+      # The condition is the actual fact (the pinned version is absent
+      # from PyPI), not a branch-name list: name-coupling already missed
+      # one release-tool branch prefix and broke a release.
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-        if: startsWith(github.head_ref, 'release/')
-      - name: Build local wheel (release PR — version not yet published)
-        if: startsWith(github.head_ref, 'release/')
+      - name: Build local wheel when the pinned version is unpublished
         run: |
-          # rm first: ls dist/*.whl must resolve to exactly one path, and a
-          # stale wheel from any earlier build would make it two.
-          rm -rf dist
-          uv build
-          echo "ZSPEC_LOCAL_WHEEL=$(ls dist/*.whl)" >> "$GITHUB_ENV"
+          VERSION="$(grep -m1 '^VERSION=' install.sh | cut -d'"' -f2)"
+          if [ -z "${VERSION}" ]; then
+            echo "FATAL: could not extract VERSION from install.sh" >&2
+            exit 1
+          fi
+          # Branch on the HTTP status, not curl success: only a definite
+          # 404 means unpublished. A network outage or 5xx must fail this
+          # job loudly, never silently flip it onto the local-wheel path
+          # and mask a broken PyPI fetch.
+          if ! STATUS="$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' \
+            "https://pypi.org/pypi/punt-z-spec/${VERSION}/json")"; then
+            echo "FATAL: PyPI probe could not complete (curl error above)" >&2
+            exit 1
+          fi
+          case "${STATUS}" in
+            200)
+              echo "punt-z-spec ${VERSION} is on PyPI -- testing the real fetch" ;;
+            404)
+              echo "punt-z-spec ${VERSION} is NOT on PyPI -- building the local wheel"
+              # rm first: ls dist/*.whl must resolve to exactly one path,
+              # and a stale wheel from any earlier build would make it two.
+              rm -rf dist
+              uv build
+              echo "ZSPEC_LOCAL_WHEEL=$(ls dist/*.whl)" >> "$GITHUB_ENV" ;;
+            *)
+              echo "FATAL: unexpected PyPI status ${STATUS} for punt-z-spec ${VERSION}" >&2
+              exit 1 ;;
+          esac
 
       - name: Run the full installer (CLI + probcli + fuzz)
         run: |
