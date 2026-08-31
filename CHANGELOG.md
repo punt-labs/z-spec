@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.20.5] - 2026-08-31
+
 ### Fixed
 
 - **`make check-dev-commands` now understands release-swapped trees.** The
