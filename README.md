@@ -20,7 +20,7 @@ when one is running.
 ## Quick Start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/6cc8ba8/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/9f10f98/install.sh | sh
 ```
 
 This installs the `z-spec` CLI and the Claude Code plugin. To install the CLI
@@ -30,13 +30,13 @@ policy blocks plugin installation — skip the plugin with `--no-plugin`:
 As a flag, passed through the pipe with `sh -s --`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/6cc8ba8/install.sh | sh -s -- --no-plugin
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/9f10f98/install.sh | sh -s -- --no-plugin
 ```
 
 Or, for argument-hostile contexts (templated CI, proxies), as an environment variable:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/6cc8ba8/install.sh | ZSPEC_NO_PLUGIN=1 sh
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/9f10f98/install.sh | ZSPEC_NO_PLUGIN=1 sh
 ```
 
 The CLI-only install still sets up uv, Python, the `z-spec` binary, PATH, and
@@ -75,7 +75,7 @@ z-spec doctor
 <summary>Verify before running</summary>
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/6cc8ba8/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/9f10f98/install.sh -o install.sh
 ```
 
 ```bash
