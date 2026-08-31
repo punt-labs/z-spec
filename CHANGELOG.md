@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **z-spec's lux menu entries now merge into the same Clients submenu as the
+  session's other applets.** The applet name stamped the MCP server's own
+  process pid; luxd groups Clients-menu entries by the session pid parsed
+  from the name, so z-spec always landed in its own orphan submenu (a
+  separate "repo (N)" entry per session) instead of joining vox-panel's.
+  The name now carries the Claude session pid (the server's parent),
+  matching vox-panel. Restart or reconnect z-spec MCP servers to pick the
+  fix up. Reported by the lux agent with a precise cross-repo diagnosis.
+
 - **CI now proves the software itself — not just the installer — on every
   supported OS.** `unit`, `e2e`, and `specs` are matrixed over Ubuntu and
   macOS (previously Ubuntu-only; the test suite had never run on macOS).
