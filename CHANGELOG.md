@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **`make check-dev-commands` now understands release-swapped trees.** The
+  second latent release-tree gate failure (after the fuzz-ref-pin one): the
+  checker demanded every `-dev` command twin, which the release prod-swap
+  legitimately deletes, so `lint` failed on every release PR. The checker
+  now reads the plugin manifest's name to learn the tree state — dev tree
+  (`z-spec-dev`): twins present and in sync; prod tree (`z-spec`): zero
+  twins allowed, a leftover twin is real drift; any other name fails loud.
+  All five states covered by a new regression test.
+
 - **Release PRs can pass the all-legs CI gate again.** Two structural
   failures surfaced the first time a release ran under the required-legs
   regime: `tests/test_fuzz_ref_pin.py` hard-listed the generated `-dev`

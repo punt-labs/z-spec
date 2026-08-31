@@ -18,11 +18,14 @@ and the working ``biff-dev`` reference. An underscore would break that matcher.
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
 
 DEV_SUFFIX = "-dev"
+DEV_PLUGIN_NAME = "z-spec-dev"
+PROD_PLUGIN_NAME = "z-spec"
 PROD_MCP_PREFIX = "mcp__plugin_z-spec_zspec__"
 DEV_MCP_PREFIX = "mcp__plugin_z-spec-dev_zspec__"
 
@@ -73,8 +76,63 @@ def _write(commands_dir: Path) -> int:
     return 0
 
 
+def _plugin_name(commands_dir: Path) -> str:
+    """Return the plugin name from the manifest beside the commands dir."""
+    manifest = commands_dir.parent / ".claude-plugin" / "plugin.json"
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    name = data["name"]
+    if not isinstance(name, str):
+        raise TypeError(f"{manifest}: plugin name is not a string: {name!r}")
+    return name
+
+
+def _check_prod(commands_dir: Path) -> int:
+    """Return 1 if any dev twin survives in a prod-swapped tree, else 0.
+
+    The release swap renames the plugin to prod and deletes every twin;
+    a leftover ``*-dev.md`` there is real drift, and demanding the twins
+    back (the dev-tree check) would fail every release PR.
+    """
+    leftovers = sorted(commands_dir.glob(f"*{DEV_SUFFIX}.md"))
+    if leftovers:
+        for twin in leftovers:
+            print(
+                f"gen-dev-commands: {twin.name}: present in a prod-swapped "
+                "tree (the release swap must delete every dev twin)",
+                file=sys.stderr,
+            )
+        return 1
+    print(
+        f"gen-dev-commands: prod tree, {len(_prod_commands(commands_dir))} "
+        "commands, no dev twins (correct)"
+    )
+    return 0
+
+
 def _check(commands_dir: Path) -> int:
-    """Return 1 if any committed twin is missing or stale, else 0."""
+    """Gate the tree: 0 healthy, 1 twin drift, 2 unreadable/unknown state."""
+    try:
+        name = _plugin_name(commands_dir)
+    except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
+        # This tool is a gate: a manifest it cannot read is a failure to
+        # report cleanly (exit 2), never a traceback that CI renders as a
+        # generic crash.
+        print(
+            f"gen-dev-commands: cannot read the plugin manifest beside "
+            f"{commands_dir}: {exc}",
+            file=sys.stderr,
+        )
+        return 2
+    if name == PROD_PLUGIN_NAME:
+        return _check_prod(commands_dir)
+    if name != DEV_PLUGIN_NAME:
+        print(
+            f"gen-dev-commands: unknown plugin name {name!r} -- expected "
+            f"{DEV_PLUGIN_NAME!r} (dev tree) or {PROD_PLUGIN_NAME!r} "
+            "(release-swapped tree)",
+            file=sys.stderr,
+        )
+        return 2
     drift: list[str] = []
     for prod in _prod_commands(commands_dir):
         dev = _dev_path(prod)
