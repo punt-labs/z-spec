@@ -204,6 +204,23 @@ jobs:
           brew install --cask basictex
           echo "/Library/TeX/texbin" >> "$GITHUB_PATH"
 
+      # On a release PR the tree's VERSION pin is not on PyPI yet (the tag
+      # publishes it after merge), so the pinned install can never succeed
+      # there. Build the wheel from the tree under review and inject it via
+      # install.sh's ZSPEC_LOCAL_WHEEL seam — same script, same flow, only
+      # the CLI's download source swapped. Ordinary PRs keep testing the
+      # real PyPI fetch.
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        if: startsWith(github.head_ref, 'release/')
+      - name: Build local wheel (release PR — version not yet published)
+        if: startsWith(github.head_ref, 'release/')
+        run: |
+          # rm first: ls dist/*.whl must resolve to exactly one path, and a
+          # stale wheel from any earlier build would make it two.
+          rm -rf dist
+          uv build
+          echo "ZSPEC_LOCAL_WHEEL=$(ls dist/*.whl)" >> "$GITHUB_ENV"
+
       - name: Run the full installer (CLI + probcli + fuzz)
         run: |
           ./install.sh --no-plugin
