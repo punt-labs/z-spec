@@ -217,16 +217,30 @@ jobs:
       - name: Build local wheel when the pinned version is unpublished
         run: |
           VERSION="$(grep -m1 '^VERSION=' install.sh | cut -d'"' -f2)"
-          if curl -fsSL "https://pypi.org/pypi/punt-z-spec/${VERSION}/json" >/dev/null 2>&1; then
-            echo "punt-z-spec ${VERSION} is on PyPI -- testing the real fetch"
-          else
-            echo "punt-z-spec ${VERSION} is NOT on PyPI -- building the local wheel"
-            # rm first: ls dist/*.whl must resolve to exactly one path, and
-            # a stale wheel from any earlier build would make it two.
-            rm -rf dist
-            uv build
-            echo "ZSPEC_LOCAL_WHEEL=$(ls dist/*.whl)" >> "$GITHUB_ENV"
+          if [ -z "${VERSION}" ]; then
+            echo "FATAL: could not extract VERSION from install.sh" >&2
+            exit 1
           fi
+          # Branch on the HTTP status, not curl success: only a definite
+          # 404 means unpublished. A network outage or 5xx must fail this
+          # job loudly, never silently flip it onto the local-wheel path
+          # and mask a broken PyPI fetch.
+          STATUS="$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://pypi.org/pypi/punt-z-spec/${VERSION}/json")"
+          case "${STATUS}" in
+            200)
+              echo "punt-z-spec ${VERSION} is on PyPI -- testing the real fetch" ;;
+            404)
+              echo "punt-z-spec ${VERSION} is NOT on PyPI -- building the local wheel"
+              # rm first: ls dist/*.whl must resolve to exactly one path,
+              # and a stale wheel from any earlier build would make it two.
+              rm -rf dist
+              uv build
+              echo "ZSPEC_LOCAL_WHEEL=$(ls dist/*.whl)" >> "$GITHUB_ENV" ;;
+            *)
+              echo "FATAL: unexpected PyPI status ${STATUS} for punt-z-spec ${VERSION}" >&2
+              exit 1 ;;
+          esac
 
       - name: Run the full installer (CLI + probcli + fuzz)
         run: |
