@@ -225,8 +225,11 @@ jobs:
           # 404 means unpublished. A network outage or 5xx must fail this
           # job loudly, never silently flip it onto the local-wheel path
           # and mask a broken PyPI fetch.
-          STATUS="$(curl -sS -o /dev/null -w '%{http_code}' \
-            "https://pypi.org/pypi/punt-z-spec/${VERSION}/json")"
+          if ! STATUS="$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' \
+            "https://pypi.org/pypi/punt-z-spec/${VERSION}/json")"; then
+            echo "FATAL: PyPI probe could not complete (curl error above)" >&2
+            exit 1
+          fi
           case "${STATUS}" in
             200)
               echo "punt-z-spec ${VERSION} is on PyPI -- testing the real fetch" ;;
