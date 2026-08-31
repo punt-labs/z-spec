@@ -225,7 +225,7 @@ jobs:
           # 404 means unpublished. A network outage or 5xx must fail this
           # job loudly, never silently flip it onto the local-wheel path
           # and mask a broken PyPI fetch.
-          STATUS="$(curl -s -o /dev/null -w '%{http_code}' \
+          STATUS="$(curl -sS -o /dev/null -w '%{http_code}' \
             "https://pypi.org/pypi/punt-z-spec/${VERSION}/json")"
           case "${STATUS}" in
             200)
