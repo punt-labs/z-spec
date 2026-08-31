@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.20.5] - 2026-08-31
+
 ### Fixed
 
 - **z-spec's lux menu entries now merge into the same Clients submenu as the
