@@ -90,3 +90,22 @@ def test_prod_tree_with_leftover_twin_fails(tmp_path: Path) -> None:
 
 def test_unknown_plugin_name_fails_loud(tmp_path: Path) -> None:
     assert PluginTree(tmp_path, "someone-elses-plugin", twins=False).check() == 2
+
+
+def test_missing_manifest_fails_clean_not_traceback(tmp_path: Path) -> None:
+    PluginTree(tmp_path, "z-spec-dev", twins=True)
+    (tmp_path / "plugin" / ".claude-plugin" / "plugin.json").unlink()
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_TOOL),
+            str(tmp_path / "plugin" / "commands"),
+            "--check",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert "cannot read the plugin manifest" in result.stderr
+    assert "Traceback" not in result.stderr

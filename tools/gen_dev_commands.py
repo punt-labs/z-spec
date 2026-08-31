@@ -111,7 +111,18 @@ def _check_prod(commands_dir: Path) -> int:
 
 def _check(commands_dir: Path) -> int:
     """Return 1 if any committed twin is missing or stale, else 0."""
-    name = _plugin_name(commands_dir)
+    try:
+        name = _plugin_name(commands_dir)
+    except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
+        # This tool is a gate: a manifest it cannot read is a failure to
+        # report cleanly (exit 2), never a traceback that CI renders as a
+        # generic crash.
+        print(
+            f"gen-dev-commands: cannot read the plugin manifest beside "
+            f"{commands_dir}: {exc}",
+            file=sys.stderr,
+        )
+        return 2
     if name == PROD_PLUGIN_NAME:
         return _check_prod(commands_dir)
     if name != DEV_PLUGIN_NAME:
