@@ -39,7 +39,11 @@ usage() {
     '' \
     'Environment:' \
     '  ZSPEC_NO_PLUGIN=1   Same as --no-plugin, for argument-hostile contexts:' \
-    '                      curl -fsSL .../install.sh | ZSPEC_NO_PLUGIN=1 sh'
+    '                      curl -fsSL .../install.sh | ZSPEC_NO_PLUGIN=1 sh' \
+    '  ZSPEC_LOCAL_WHEEL=<path>' \
+    '                      Install the CLI from a local wheel instead of the' \
+    '                      pinned PyPI release. For CI on release PRs, where' \
+    '                      the pinned version is not published yet.'
 }
 
 # --- Argument parsing ---
@@ -162,8 +166,19 @@ fi
 if [ "$FUZZ_ONLY_REQUESTED" = "0" ]; then
   info "Installing $PACKAGE..."
 
-  # shellcheck disable=SC2086
-  uv tool install --force $PYTHON_FLAG "$PACKAGE==$VERSION" || fail "Failed to install $PACKAGE==$VERSION"
+  # ZSPEC_LOCAL_WHEEL: CI-of-release-PRs seam. A release PR bumps VERSION to
+  # a number that is not on PyPI until the tag publishes it, so the pinned
+  # install below cannot succeed there; CI builds the wheel from the very
+  # tree under review and injects it here. Everything else -- probcli, the
+  # fuzz build, verification -- runs unchanged, so the seam swaps only the
+  # CLI's download source, never the flow being tested.
+  if [ -n "${ZSPEC_LOCAL_WHEEL:-}" ]; then
+    # shellcheck disable=SC2086
+    uv tool install --force $PYTHON_FLAG "$ZSPEC_LOCAL_WHEEL" || fail "Failed to install $ZSPEC_LOCAL_WHEEL"
+  else
+    # shellcheck disable=SC2086
+    uv tool install --force $PYTHON_FLAG "$PACKAGE==$VERSION" || fail "Failed to install $PACKAGE==$VERSION"
+  fi
   ok "$PACKAGE installed"
 
   if ! command -v "$BINARY" >/dev/null 2>&1; then

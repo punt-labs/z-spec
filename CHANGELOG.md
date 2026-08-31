@@ -6,6 +6,17 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **Release PRs can pass the all-legs CI gate again.** Two structural
+  failures surfaced the first time a release ran under the required-legs
+  regime: `tests/test_fuzz_ref_pin.py` hard-listed the generated `-dev`
+  command twins, which the release prod-swap legitimately deletes (it now
+  discovers pin sites dynamically, requires the prod trio, and enforces
+  exactly one full 40-hex pin per file); and the `installer` CI legs tried
+  to install the release's bumped version from PyPI before the tag
+  publishes it (install.sh gained a `ZSPEC_LOCAL_WHEEL` env seam, and CI
+  builds the wheel from the tree under review on `release/*` PRs — same
+  script, only the CLI's download source swapped).
+
 - **z-spec's lux menu entries now merge into the same Clients submenu as the
   session's other applets.** The applet name stamped the MCP server's own
   process pid; luxd groups Clients-menu entries by the session pid parsed
