@@ -36,14 +36,17 @@ class ZSpecLuxIdentity:
         # luxd's ClientIdentity validator rejects any applet name that is not the
         # four-part shape ``lux · <repo> · #<pid> · <program>`` (DES-067). Delegate
         # to the punt-lux helper so writer and reader move together; the pid is
-        # this process's own so two sessions on one repository do not collapse
-        # onto one connection and steal each other's listener slot.
+        # the Claude session's — this server's parent — because luxd groups
+        # Clients-menu entries by the session pid it parses from the name, and
+        # every applet of one session (vox-panel included) must stamp the same
+        # one to share a submenu. Two sessions still keep distinct connections:
+        # each has its own session pid.
         self = super().__new__(cls)
         self._client_identity = ClientIdentity(
             kind="applet",
             name=applet_name_format.format_name(
                 repo_name=project.name,
-                session_pid=os.getpid(),
+                session_pid=os.getppid(),
                 program=_PROGRAM,
             ),
             repo=str(project),

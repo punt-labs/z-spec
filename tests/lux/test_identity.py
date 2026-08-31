@@ -40,23 +40,39 @@ def test_the_name_is_the_four_part_shape_the_domain_helper_writes() -> None:
     identity = ZSpecLuxIdentity(_PROJECT).client_identity
 
     expected = applet_name_format.format_name(
-        repo_name="my-repo", session_pid=os.getpid(), program="z-spec"
+        repo_name="my-repo", session_pid=os.getppid(), program="z-spec"
     )
     assert identity.name == expected
+
+
+def test_the_name_carries_the_session_pid_not_this_process_pid() -> None:
+    """The pid in the name is the Claude session's — the server's parent.
+
+    luxd groups Clients-menu entries by the session pid parsed from the applet
+    name. Stamping the server's own pid puts z-spec in a submenu of one, apart
+    from every other applet of the same session (vox-panel stamps the parent).
+    In-process the two are distinguishable: getpid() is never getppid().
+    """
+    identity = ZSpecLuxIdentity(_PROJECT).client_identity
+
+    stamped = applet_name_format.session_pid_from_name(identity.name)
+    assert stamped == os.getppid()
+    assert stamped != os.getpid()
 
 
 def test_two_sessions_on_one_repo_own_distinct_connections(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """Same repository, two server processes, two connections — not one.
+    """Same repository, two Claude sessions, two connections — not one.
 
     luxd hashes (kind, name, repo, agent) into the connection id, and a second
     arrival on one connection takes the listener slot and clears the callbacks
-    the first registered. The pid embedded in the name is what stops that.
+    the first registered. Two sessions have two distinct session pids, so the
+    session pid embedded in the name is what stops that.
     """
-    monkeypatch.setattr(os, "getpid", lambda: 111)
+    monkeypatch.setattr(os, "getppid", lambda: 111)
     first = ZSpecLuxIdentity(_PROJECT).client_identity
-    monkeypatch.setattr(os, "getpid", lambda: 222)
+    monkeypatch.setattr(os, "getppid", lambda: 222)
     second = ZSpecLuxIdentity(_PROJECT).client_identity
 
     assert connection_for(first.model_dump()) != connection_for(second.model_dump())
@@ -84,12 +100,12 @@ def test_the_same_identity_object_backs_every_leg() -> None:
     assert identity.client_identity is identity.client_identity
 
 
-def test_for_session_declares_this_pid(monkeypatch: MonkeyPatch) -> None:
+def test_for_session_declares_the_session_pid(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
 
     identity = ZSpecLuxIdentity.for_session().client_identity
 
-    assert applet_name_format.session_pid_from_name(identity.name) == os.getpid()
+    assert applet_name_format.session_pid_from_name(identity.name) == os.getppid()
 
 
 def test_for_session_prefers_project_dir_env_over_cwd(
