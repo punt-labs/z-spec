@@ -110,7 +110,7 @@ def _check_prod(commands_dir: Path) -> int:
 
 
 def _check(commands_dir: Path) -> int:
-    """Return 1 if any committed twin is missing or stale, else 0."""
+    """Gate the tree: 0 healthy, 1 twin drift, 2 unreadable/unknown state."""
     try:
         name = _plugin_name(commands_dir)
     except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
