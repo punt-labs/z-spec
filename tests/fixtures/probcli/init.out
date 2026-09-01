@@ -1,4 +1,4 @@
-Writing fuzz AST to /Users/jfreeman/Coding/punt-labs/z-spec/.tmp/wt-tests/examples/search-panel.fuzz
+Writing fuzz AST to /Users/jdoe/Coding/punt-labs/z-spec/.tmp/wt-tests/examples/search-panel.fuzz
 Z operation: EnterQuery
 Z operation: ClearQuery
 Z operation: ReceiveResults(newResults?)
