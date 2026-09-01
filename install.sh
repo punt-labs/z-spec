@@ -870,23 +870,39 @@ if [ "$SKIP_PLUGIN" = "0" ]; then
 
   info "Installing $PLUGIN_NAME plugin..."
 
-  # Uninstall first so a stale plugin dir from a prior install/version never
-  # shadows the fresh install below. This is expected to fail harmlessly in
-  # the common case -- the plugin is not already installed -- but the error
-  # is captured, not thrown away unconditionally: a genuine failure (e.g. a
-  # corrupted marketplace registration) is worth having on hand even though
-  # the happy/expected-failure path never prints it.
-  UNINSTALL_ERR="$(claude plugin uninstall "${PLUGIN_NAME}@${MARKETPLACE_NAME}" < /dev/null 2>&1)" || true
+  # The standard ordering is marketplace refresh -> uninstall -> install:
+  # `claude plugin install` short-circuits when the plugin is already
+  # present, so without the uninstall a rerun never flips the active
+  # version. Detect installed state first rather than uninstalling blind --
+  # a fresh machine skips the step entirely, and on an upgrade a REAL
+  # uninstall failure must abort loudly: letting it pass would leave the
+  # short-circuiting install reporting success while the user stays pinned
+  # to the old version with no signal.
+  # Capture the list's own exit status: piping straight into grep would
+  # read a failed `claude plugin list` as "not installed", skip the
+  # uninstall, and recreate the pinned-old-version case this block exists
+  # to prevent.
+  if ! PLUGIN_LIST="$(claude plugin list < /dev/null 2>&1)"; then
+    cleanup_https_rewrite
+    warn "could not query installed plugins:"
+    printf '%s\n' "$PLUGIN_LIST" | while IFS= read -r line; do warn "  $line"; done
+    fail "Failed to list installed plugins"
+  fi
+  if printf '%s\n' "$PLUGIN_LIST" | grep -q "$PLUGIN_NAME@$MARKETPLACE_NAME"; then
+    if ! claude plugin uninstall "${PLUGIN_NAME}@${MARKETPLACE_NAME}" < /dev/null; then
+      cleanup_https_rewrite
+      warn "could not uninstall the existing $PLUGIN_NAME plugin -- the"
+      warn "reinstall below would silently keep the old version. Manual"
+      warn "remediation:"
+      warn "  claude plugin uninstall ${PLUGIN_NAME}@${MARKETPLACE_NAME}"
+      warn "then re-run this installer. If that also fails, remove the"
+      warn "plugin's directory under ~/.claude/plugins/cache/ and re-run."
+      fail "Failed to uninstall the existing $PLUGIN_NAME plugin"
+    fi
+    ok "existing $PLUGIN_NAME plugin uninstalled"
+  fi
   if ! claude plugin install "${PLUGIN_NAME}@${MARKETPLACE_NAME}" < /dev/null; then
     cleanup_https_rewrite
-    # The uninstall step above almost always fails harmlessly (nothing was
-    # installed yet), but if the install that depends on it just failed too,
-    # surface what the uninstall actually said -- it may name the real cause
-    # (e.g. a corrupted marketplace registration) instead of "not installed".
-    if [ -n "$UNINSTALL_ERR" ]; then
-      warn "the preceding uninstall step reported:"
-      printf '%s\n' "$UNINSTALL_ERR" | while IFS= read -r line; do warn "  $line"; done
-    fi
     fail "Failed to install $PLUGIN_NAME"
   fi
   if ! claude plugin list < /dev/null | grep -q "$PLUGIN_NAME@$MARKETPLACE_NAME"; then

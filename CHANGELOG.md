@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **A failed plugin uninstall now aborts the installer loudly instead of
+  silently leaving the old version pinned.** `install.sh` follows the org
+  standard's hardened pattern (beadle's reference implementation): detect
+  installed state first, skip the uninstall on a fresh machine, and
+  hard-fail with manual remediation steps when a real uninstall failure
+  occurs — because `claude plugin install` short-circuits on a
+  still-present plugin, a swallowed uninstall failure previously let the
+  installer report success while the user stayed on the old version.
+
 - **The installer CI seam now conditions on fact, not branch names.** The
   local-wheel injection fired only on `release/*` head branches, so the
   release tool's pre-tag `release-readme-pin/*` PR — whose tree also pins
