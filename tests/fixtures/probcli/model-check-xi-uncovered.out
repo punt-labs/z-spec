@@ -1,4 +1,4 @@
-Writing fuzz AST to /Users/jfreeman/Coding/punt-labs/z-spec/.tmp/wt-tests/tests/fixtures/probcli/specs/xi-frame-bad.fuzz
+Writing fuzz AST to /Users/jdoe/Coding/punt-labs/z-spec/.tmp/wt-tests/tests/fixtures/probcli/specs/xi-frame-bad.fuzz
 Z operation: AcceptWithdraw(amount?)
 Z operation: RejectWithdraw(amount?)
 Z operation: ReportState

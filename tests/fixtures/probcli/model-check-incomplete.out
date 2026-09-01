@@ -1,4 +1,4 @@
-Writing fuzz AST to /Users/jfreeman/Coding/punt-labs/z-spec/.tmp/wt-tests/examples/claude-code.fuzz
+Writing fuzz AST to /Users/jdoe/Coding/punt-labs/z-spec/.tmp/wt-tests/examples/claude-code.fuzz
 Z operation: StartSession(mode?,sid?,source?)
 Z operation: SubmitPrompt(contextChunk?,hookResult?,prompt?)
 Z operation: RejectPrompt(hookResult?,prompt?)
