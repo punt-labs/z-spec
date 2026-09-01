@@ -24,11 +24,11 @@ curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/9f10f98/install.sh
 ```
 
 This installs the `z-spec` CLI and the Claude Code plugin.
-**To upgrade, rerun the same command** — it refreshes the marketplace cache
-and reinstalls the plugin at the current release. Then restart Claude Code so
-the session hooks run on the new version. Restarting alone does not upgrade:
-an installed plugin stays pinned to its installed version until the installer
-moves it.
+**To upgrade, rerun the install command above as it appears in the current
+README** — each release re-pins the URL, so use today's copy, not one saved
+earlier. It refreshes the marketplace cache and reinstalls the plugin at the
+current release. Then restart Claude Code so the session hooks run on the new
+version. Restarting alone does not upgrade an installed plugin.
 
 To install the CLI
 only — for non-Claude harnesses (Codex, Cursor, a plain terminal) or where org
