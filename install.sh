@@ -878,7 +878,17 @@ if [ "$SKIP_PLUGIN" = "0" ]; then
   # uninstall failure must abort loudly: letting it pass would leave the
   # short-circuiting install reporting success while the user stays pinned
   # to the old version with no signal.
-  if claude plugin list < /dev/null 2>/dev/null | grep -q "$PLUGIN_NAME@$MARKETPLACE_NAME"; then
+  # Capture the list's own exit status: piping straight into grep would
+  # read a failed `claude plugin list` as "not installed", skip the
+  # uninstall, and recreate the pinned-old-version case this block exists
+  # to prevent.
+  if ! PLUGIN_LIST="$(claude plugin list < /dev/null 2>&1)"; then
+    cleanup_https_rewrite
+    warn "could not query installed plugins:"
+    printf '%s\n' "$PLUGIN_LIST" | while IFS= read -r line; do warn "  $line"; done
+    fail "Failed to list installed plugins"
+  fi
+  if printf '%s\n' "$PLUGIN_LIST" | grep -q "$PLUGIN_NAME@$MARKETPLACE_NAME"; then
     if ! claude plugin uninstall "${PLUGIN_NAME}@${MARKETPLACE_NAME}" < /dev/null; then
       cleanup_https_rewrite
       warn "could not uninstall the existing $PLUGIN_NAME plugin -- the"
