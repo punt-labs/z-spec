@@ -32,9 +32,10 @@ Do not re-derive Python style rules from memory or from a different
 project's conventions — the 22-file standard is the one source of truth,
 wherever it is reached from.
 
-**Scoping caveat, stated honestly:** the `globs` above are enforced only for
-`claudecode`, which reads this file from `.claude/rules/python-standards-pointer.md`
-with a `paths:` frontmatter Claude Code checks per-file. `codexcli` and `pi`
+**Scoping caveat, stated honestly:** the file-selection pattern above
+(`**/*.py`) is enforced only for `claudecode`, which reads this file from
+`.claude/rules/python-standards-pointer.md` with a `paths:` frontmatter
+Claude Code checks per-file. `codexcli` and `pi`
 have no modular rules directory to scope against — rulesync folds this
 rule's body unconditionally into the shared root `AGENTS.md`, so those two
 tools see this Python pointer on every file, not only `**/*.py` (a pointer,

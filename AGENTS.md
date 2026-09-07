@@ -100,6 +100,17 @@ expectation, before the PR opens.
   and pi have no per-file scoping and instead get it folded into the shared
   root `AGENTS.md`, so it is always in context for those two tools. See the
   rule file's own scoping caveat for the full picture.
+- **`permissions` was piloted here and rejected — do not re-add it without
+  reading this first.** Rulesync's `permissions` feature (bash/read/edit
+  allow-ask-deny policy, projected from `.rulesync/permissions.jsonc`) was
+  tried against claude/codex/opencode/pi and mistranslated on 2 of 4 tools:
+  Claude Code's generated space-form bash pattern (`"git *"`) never matched
+  its Bash matcher (needs `Bash(git:*)`), and codex's generated allow
+  `prefix_rule`s were shadowed by its own generated catch-all `prompt` rule
+  (codex keeps the most-restrictive decision when multiple rules match a
+  command). A generator whose output looks correct but silently does not
+  enforce is worse than no generator. See `rulesync.jsonc`'s `targets`
+  comment and `CHANGELOG.md` (`[Unreleased]`) for the full record.
 
 ## Code quality
 
@@ -148,9 +159,10 @@ Do not re-derive Python style rules from memory or from a different
 project's conventions — the 22-file standard is the one source of truth,
 wherever it is reached from.
 
-**Scoping caveat, stated honestly:** the `globs` above are enforced only for
-`claudecode`, which reads this file from `.claude/rules/python-standards-pointer.md`
-with a `paths:` frontmatter Claude Code checks per-file. `codexcli` and `pi`
+**Scoping caveat, stated honestly:** the file-selection pattern above
+(`**/*.py`) is enforced only for `claudecode`, which reads this file from
+`.claude/rules/python-standards-pointer.md` with a `paths:` frontmatter
+Claude Code checks per-file. `codexcli` and `pi`
 have no modular rules directory to scope against — rulesync folds this
 rule's body unconditionally into the shared root `AGENTS.md`, so those two
 tools see this Python pointer on every file, not only `**/*.py` (a pointer,
@@ -171,9 +183,10 @@ from `targets` avoids the duplicate registration without losing coverage.
 - Two-letter lowercase free-type prefixes to avoid B keyword conflicts.
 - Flat schemas; bounded integers so ProB can animate.
 
-**Scoping caveat, stated honestly:** the `globs` above are enforced only for
-`claudecode`, which reads this file from `.claude/rules/z-conventions.md`
-with a `paths:` frontmatter Claude Code checks per-file. `codexcli` and `pi`
+**Scoping caveat, stated honestly:** the file-selection patterns above
+(`**/*.tex`, `examples/**`) are enforced only for `claudecode`, which reads
+this file from `.claude/rules/z-conventions.md` with a `paths:` frontmatter
+Claude Code checks per-file. `codexcli` and `pi`
 have no modular rules directory to scope against — rulesync folds this rule's
 body unconditionally into the shared root `AGENTS.md`, so those two tools
 apply these Z conventions to every file, not only `.tex` specs and

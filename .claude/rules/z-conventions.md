@@ -10,9 +10,10 @@ paths:
 - Two-letter lowercase free-type prefixes to avoid B keyword conflicts.
 - Flat schemas; bounded integers so ProB can animate.
 
-**Scoping caveat, stated honestly:** the `globs` above are enforced only for
-`claudecode`, which reads this file from `.claude/rules/z-conventions.md`
-with a `paths:` frontmatter Claude Code checks per-file. `codexcli` and `pi`
+**Scoping caveat, stated honestly:** the file-selection patterns above
+(`**/*.tex`, `examples/**`) are enforced only for `claudecode`, which reads
+this file from `.claude/rules/z-conventions.md` with a `paths:` frontmatter
+Claude Code checks per-file. `codexcli` and `pi`
 have no modular rules directory to scope against — rulesync folds this rule's
 body unconditionally into the shared root `AGENTS.md`, so those two tools
 apply these Z conventions to every file, not only `.tex` specs and
