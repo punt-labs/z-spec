@@ -1,0 +1,36 @@
+{
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/permissions-schema.json",
+
+  // Minimal, z-spec-sensible policy. Shared across claudecode/codexcli/opencode;
+  // pi does not consume this shape at all (see the `pi` override below and the
+  // adoption report's honesty notes) — its `permissions` feature only exposes
+  // a `defaultTools` enable-list, orthogonal to allow/ask/deny.
+  "permission": {
+    "read": {
+      // Secrets and local, machine-specific state never get read implicitly.
+      ".env": "deny",
+      ".envrc": "deny",
+      ".punt-labs/local/**": "deny"
+    },
+    "bash": {
+      "make *": "allow",
+      "git *": "allow",
+      "rm -rf *": "deny",
+      "*": "ask"
+    },
+    "edit": {
+      "src/**": "allow",
+      "examples/**": "allow",
+      "docs/**": "allow"
+    }
+  },
+
+  // Pi has no allow/ask/deny permission model — its only lever is an
+  // enable-list of built-in tool names (`defaultTools` in .pi/settings.json).
+  // This is NOT an equivalent of the shared `permission` block above; it is
+  // authored here only so pi gets *something* meaningful from the feature
+  // rather than nothing. See the adoption report for the full caveat.
+  "pi": {
+    "defaultTools": ["read", "edit", "bash", "grep", "glob"]
+  }
+}

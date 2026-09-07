@@ -1,0 +1,30 @@
+{
+  // JSON Schema for editor validation/autocompletion. CORRECTION (verified
+  // by running `rulesync generate`, not by the doc's prose): the
+  // "$schema inside mcpServers" form the doc's quick-start example shows is
+  // REJECTED by rulesync's own Zod validator — "expected object, received
+  // string" at mcpServers.$schema. Only the top-level placement below
+  // actually loads. This is the first of several places this adoption
+  // found rulesync's documentation and its enforced schema disagree; see
+  // the adoption report.
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+  "mcpServers": {
+    // The zspec MCP server, adapted from plugin/.claude-plugin/plugin.json.
+    // That source uses Claude-plugin-only placeholders (${CLAUDE_PLUGIN_ROOT},
+    // ${CLAUDE_PROJECT_DIR}) that only resolve inside an installed Claude Code
+    // plugin — they are meaningless to codex/opencode dev-time MCP config.
+    // This is a SEPARATE registration for local dev: it assumes the tool
+    // invokes the server with cwd = repo root (the standard assumption for
+    // every project-scope MCP config file: .mcp.json, .codex/config.toml,
+    // opencode.json all resolve relative commands against the project root),
+    // so no ${CLAUDE_PLUGIN_ROOT}-equivalent is needed — "uv run z-spec mcp"
+    // resolves the project's own pyproject.toml from the cwd the tool starts
+    // it in.
+    "zspec": {
+      "description": "Z specification toolkit: type-check with fuzz, model-check with probcli, display in lux",
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "z-spec", "mcp"]
+    }
+  }
+}

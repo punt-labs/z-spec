@@ -33,11 +33,16 @@ TIMEOUT   ?= 1800000
 SPECS     := $(filter-out %-bad.tex,$(wildcard examples/*.tex))
 SPEC_NAMES := $(notdir $(basename $(SPECS)))
 
-# rulesync generates AGENTS.md and CLAUDE.md from .rulesync/rules/*.md — see
-# check-rulesync below. Pinned to the major version tested in the adoption PR;
-# bump deliberately, not implicitly via a bare `npx rulesync`.
+# rulesync generates AGENTS.md/CLAUDE.md, MCP registrations, and permission
+# policy from .rulesync/ — see check-rulesync below. Pinned to the major
+# version tested in the adoption PR; bump deliberately, not implicitly via a
+# bare `npx rulesync`. Targets and per-tool features (rules/mcp/permissions)
+# are declared in rulesync.jsonc's per-target object form, NOT passed here:
+# CLI flags outrank the config file (highest-priority source per rulesync's
+# own config-precedence rules), so a `--targets`/`--features` flag here would
+# silently override the object-form config and collapse every tool back onto
+# the same flat feature set — the opposite of what per-target form is for.
 RULESYNC        ?= npx rulesync@16.24.1
-RULESYNC_TARGETS ?= codexcli,claudecode,opencode,pi
 # codex's project_doc_max_bytes silently truncates AGENTS.md past this; see
 # https://github.com/openai/codex — AGENTS.md must stay well under it.
 AGENTS_MD_MAX_BYTES ?= 32768
@@ -56,8 +61,8 @@ lint: ## Lint markdown, Python, and shell
 	shellcheck -x scripts/*.sh install.sh plugin/hooks/*.sh
 	$(MAKE) check-rulesync
 
-check-rulesync: ## Verify AGENTS.md/CLAUDE.md are generated from .rulesync/ and AGENTS.md stays under codex's byte cap
-	$(RULESYNC) generate --targets $(RULESYNC_TARGETS) --features rules --check
+check-rulesync: ## Verify generated configs match .rulesync/ (rules+mcp+permissions, per rulesync.jsonc) and AGENTS.md stays under codex's byte cap
+	$(RULESYNC) generate --check
 	@bytes=$$(wc -c < AGENTS.md); \
 	if [ "$$bytes" -ge $(AGENTS_MD_MAX_BYTES) ]; then \
 		echo "AGENTS.md is $$bytes bytes >= $(AGENTS_MD_MAX_BYTES) (codex project_doc_max_bytes cap) — trim .rulesync/rules/overview.md"; \
@@ -65,8 +70,8 @@ check-rulesync: ## Verify AGENTS.md/CLAUDE.md are generated from .rulesync/ and 
 	fi; \
 	echo "AGENTS.md: $$bytes bytes (cap $(AGENTS_MD_MAX_BYTES))"
 
-gen-rulesync: ## Regenerate AGENTS.md/CLAUDE.md from .rulesync/rules/*.md
-	$(RULESYNC) generate --targets $(RULESYNC_TARGETS) --features rules
+gen-rulesync: ## Regenerate all per-tool configs (rules+mcp+permissions) from .rulesync/
+	$(RULESYNC) generate
 
 type: type-py $(addprefix type-z-,$(SPEC_NAMES)) ## Type-check Python and Z specs
 
