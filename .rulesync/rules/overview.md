@@ -1,0 +1,103 @@
+---
+root: true
+targets: ["*"]
+description: "z-spec project overview and lean index"
+globs: ["**/*"]
+---
+
+# z-spec
+
+Formal Z specification toolkit: a `fuzz`/`probcli` wrapper, an MCP server
+(`zspec`), a CLI (`z-spec`), and a Claude Code plugin whose skill prompts
+guide spec creation, type-checking, and animation. Deterministic work —
+parsing, binary wrappers, report I/O, lux rendering — lives in the Python
+package; skills call its MCP tools instead of raw bash.
+
+Part of [Punt Labs](https://github.com/punt-labs). Must be checked out
+inside the `punt-labs/` workspace meta-repo so org-wide configuration
+(git identity, beads DB, API keys) loads from `../CLAUDE.md` and `../.envrc`.
+
+- **Package**: `punt-z-spec` (PyPI)
+- **CLI**: `z-spec`
+- **MCP server**: `zspec` (stdio; `z-spec mcp`)
+- **Python**: 3.13+, managed with `uv`
+
+## Architecture
+
+One engine, two thin client surfaces (CLI + MCP), both resolving the same
+`Command` objects from `commands/registry.py` — `tests/commands/test_parity.py`
+asserts they cannot drift. A command validates inputs, invokes the binary or
+store, and returns a `CommandResult`; it never prints and never knows which
+surface called it. `display.py` is the only module that publishes scenes to
+the lux Hub.
+
+## Build and test commands
+
+```bash
+make check      # full quality gate: lint, type, test, check-oo,
+                 #   check-coupling, check-suppressions, check-dev-commands
+make lint       # markdownlint + ruff check + ruff format --check + shellcheck
+make type       # mypy + pyright + fuzz on every examples/*.tex spec
+make test       # pytest + probcli model-check on every examples/*.tex spec
+make uat        # build wheel, install CLI, then run the acceptance flight
+                 #   by hand — RECONNECT the MCP server after; a reinstall
+                 #   does not restart a running stdio server
+make check-oo   # OO ratchet: must improve over baseline, never regress
+```
+
+`make check` passing means the code compiles, types hold, unit tests pass,
+and every spec type-checks and model-checks. It is necessary, never
+sufficient — it says nothing about what a person sees running the CLI,
+calling the MCP tool, or clicking the lux menu entry. The verification of
+record for every user-facing surface is the feature running in the
+installed artifact, exercised by hand against a written-in-advance
+expectation, before the PR opens.
+
+## Where to look for more
+
+- [`docs/WORKFLOW.md`](docs/WORKFLOW.md) — the three-loop development
+  process (backlog → PR → mission), with pseudocode and entry/exit Z
+  schema at each level. Read before any code change.
+- [`TESTING.md`](TESTING.md) — the five-tier testing pyramid; tier 5
+  (acceptance/UAT) gates the PR and cannot be automated.
+- [`docs/testing/manual-tests.md`](docs/testing/manual-tests.md) — the
+  acceptance flight run by `make uat`.
+- [`../punt-kit/standards/architecture.md`](../punt-kit/standards/architecture.md)
+  — the org's canonical engine-and-clients projection model.
+- [`../punt-kit/standards/oo.md`](../punt-kit/standards/oo.md) — the
+  language-agnostic object-oriented stance.
+- [`../punt-kit/standards/python.md`](../punt-kit/standards/python.md) —
+  the Python standard, including the OO/coupling/suppression ratchet
+  suite this repo runs.
+- `README.md` — user-facing surface. `CHANGELOG.md` — release history.
+  `examples/*.tex` — the spec corpus gated by `make check`.
+
+## Z conventions (ProB-compatible) — do not "modernize"
+
+- `\quad~` for continuation lines inside `\begin{zed}`; fuzz has no `\t1`.
+- `ZBOOL ::= ztrue | zfalse`, not a native Bool.
+- Two-letter lowercase free-type prefixes to avoid B keyword conflicts.
+- Flat schemas; bounded integers so ProB can animate.
+
+## Code quality
+
+Three ratchets — OO, coupling, suppression — adopted verbatim from vox, the
+canonical implementation. `make check-oo` passes only if no metric regressed
+on touched files and at least one improved. Never edit `.oo-baseline.json` by
+hand except `--rebaseline` for structural refactors; never suppress the
+ratchet. Org standards override review-tool suggestions (Copilot, Bugbot,
+Cursor) when they conflict with `../.claude/rules/python-*.md`.
+
+## Delegation
+
+All code delegation uses ethos missions — dispatch is two operations:
+`ethos mission create` writes the contract, a separate
+`Agent(subagent_type=..., run_in_background=true)` starts the worker. One
+mission = one task. No migration, backwards-compat, or shim code — ever;
+when a feature supersedes an old behavior, delete the old path in the same
+change.
+
+## Issue tracking
+
+Beads (`bd`). Escalate to a punt-kit bead if an issue spans repos or needs a
+standards change.
