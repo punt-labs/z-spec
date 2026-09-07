@@ -1,3 +1,10 @@
+---
+root: true
+targets: ["*"]
+description: "z-spec project overview and lean index"
+globs: ["**/*"]
+---
+
 # z-spec
 
 Formal Z specification toolkit: a `fuzz`/`probcli` wrapper, an MCP server

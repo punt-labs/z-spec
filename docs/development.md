@@ -118,3 +118,112 @@ relative to the plugin root, which is why the reference library, the
 templates, and the tutorials sit inside `plugin/` rather than beside it.
 `examples/` does not: it is the spec corpus `make check` type-checks and
 model-checks, not plugin content.
+
+Two rules follow from this layout, and both are load-bearing:
+
+- **The plugin surface must not reach outside itself at runtime.** A command
+  or hook may name a path under the plugin root or under the *consumer's*
+  repo; it may not name a file elsewhere in this repo, because that file is
+  absent from an installed plugin. `${CLAUDE_PLUGIN_ROOT}` is `plugin/`.
+- **A dev session loads `--plugin-dir plugin`, not `.`**, so `CLAUDE_PLUGIN_ROOT`
+  is the same directory a real install checks out (see Local test, above).
+
+## `ZSPEC_PLUGIN_ROOT`
+
+`plugin/.claude-plugin/plugin.json` injects `ZSPEC_PLUGIN_ROOT` into the MCP
+server's environment, set to `${CLAUDE_PLUGIN_ROOT}` — the plugin checkout
+that ships the tutorials, reference docs, and templates. Two call sites read
+it:
+
+- `lux/session.py`'s `_default_tutorial_manifest` resolves the shipped
+  `tutorials/intro/manifest.toml` through it, falling back to
+  `plugin/tutorials/intro/manifest.toml` inside a dev checkout when the env
+  var is unset (the installed server runs from site-packages, where the
+  source tree holds no tutorials at all).
+- `lux/project.py`'s `ProjectRoot` reads it only to decide whether a warning
+  is warranted: its presence means the server's cwd is the pinned plugin
+  checkout, so a `CLAUDE_PROJECT_DIR` resolution failure falling back to
+  `Path.cwd()` would silently name z-spec's own repo as the user's project
+  instead of raising.
+
+This solves the manifest lookup for a Claude Code plugin install. A
+**standalone wheel install** (`pip install punt-z-spec` / `uv tool install`
+with no Claude Code plugin) has no `plugin.json` to set the env var and falls
+back to `__file__`-relative resolution, which is not guaranteed wheel-safe if
+package data ever moves — tracked as bead `z-spec-9v6`, needing
+`importlib.resources` packaging. This is a minority install path, not the
+primary Claude Code plugin journey.
+
+## Module map
+
+| Module | Responsibility |
+|--------|---------------|
+| `__main__.py` | Typer CLI — the verb surface |
+| `server.py` | FastMCP server (key: `zspec`) — the tool surface; owns the lux session lifespan |
+| `server_context.py` | Shared per-request context both surfaces build commands from |
+| `commands/registry.py` | The canonical capability list (`CAPABILITIES`) and each capability's name on each surface |
+| `commands/*.py` | One command per capability: `check`, `test`, `animate`, `model_check`, `report`, `doctor`, `partition`, `audit`, `show`, `browse`, `picker`, `enable`, `disable` |
+| `commands/enablement.py` | The one MCP tool `enable`/`disable` both route through, per punt-kit `tool-enable-disable.md` §2.14 |
+| `commands/result.py` | `CommandResult` — the envelope every command returns |
+| `commands/options.py` | Parameter bundles for the probcli-backed commands |
+| `fuzz.py` | Wrapper for the `fuzz` type-checker |
+| `prob.py` | Wrapper for the `probcli` model checker |
+| `prob_output.py` | probcli output parsing shared across commands |
+| `parser.py` | LaTeX Z specification parser → `SpecModel` |
+| `report.py` | Report I/O — `<stem>.<type>.json` beside the `.tex` |
+| `atomic_file.py` | Crash-safe file writes used by report and audit persistence |
+| `coverage.py` | Spec coverage accounting |
+| `gate.py` | Quality-gate composition helpers |
+| `claude_md.py` | CLAUDE.md/AGENTS.md-facing helpers (enablement doc rewriting) |
+| `manifest.py` | Tutorial collection manifests (`manifest.toml`) |
+| `display.py` | `LuxDisplay` — the one module that publishes scenes to the lux Hub |
+| `applet.py` | Builds a single spec's tabbed lux scene |
+| `browser.py` | Builds a collection's tabbed scene and the spec picker |
+| `picker_scene.py` | The spec-picker scene the Browse menu entry raises |
+| `lux/session.py` | `ZSpecLuxSession` — the per-process menu session the lifespan owns |
+| `lux/identity.py` | Per-session app identity and its menu labels (**name must be ASCII**) |
+| `lux/clients.py` | REST and hub-listener clients built from one identity |
+| `lux/entry.py` | `ZSpecMenuEntry`/`ZSpecMenuEntries` — the Tutorial and Browse menu entries |
+| `lux/menu.py`, `lux/subscription.py`, `lux/command_ports.py`, `lux/ports.py` | Menu registration, the receive leg, and its transport protocols |
+| `lux/click.py` | Click-to-command dispatch shared by both menu entries |
+| `lux/project.py` | `ProjectRoot` — the user's open project for a plugin-launched server |
+| `types/` | Domain types: `spec`, `fuzz`, `prob`, `partition`, `audit`, `enablement`, `reports`, `trace`, `tutorial` |
+
+This table is refreshed by hand; when it drifts from `commands/registry.py`'s
+`CAPABILITIES` tuple or the `src/punt_zspec/` tree, the registry and the tree
+are authoritative.
+
+## The OO ratchet: a good deed, not a rebaseline
+
+`../punt-kit/standards/python.md` states the OO/coupling/suppression ratchet's
+staging discipline: `make check-oo` passes only if no metric regressed on a
+touched file and at least one metric improved, and `.oo-baseline.json` is
+never hand-edited except via `--rebaseline` for a structural refactor. This
+section adds the operational nuance the standard states tersely and this repo
+has needed spelled out in practice.
+
+**"No metric improved" means do a good deed, not a rebaseline.** When
+`check-oo` reports that a change grew or churned code without paying anything
+down — an unavoidable regression from, say, a genuine one-line feature
+addition — the correct response is a **genuine improvement** elsewhere:
+extract a god-method, split an oversized module, collapse a conditional
+forest, in a touched file or in unrelated nearby debt. Find the nearest
+candidate with `radon cc -s -n C -o SCORE src/punt_zspec/`. **Never** reach
+for a blanket `--rebaseline` to escape the gate — `--rebaseline` for a
+structural refactor is not a substitute for the paydown; even a large
+feature commit must leave at least one metric genuinely better.
+
+**Scoped rebaseline, not blanket rebaseline.** When a rebaseline is
+genuinely warranted (a structural refactor that must grow some metric to
+carry real feature substance), scope it: touch only the specific
+`file`+`metric` entries in `.oo-baseline.json` that must grow, each with a
+one-line comment justifying why the growth is unavoidable, and leave every
+metric that *did* improve at its old baseline value so it still registers as
+an improvement. A rebaseline that records all growth — improvements
+included — and retires no debt is a blanket rebaseline, and it is the exact
+negotiation this section forbids. When in doubt, ask before rebaselining.
+
+**Never game the metric.** Do not "improve" a size or complexity score by
+stripping comments, docstrings, or blank lines — that satisfies the number
+while making the code harder to read, which is the opposite of what the
+ratchet exists to protect.
