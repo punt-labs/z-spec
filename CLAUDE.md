@@ -50,18 +50,47 @@ expectation, before the PR opens.
 
 - [`docs/WORKFLOW.md`](docs/WORKFLOW.md) — the three-loop development
   process (backlog → PR → mission), with pseudocode and entry/exit Z
-  schema at each level. Read before any code change.
+  schema at each level. Read before any code change. PR sizing/boundary
+  rules are stated there as `EnterPR`/`ExitPR` (rollback coherence,
+  throughput band); see also
+  [`../punt-kit/standards/pr-review.md`](../punt-kit/standards/pr-review.md)
+  § PR Boundaries for the org-wide statement of the same rule (split by
+  rollback granularity, not size or "separate concern").
 - [`TESTING.md`](TESTING.md) — the five-tier testing pyramid; tier 5
   (acceptance/UAT) gates the PR and cannot be automated.
 - [`docs/testing/manual-tests.md`](docs/testing/manual-tests.md) — the
   acceptance flight run by `make uat`.
+- [`docs/development.md`](docs/development.md) — dev/prod plugin
+  namespace isolation, release flow, the `plugin/` project structure and
+  its two load-bearing boundary rules (`${CLAUDE_PLUGIN_ROOT}` scoping),
+  the `ZSPEC_PLUGIN_ROOT` env var and its standalone-wheel-install
+  caveat (bead `z-spec-9v6`), and the module-by-module responsibility map
+  for `src/punt_zspec/`.
 - [`../punt-kit/standards/architecture.md`](../punt-kit/standards/architecture.md)
   — the org's canonical engine-and-clients projection model.
 - [`../punt-kit/standards/oo.md`](../punt-kit/standards/oo.md) — the
   language-agnostic object-oriented stance.
 - [`../punt-kit/standards/python.md`](../punt-kit/standards/python.md) —
   the Python standard, including the OO/coupling/suppression ratchet
-  suite this repo runs.
+  suite this repo runs. [`docs/development.md`](docs/development.md)
+  § "The OO ratchet: a good deed, not a rebaseline" adds the operational
+  nuance the standard states tersely — the good-deed-not-rebaseline rule,
+  and the scoped-vs-blanket-rebaseline distinction with per-entry
+  justification comments.
+- [`../punt-kit/standards/workflow.md`](../punt-kit/standards/workflow.md)
+  § "Documentation in the diff" — CHANGELOG entries land in the PR diff,
+  under `## [Unreleased]`, Keep a Changelog format.
+- [`../punt-kit/standards/readme.md`](../punt-kit/standards/readme.md) —
+  when and how to update `README.md`; this repo's own README is cited
+  there as a reference implementation.
+- `prfaq.tex` — update when a change shifts product direction or
+  validates/invalidates a risk assumption. Not covered by any punt-kit
+  standard; the org-wide statement of this rule lives one directory up,
+  in the workspace meta-repo's own `CLAUDE.md` § Documentation Discipline
+  → PR/FAQ, loaded via Claude Code's ancestor-directory walk when this
+  repo is checked out inside `punt-labs/` (see
+  `../punt-kit/standards/context-mgmt.md` § 7 on global config, and the
+  checkout requirement stated above).
 - `README.md` — user-facing surface. `CHANGELOG.md` — release history.
   `examples/*.tex` — the spec corpus gated by `make check`.
 
