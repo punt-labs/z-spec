@@ -5,6 +5,36 @@
   // pi does not consume this shape at all (see the `pi` override below and the
   // adoption report's honesty notes) — its `permissions` feature only exposes
   // a `defaultTools` enable-list, orthogonal to allow/ask/deny.
+  //
+  // The shared `bash` category below uses space-separated patterns
+  // (`"git *"`) because that is the literal syntax opencode's own permission
+  // schema and codexcli's `prefix_rule` tokenizer both expect natively —
+  // rulesync passes the pattern string through unchanged for both targets.
+  // Claude Code's Bash matcher needs a DIFFERENT syntax: `Bash(<prefix>:*)`,
+  // colon before the trailing wildcard (verified against every sibling
+  // Punt Labs repo's generated `.claude/settings.json`, e.g. `Bash(git:*)`,
+  // `Bash(make:*)`). Rulesync does not translate space-form into colon-form —
+  // `buildClaudePermissionEntry()` in rulesync's `claudecode-permissions.ts`
+  // wraps the pattern string verbatim as `Bash(<pattern>)`, so a space-form
+  // source pattern round-trips into `Bash(git *)`, which Claude Code does not
+  // treat as a prefix-wildcard rule. So the `claudecode.permission.bash`
+  // override below replaces the shared `bash` category wholesale for Claude
+  // Code only, authored directly in colon-form.
+  //
+  // The shared category also has NO catch-all `"*": "ask"` bash rule. In
+  // rulesync's Claude Code translator, a bash pattern of exactly `"*"`
+  // collapses to the bare tool name with no parens (`"Bash"`, not
+  // `"Bash(*)"`) — see `buildClaudePermissionEntry`'s `pattern === "*"`
+  // branch. A bare `"Bash"` entry in the `ask` array matches every Bash
+  // invocation regardless of argument, and Claude Code evaluates
+  // deny → ask → allow, so that universal ask shadows the `git:*`/`make:*`
+  // allows before they are ever reached — confirmed by generating this repo's
+  // `.claude/settings.json` before this fix and observing the allows produce
+  // no effect. Omitting the catch-all here is not a policy gap: an
+  // unlisted Bash command with no matching allow/deny/ask rule falls through
+  // to Claude Code's own default permission mode (interactive prompt), which
+  // is the same "ask" outcome the removed rule was trying to state — it is
+  // only the shadowing bare-`Bash` *entry* that is wrong, not the intent.
   "permission": {
     "read": {
       // Secrets and local, machine-specific state never get read implicitly.
@@ -22,6 +52,23 @@
       "src/**": "allow",
       "examples/**": "allow",
       "docs/**": "allow"
+    }
+  },
+
+  // Claude Code-only override: replaces the shared `bash` category above
+  // wholesale (`RulesyncPermissions.forTarget()` merges tool-scoped
+  // categories over shared ones per-category, not per-entry). Colon-form,
+  // no catch-all — see the comment on the shared `permission` block above
+  // for why both are required for Claude Code specifically. `read` and
+  // `edit` are not overridden here, so claudecode still gets those from the
+  // shared block above.
+  "claudecode": {
+    "permission": {
+      "bash": {
+        "git:*": "allow",
+        "make:*": "allow",
+        "rm -rf:*": "deny"
+      }
     }
   },
 
