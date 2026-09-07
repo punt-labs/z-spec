@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "zspec": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "z-spec",
+        "mcp"
+      ]
+    }
+  }
+}

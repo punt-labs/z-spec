@@ -80,7 +80,17 @@ ehthumbs.db
 .idea/
 .vscode/
 .cursor/
-.codex/
+# Deviates from ../.bin/gitignore-canonical.template's bare `.codex/`: git
+# cannot re-include a path once its PARENT DIRECTORY is excluded (gitignore(5)
+# "It is not possible to re-include a file if a parent directory of that file
+# is excluded") — directories pruned by a trailing-slash pattern are never
+# even walked when later `!` patterns are evaluated. `.codex/*` excludes the
+# same runtime state (auth.json, session history, the tmp/ lockfile codex
+# holds while running) one level down instead, which lets the repo-specific
+# section below re-include rulesync's two generated files. If the rollout
+# script overwrites this line back to bare `.codex/`, the repo-specific
+# exceptions silently stop working — `check-rulesync` is what would catch it.
+.codex/*
 .accio/
 .claude-flow/
 *.swp
@@ -185,10 +195,30 @@ timeline.xctimeline
 !examples/*.pdf
 
 # MCP (project-local, not part of plugin distribution)
+# .mcp.json is a rulesync-generated artifact (from .rulesync/mcp.jsonc) and is
+# committed so Claude Code gets the zspec server on a fresh clone without running
+# rulesync; the check-rulesync drift gate requires committed == generated. It holds
+# no secrets (just `uv run z-spec mcp`) and cone-mode still keeps it out of the plugin.
 .mcp.json
+!.mcp.json
 
 # Node.js dependencies
 node_modules/
+
+# .codex/ (excluded one level down, `.codex/*`, in the Editors/IDEs block
+# above — see the comment there for why not a bare `.codex/`) holds codex
+# CLI's own local runtime state (auth.json, session history, the tmp/
+# lockfile codex takes while running) alongside rulesync's generated MCP
+# config. Carve out only the one deterministic file `rulesync generate`
+# writes — same committed-artifact model as AGENTS.md/CLAUDE.md: consumers
+# read the generated file, they don't run rulesync themselves.
+#
+# `permissions` was piloted here and rejected — see CHANGELOG.md
+# ([Unreleased]) and rulesync.jsonc's `targets` comment. It used to also
+# write `.codex/rules/rulesync.rules`; that file and its now-empty
+# `.codex/rules/` directory (plus the `!.codex/rules/` re-include this
+# comment used to carry) were removed along with the feature.
+!.codex/config.toml
 
 # .claude/ is machine state except for the parts that are repo policy. Agent
 # definitions are ethos's projection of this repo's team into Claude Code's

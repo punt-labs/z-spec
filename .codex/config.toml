@@ -1,0 +1,3 @@
+[mcp_servers.zspec]
+command = "uv"
+args = [ "run", "z-spec", "mcp" ]

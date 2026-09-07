@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "zspec": {
+      "type": "local",
+      "command": [
+        "uv",
+        "run",
+        "z-spec",
+        "mcp"
+      ],
+      "enabled": true
+    }
+  }
+}

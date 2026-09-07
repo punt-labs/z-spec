@@ -7,6 +7,15 @@
   "MD022": false,
   // Duplicate headings — repeated section names are expected in skill/reference files
   "MD024": false,
+  // Multiple top-level headings — rulesync's non-modular targets (pi, and any
+  // other tool with no rules directory) fold every non-root rule's H1 into
+  // the single generated AGENTS.md/CLAUDE.md alongside the root rule's own
+  // H1; each source rule file keeps its own H1 (required per-file by MD041
+  // for the tools that DO write it standalone, e.g. .claude/rules/*.md,
+  // .opencode/memories/*.md), so the folded file inevitably ends up with
+  // more than one top-level heading. See .rulesync/rules/z-conventions.md
+  // and python-standards-pointer.md.
+  "MD025": false,
   // Ordered list prefix — intentional numbering
   "MD029": false,
   // Blanks around fences — Z notation examples are embedded inline

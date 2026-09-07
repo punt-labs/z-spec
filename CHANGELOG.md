@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Per-tool rulesync projection: MCP registration and scoped rules for
+  claude/codex/opencode/pi.** `.rulesync/mcp.jsonc` is the single source of
+  truth for the `zspec` MCP server registration; `npx rulesync generate`
+  projects it into each tool's native config (`.mcp.json`,
+  `.codex/config.toml`, `opencode.jsonc` — pi has no MCP surface at all, per
+  rulesync's own supported-tools matrix) and `make check-rulesync` gates
+  drift between the committed projections and a fresh regenerate. Two new
+  scoped rules — Z notation conventions (`.tex`/`examples/**`) and a
+  Python-standards pointer (`**/*.py`) — load path-conditionally for Claude
+  Code via `.claude/rules/*.md`; codexcli and pi fold them unconditionally
+  into the shared root `AGENTS.md` instead, since neither has a modular,
+  glob-scoped rules surface (see each rule file's own scoping caveat).
+
+- **Rulesync's `permissions` feature was evaluated and NOT adopted.** A
+  pilot projected bash/read/edit allow-ask-deny policy from
+  `.rulesync/permissions.jsonc` into claude/codex/opencode/pi, but the
+  generated output silently mistranslated on 2 of 4 tools: Claude Code's
+  generated space-form bash pattern (`"git *"`) never matched its Bash
+  matcher (needed a hand-authored colon-form override, `Bash(git:*)`), and
+  codex's generated allow `prefix_rule`s were shadowed by its own generated
+  catch-all `prompt` rule (codex keeps the most-restrictive decision when
+  multiple prefix rules match a command, so the `git`/`make` allows never
+  applied — confirmed by Bugbot). A permission generator whose output
+  *looks* correct but does not enforce is worse than no generator — it
+  creates false confidence that `.env` and similar secrets stay protected.
+  The `permissions` feature is removed from every target in `rulesync.jsonc`,
+  `.rulesync/permissions.jsonc` is deleted, and `.claude/settings.json` is
+  restored to its pre-pilot, hand-authored policy. See `rulesync.jsonc`'s
+  `targets` comment and `.rulesync/rules/overview.md` for the record, so a
+  future maintainer does not re-add it blindly.
+
 ### Fixed
 
 - **A failed plugin uninstall now aborts the installer loudly instead of

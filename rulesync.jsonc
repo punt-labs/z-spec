@@ -1,17 +1,34 @@
 {
   "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
-  "targets": [
-    "codexcli",
-    "claudecode",
-    "opencode",
-    "pi"
-  ],
-  "features": [
-    "rules"
-  ],
-  "outputRoots": [
-    "."
-  ],
+
+  // Per-target object form: features are declared per tool rather than one
+  // shared array, because pi does not support `mcp` at all (its supported-
+  // tools matrix leaves that cell blank — no mcp_servers-equivalent surface
+  // exists for it), so `mcp` is omitted for `pi` and given only to the three
+  // tools that actually project it into a native registration file.
+  //
+  // `permissions` was piloted and REJECTED — see CHANGELOG.md ([Unreleased]).
+  // Rulesync's permission projection silently mistranslated on 2 of 4 tools:
+  // Claude Code needed a hand-authored colon-form override because the
+  // generated space-form pattern does not match Claude Code's Bash matcher,
+  // and codex's generated `prefix_rule` allow entries were shadowed by the
+  // catch-all `prompt` rule (codex keeps the most-restrictive decision when
+  // multiple prefix rules match). A permission generator whose output looks
+  // correct but does not enforce is worse than no generator — do not
+  // re-add `permissions` to any target without first fixing the two
+  // translation bugs above upstream. `.rulesync/permissions.jsonc` was
+  // deleted along with this rejection; see git history (commit removing
+  // the permissions feature) to recover the authored policy if revisiting.
+  //
+  // NOTE: when `targets` is an object, the top-level `features` key must be
+  // omitted — the config loader rejects declaring both.
+  "targets": {
+    "claudecode": ["rules", "mcp"],
+    "codexcli": ["rules", "mcp"],
+    "opencode": ["rules", "mcp"],
+    "pi": ["rules"]
+  },
+  "outputRoots": ["."],
   "delete": true,
   "verbose": false,
   "silent": false,
