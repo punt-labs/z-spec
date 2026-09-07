@@ -195,7 +195,12 @@ timeline.xctimeline
 !examples/*.pdf
 
 # MCP (project-local, not part of plugin distribution)
+# .mcp.json is a rulesync-generated artifact (from .rulesync/mcp.jsonc) and is
+# committed so Claude Code gets the zspec server on a fresh clone without running
+# rulesync; the check-rulesync drift gate requires committed == generated. It holds
+# no secrets (just `uv run z-spec mcp`) and cone-mode still keeps it out of the plugin.
 .mcp.json
+!.mcp.json
 
 # Node.js dependencies
 node_modules/
