@@ -35,6 +35,11 @@ jobs:
       # Every prod slash command has a generated -dev twin; drift means the dev
       # plugin and the shipped plugin disagree.
       - run: make check-dev-commands
+      # AGENTS.md and CLAUDE.md are generated from .rulesync/rules/*.md by
+      # rulesync — a hand-edit here would silently diverge from the source on
+      # the next `make gen-rulesync`. --check also enforces AGENTS.md staying
+      # under codex's 32 KiB project_doc_max_bytes truncation cap.
+      - run: make check-rulesync
       # OO ratchet on a PR: compare code-at-HEAD against the baseline at the
       # merge-base. --require-base AND the explicit fetch are both mandatory —
       # with either missing, an unresolvable base would fail open and let a
