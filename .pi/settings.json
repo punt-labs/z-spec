@@ -1,0 +1,9 @@
+{
+  "defaultTools": [
+    "read",
+    "edit",
+    "bash",
+    "grep",
+    "glob"
+  ]
+}

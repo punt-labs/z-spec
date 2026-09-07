@@ -93,13 +93,9 @@ expectation, before the PR opens.
   checkout requirement stated above).
 - `README.md` — user-facing surface. `CHANGELOG.md` — release history.
   `examples/*.tex` — the spec corpus gated by `make check`.
-
-## Z conventions (ProB-compatible) — do not "modernize"
-
-- `\quad~` for continuation lines inside `\begin{zed}`; fuzz has no `\t1`.
-- `ZBOOL ::= ztrue | zfalse`, not a native Bool.
-- Two-letter lowercase free-type prefixes to avoid B keyword conflicts.
-- Flat schemas; bounded integers so ProB can animate.
+- Z notation conventions (ProB-compatible) load automatically when you touch
+  a `.tex` spec or anything under `examples/` — see the glob-scoped rule
+  rather than a copy here (`.rulesync/rules/z-conventions.md`).
 
 ## Code quality
 
