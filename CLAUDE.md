@@ -107,17 +107,11 @@ Three ratchets — OO, coupling, suppression — adopted verbatim from vox, the
 canonical implementation. `make check-oo` passes only if no metric regressed
 on touched files and at least one improved. Never edit `.oo-baseline.json` by
 hand except `--rebaseline` for structural refactors; never suppress the
-ratchet. Org standards override review-tool suggestions (Copilot, Bugbot,
-Cursor) when they conflict with `../.claude/rules/python-*.md`.
+ratchet. Org standards (see `../punt-kit/standards/python.md` above) override
+review-tool suggestions (Copilot, Bugbot, Cursor) when the two disagree.
 
-## Delegation
-
-All code delegation uses ethos missions — dispatch is two operations:
-`ethos mission create` writes the contract, a separate
-`Agent(subagent_type=..., run_in_background=true)` starts the worker. One
-mission = one task. No migration, backwards-compat, or shim code — ever;
-when a feature supersedes an old behavior, delete the old path in the same
-change.
+No migration, backwards-compat, or shim code — ever; when a feature
+supersedes an old behavior, delete the old path in the same change.
 
 ## Issue tracking
 

@@ -36,7 +36,7 @@ SPEC_NAMES := $(notdir $(basename $(SPECS)))
 # rulesync generates AGENTS.md and CLAUDE.md from .rulesync/rules/*.md — see
 # check-rulesync below. Pinned to the major version tested in the adoption PR;
 # bump deliberately, not implicitly via a bare `npx rulesync`.
-RULESYNC        ?= npx rulesync@16
+RULESYNC        ?= npx rulesync@16.24.1
 RULESYNC_TARGETS ?= codexcli,claudecode,opencode,pi
 # codex's project_doc_max_bytes silently truncates AGENTS.md past this; see
 # https://github.com/openai/codex — AGENTS.md must stay well under it.

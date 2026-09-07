@@ -3,12 +3,12 @@
 Claude Code drives several MCP servers in this repo; each has its own
 vendored guide, loaded on demand rather than inlined here:
 
-- [`.punt-labs/z-spec/CLAUDE.md`](../.punt-labs/z-spec/CLAUDE.md) — the
+- [`.punt-labs/z-spec/CLAUDE.md`](../../.punt-labs/z-spec/CLAUDE.md) — the
   `zspec` MCP server and the z-spec plugin (enablement, check/test/partition/
   audit/code2model/model2code, lux display).
-- [`.punt-labs/vox/CLAUDE.md`](../.punt-labs/vox/CLAUDE.md) — the `mic` MCP
+- [`.punt-labs/vox/CLAUDE.md`](../../.punt-labs/vox/CLAUDE.md) — the `mic` MCP
   server (text-to-speech, vibe, music, recordings).
-- [`.punt-labs/beadle/CLAUDE.md`](../.punt-labs/beadle/CLAUDE.md) — the
+- [`.punt-labs/beadle/CLAUDE.md`](../../.punt-labs/beadle/CLAUDE.md) — the
   `email` MCP server (agent mailbox, trust model).
 
 ## Ethos and delegation
@@ -19,6 +19,11 @@ mount the `punt-labs/team` submodule — z-spec is a marketplace plugin, and
 breaks installs for users without a GitHub key. `.punt-labs/ethos.yaml`
 (tracked) plus the global `~/.punt-labs/ethos/` stand in for it instead.
 Vendor an individual file here only if it is z-spec's own; never the roster.
+
+All code delegation uses ethos missions — dispatch is two operations:
+`ethos mission create` writes the contract, a separate
+`Agent(subagent_type=..., run_in_background=true)` starts the worker. One
+mission = one task.
 
 The COO does not write code. The only files the leader edits directly:
 `CHANGELOG.md`, `CLAUDE.md`, `README.md`, `TESTING.md`, `docs/WORKFLOW.md`,
