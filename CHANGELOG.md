@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Per-tool rulesync projection: MCP registration, permission policy, and
+  scoped rules for claude/codex/opencode/pi.** `.rulesync/mcp.jsonc` and
+  `.rulesync/permissions.jsonc` are the single source of truth for the
+  `zspec` MCP server registration and the bash/read/edit permission policy;
+  `npx rulesync generate` projects them into each tool's native config
+  (`.claude/settings.json`, `.mcp.json`, `.codex/`, `opencode.jsonc`,
+  `.pi/settings.json`) and `make check-rulesync` gates drift between the
+  committed projections and a fresh regenerate. Two new scoped rules —
+  Z notation conventions (`.tex`/`examples/**`) and a Python-standards
+  pointer (`**/*.py`) — load path-conditionally for Claude Code via
+  `.claude/rules/*.md`; codexcli and pi fold them unconditionally into the
+  shared root `AGENTS.md` instead, since neither has a modular,
+  glob-scoped rules surface (see each rule file's own scoping caveat).
+
 ### Fixed
 
 - **A failed plugin uninstall now aborts the installer loudly instead of

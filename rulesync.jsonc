@@ -12,8 +12,7 @@
   // that file's comments and the adoption report for the full caveat).
   //
   // NOTE: when `targets` is an object, the top-level `features` key must be
-  // omitted — the config loader rejects declaring both (see
-  // .tmp/rulesync-config-guide.md "Per-Target Features").
+  // omitted — the config loader rejects declaring both.
   "targets": {
     "claudecode": ["rules", "mcp", "permissions"],
     "codexcli": ["rules", "mcp", "permissions"],
