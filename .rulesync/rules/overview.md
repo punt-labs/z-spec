@@ -100,8 +100,8 @@ expectation, before the PR opens.
   checkout requirement stated above).
 - `README.md` — user-facing surface. `CHANGELOG.md` — release history.
   `examples/*.tex` — the spec corpus gated by `make check`.
-- Z notation conventions (ProB-compatible) — see
-  `.rulesync/rules/z-conventions.md` rather than a copy here. Claude Code
+- Z notation conventions (ProB-compatible) — sourced from
+  `.rulesync/rules/z-conventions.md`. Claude Code
   loads it only when you touch a `.tex` spec or anything under `examples/`
   (its `paths:`-scoped `.claude/rules/` mechanism honors the glob); codexcli
   and pi have no per-file scoping and instead get it folded into the shared

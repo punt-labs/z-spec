@@ -33,10 +33,10 @@ TIMEOUT   ?= 1800000
 SPECS     := $(filter-out %-bad.tex,$(wildcard examples/*.tex))
 SPEC_NAMES := $(notdir $(basename $(SPECS)))
 
-# rulesync generates AGENTS.md/CLAUDE.md, MCP registrations, and permission
-# policy from .rulesync/ — see check-rulesync below. Pinned to the major
+# rulesync generates AGENTS.md/CLAUDE.md, per-tool MCP registrations, and
+# path-scoped rules from .rulesync/ — see check-rulesync below. Pinned to the major
 # version tested in the adoption PR; bump deliberately, not implicitly via a
-# bare `npx rulesync`. Targets and per-tool features (rules/mcp/permissions)
+# bare `npx rulesync`. Targets and per-tool features (rules/mcp)
 # are declared in rulesync.jsonc's per-target object form, NOT passed here:
 # CLI flags outrank the config file (highest-priority source per rulesync's
 # own config-precedence rules), so a `--targets`/`--features` flag here would
@@ -61,7 +61,7 @@ lint: ## Lint markdown, Python, and shell
 	shellcheck -x scripts/*.sh install.sh plugin/hooks/*.sh
 	$(MAKE) check-rulesync
 
-check-rulesync: ## Verify generated configs match .rulesync/ (rules+mcp+permissions, per rulesync.jsonc) and AGENTS.md stays under codex's byte cap
+check-rulesync: ## Verify generated configs match .rulesync/ (rules+mcp, per rulesync.jsonc) and AGENTS.md stays under codex's byte cap
 	$(RULESYNC) generate --check
 	@bytes=$$(wc -c < AGENTS.md); \
 	if [ "$$bytes" -ge $(AGENTS_MD_MAX_BYTES) ]; then \
@@ -70,7 +70,7 @@ check-rulesync: ## Verify generated configs match .rulesync/ (rules+mcp+permissi
 	fi; \
 	echo "AGENTS.md: $$bytes bytes (cap $(AGENTS_MD_MAX_BYTES))"
 
-gen-rulesync: ## Regenerate all per-tool configs (rules+mcp+permissions) from .rulesync/
+gen-rulesync: ## Regenerate all per-tool configs (rules+mcp) from .rulesync/
 	$(RULESYNC) generate
 
 type: type-py $(addprefix type-z-,$(SPEC_NAMES)) ## Type-check Python and Z specs
