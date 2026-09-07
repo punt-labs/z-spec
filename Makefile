@@ -1,4 +1,4 @@
-.PHONY: help lint type test test-py test-e2e check check-oo update-oo check-coupling update-coupling check-suppressions update-suppressions check-dev-commands gen-dev-commands format build install uat clean depot assert report spec-reports metrics coverage
+.PHONY: help lint type test test-py test-e2e check check-oo update-oo check-coupling update-coupling check-suppressions update-suppressions check-dev-commands gen-dev-commands check-rulesync format build install uat clean depot assert report spec-reports metrics coverage
 
 FUZZ      ?= fuzz
 PROBCLI   ?= $(HOME)/Applications/ProB/probcli
@@ -33,6 +33,15 @@ TIMEOUT   ?= 1800000
 SPECS     := $(filter-out %-bad.tex,$(wildcard examples/*.tex))
 SPEC_NAMES := $(notdir $(basename $(SPECS)))
 
+# rulesync generates AGENTS.md and CLAUDE.md from .rulesync/rules/*.md — see
+# check-rulesync below. Pinned to the major version tested in the adoption PR;
+# bump deliberately, not implicitly via a bare `npx rulesync`.
+RULESYNC        ?= npx rulesync@16
+RULESYNC_TARGETS ?= codexcli,claudecode,opencode,pi
+# codex's project_doc_max_bytes silently truncates AGENTS.md past this; see
+# https://github.com/openai/codex — AGENTS.md must stay well under it.
+AGENTS_MD_MAX_BYTES ?= 32768
+
 # ── Required targets (makefile.md) ──────────────────────────
 
 help: ## Show available targets
@@ -45,6 +54,19 @@ lint: ## Lint markdown, Python, and shell
 	uv run ruff check .
 	uv run ruff format --check .
 	shellcheck -x scripts/*.sh install.sh plugin/hooks/*.sh
+	$(MAKE) check-rulesync
+
+check-rulesync: ## Verify AGENTS.md/CLAUDE.md are generated from .rulesync/ and AGENTS.md stays under codex's byte cap
+	$(RULESYNC) generate --targets $(RULESYNC_TARGETS) --features rules --check
+	@bytes=$$(wc -c < AGENTS.md); \
+	if [ "$$bytes" -ge $(AGENTS_MD_MAX_BYTES) ]; then \
+		echo "AGENTS.md is $$bytes bytes >= $(AGENTS_MD_MAX_BYTES) (codex project_doc_max_bytes cap) — trim .rulesync/rules/overview.md"; \
+		exit 1; \
+	fi; \
+	echo "AGENTS.md: $$bytes bytes (cap $(AGENTS_MD_MAX_BYTES))"
+
+gen-rulesync: ## Regenerate AGENTS.md/CLAUDE.md from .rulesync/rules/*.md
+	$(RULESYNC) generate --targets $(RULESYNC_TARGETS) --features rules
 
 type: type-py $(addprefix type-z-,$(SPEC_NAMES)) ## Type-check Python and Z specs
 
