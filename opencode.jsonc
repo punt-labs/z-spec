@@ -11,23 +11,5 @@
       ],
       "enabled": true
     }
-  },
-  "permission": {
-    "read": {
-      ".env": "deny",
-      ".envrc": "deny",
-      ".punt-labs/local/**": "deny"
-    },
-    "bash": {
-      "make *": "allow",
-      "git *": "allow",
-      "rm -rf *": "deny",
-      "*": "ask"
-    },
-    "edit": {
-      "src/**": "allow",
-      "examples/**": "allow",
-      "docs/**": "allow"
-    }
   }
 }

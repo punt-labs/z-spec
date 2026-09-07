@@ -208,17 +208,17 @@ node_modules/
 # .codex/ (excluded one level down, `.codex/*`, in the Editors/IDEs block
 # above — see the comment there for why not a bare `.codex/`) holds codex
 # CLI's own local runtime state (auth.json, session history, the tmp/
-# lockfile codex takes while running) alongside rulesync's generated
-# MCP+permissions config and scoped-rules projection. Carve out only the two
-# deterministic files `rulesync generate` writes — same committed-artifact
-# model as AGENTS.md/CLAUDE.md: consumers read the generated file, they
-# don't run rulesync themselves. `!.codex/rules/` re-includes the directory
-# itself so git will descend into it to evaluate the file-level exception
-# below; without it, `rulesync.rules` sits under a still-excluded directory
-# and stays hidden.
+# lockfile codex takes while running) alongside rulesync's generated MCP
+# config. Carve out only the one deterministic file `rulesync generate`
+# writes — same committed-artifact model as AGENTS.md/CLAUDE.md: consumers
+# read the generated file, they don't run rulesync themselves.
+#
+# `permissions` was piloted here and rejected — see CHANGELOG.md
+# ([Unreleased]) and rulesync.jsonc's `targets` comment. It used to also
+# write `.codex/rules/rulesync.rules`; that file and its now-empty
+# `.codex/rules/` directory (plus the `!.codex/rules/` re-include this
+# comment used to carry) were removed along with the feature.
 !.codex/config.toml
-!.codex/rules/
-!.codex/rules/rulesync.rules
 
 # .claude/ is machine state except for the parts that are repo policy. Agent
 # definitions are ethos's projection of this repo's team into Claude Code's
