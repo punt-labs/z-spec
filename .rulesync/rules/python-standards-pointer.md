@@ -1,6 +1,6 @@
 ---
 root: false
-targets: ["*"]
+targets: ["claudecode", "codexcli", "pi"]
 description: "Pointer to org-wide Python standards — not inlined (DRY, see context-mgmt.md)"
 globs: ["**/*.py"]
 ---
@@ -34,3 +34,19 @@ does not exist and this pointer resolves to nothing. In that case:
 Do not re-derive Python style rules from memory or from a different
 project's conventions — the 22-file standard is the one source of truth,
 wherever it is reached from.
+
+**Scoping caveat, stated honestly:** the `globs` above are enforced only for
+`claudecode`, which reads this file from `.claude/rules/python-standards-pointer.md`
+with a `paths:` frontmatter Claude Code checks per-file. `codexcli` and `pi`
+have no modular rules directory to scope against — rulesync folds this
+rule's body unconditionally into the shared root `AGENTS.md`, so those two
+tools see this Python pointer on every file, not only `**/*.py` (a pointer,
+not a style rule itself, so the practical cost is a stale reference visible
+outside Python work rather than a misapplied convention). `opencode` is
+intentionally left out of `targets` above: its `instructions` array is
+project-wide with no glob support either, and rulesync would additionally
+register this rule a second time (root `AGENTS.md` plus
+`.opencode/memories/python-standards-pointer.md`) since opencode reads both
+— a real double-load, not just an unscoped one. Getting the guidance into
+AGENTS.md via `codexcli`/`pi` already covers opencode's users; excluding it
+from `targets` avoids the duplicate registration without losing coverage.

@@ -93,9 +93,13 @@ expectation, before the PR opens.
   checkout requirement stated above).
 - `README.md` — user-facing surface. `CHANGELOG.md` — release history.
   `examples/*.tex` — the spec corpus gated by `make check`.
-- Z notation conventions (ProB-compatible) load automatically when you touch
-  a `.tex` spec or anything under `examples/` — see the glob-scoped rule
-  rather than a copy here (`.rulesync/rules/z-conventions.md`).
+- Z notation conventions (ProB-compatible) — see
+  `.rulesync/rules/z-conventions.md` rather than a copy here. Claude Code
+  loads it only when you touch a `.tex` spec or anything under `examples/`
+  (its `paths:`-scoped `.claude/rules/` mechanism honors the glob); codexcli
+  and pi have no per-file scoping and instead get it folded into the shared
+  root `AGENTS.md`, so it is always in context for those two tools. See the
+  rule file's own scoping caveat for the full picture.
 
 ## Code quality
 
@@ -144,9 +148,39 @@ Do not re-derive Python style rules from memory or from a different
 project's conventions — the 22-file standard is the one source of truth,
 wherever it is reached from.
 
+**Scoping caveat, stated honestly:** the `globs` above are enforced only for
+`claudecode`, which reads this file from `.claude/rules/python-standards-pointer.md`
+with a `paths:` frontmatter Claude Code checks per-file. `codexcli` and `pi`
+have no modular rules directory to scope against — rulesync folds this
+rule's body unconditionally into the shared root `AGENTS.md`, so those two
+tools see this Python pointer on every file, not only `**/*.py` (a pointer,
+not a style rule itself, so the practical cost is a stale reference visible
+outside Python work rather than a misapplied convention). `opencode` is
+intentionally left out of `targets` above: its `instructions` array is
+project-wide with no glob support either, and rulesync would additionally
+register this rule a second time (root `AGENTS.md` plus
+`.opencode/memories/python-standards-pointer.md`) since opencode reads both
+— a real double-load, not just an unscoped one. Getting the guidance into
+AGENTS.md via `codexcli`/`pi` already covers opencode's users; excluding it
+from `targets` avoids the duplicate registration without losing coverage.
+
 # Z conventions (ProB-compatible) — do not "modernize"
 
 - `\quad~` for continuation lines inside `\begin{zed}`; fuzz has no `\t1`.
 - `ZBOOL ::= ztrue | zfalse`, not a native Bool.
 - Two-letter lowercase free-type prefixes to avoid B keyword conflicts.
 - Flat schemas; bounded integers so ProB can animate.
+
+**Scoping caveat, stated honestly:** the `globs` above are enforced only for
+`claudecode`, which reads this file from `.claude/rules/z-conventions.md`
+with a `paths:` frontmatter Claude Code checks per-file. `codexcli` and `pi`
+have no modular rules directory to scope against — rulesync folds this rule's
+body unconditionally into the shared root `AGENTS.md`, so those two tools
+apply these Z conventions to every file, not only `.tex` specs and
+`examples/**`. `opencode` is intentionally left out of `targets` above:
+its `instructions` array is project-wide with no glob support either, and
+rulesync would additionally register this rule a second time (root
+`AGENTS.md` plus `.opencode/memories/z-conventions.md`) since opencode reads
+both — a real double-load, not just an unscoped one. Getting the guidance
+into AGENTS.md via `codexcli`/`pi` already covers opencode's users; excluding
+it from `targets` avoids the duplicate registration without losing coverage.

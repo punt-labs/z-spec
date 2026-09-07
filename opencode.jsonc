@@ -29,9 +29,5 @@
       "examples/**": "allow",
       "docs/**": "allow"
     }
-  },
-  "instructions": [
-    ".opencode/memories/python-standards-pointer.md",
-    ".opencode/memories/z-conventions.md"
-  ]
+  }
 }
