@@ -10,7 +10,9 @@ probcli in ``home/Applications/ProB``. Each planted file logs through
 ``stub_log.StubLog`` when it is sourced or run, so with HOME given as the
 RELATIVE path ``home``, any log at all means the installer resolved a path
 against the directory it was started in. Nothing reaches the network:
-``curl`` is a stub that prints nothing.
+``curl`` is a stub that prints nothing. With ``build``, fuzz's build tools
+are stubs too, so install_fuzz runs its clone/configure/make/install steps
+to their end without compiling anything.
 """
 
 from __future__ import annotations
@@ -57,6 +59,22 @@ echo "curl: (7) Failed to connect to stub host" >&2
 exit 7
 """
 )
+# `git clone <url> <dir>` leaves a configure that succeeds in <dir>; every
+# other git call succeeds doing nothing.
+_GIT: Final[str] = (
+    "#!/bin/sh\n"
+    + StubLog.append_line("git")
+    + """if [ "$1" = clone ]; then
+  for dest in "$@"; do :; done
+  mkdir -p "$dest" || exit 1
+  printf '#!/bin/sh\\nexit 0\\n' > "$dest/configure" || exit 1
+  chmod +x "$dest/configure" || exit 1
+fi
+exit 0
+"""
+)
+# fuzz's build preflight and steps: each logs and succeeds, building nothing.
+_BUILD_TOOLS: Final[tuple[str, ...]] = ("make", "gcc", "bison", "flex", "cpp", "awk")
 
 
 def _log_and_succeed(name: str) -> str:
@@ -70,7 +88,6 @@ _PLANTED: Final[dict[str, str]] = {
     ".cargo/env": StubLog.append_line("sourced-cargo-env"),
     ".local/bin/uv": _log_and_succeed("uv"),
     ".local/bin/z-spec": _log_and_succeed("z-spec"),
-    ".local/bin/fuzz": _log_and_succeed("fuzz"),
     "Applications/ProB/probcli": _log_and_succeed("home-probcli")
     + f"echo 'ProB command line, version {VERSION}'\n",
 }
@@ -85,7 +102,11 @@ def _executable(path: Path, text: str) -> None:
 @final
 @dataclass(frozen=True, slots=True)
 class WholeRun:
-    """One run of install.sh: its outcome and every planted file's log."""
+    """One run of install.sh: its outcome and every planted file's log.
+
+    Output is decoded as UTF-8 with surrogateescape, so a byte that is not
+    UTF-8 reaches a test as a lone surrogate instead of failing the decode.
+    """
 
     result: subprocess.CompletedProcess[str]
     logs: Path
@@ -105,40 +126,63 @@ class WholeInstall:
     """install.sh, run end to end against the planted home tree.
 
     ``home`` is HOME verbatim (``None``: unset), the planted tree being
-    ``tmp_path / "home"`` either way. ``probcli`` is the shell body of a probcli placed
-    in ``home/.local/bin``, which the installer finds on PATH once it has
-    put that directory there; ``None`` leaves none.
+    ``tmp_path / "home"`` either way. ``probcli`` is the shell body of a
+    probcli placed in ``home/.local/bin``, which the installer finds on PATH
+    once it has put that directory there; ``None`` leaves none. ``fuzz`` is
+    the shell body of the fuzz planted there (``None``: one that succeeds).
+    ``tmpdir`` is TMPDIR verbatim, created under tmp_path; ``None`` is
+    ``tmp_path / "tmp"``.
     """
 
     home: str | None  # None: HOME is unset
     args: tuple[str, ...] = ("--no-plugin",)
     probcli: str | None = None  # None: no probcli on PATH
+    fuzz: str | None = None  # None: a fuzz that logs and succeeds
+    build: bool = False
+    tmpdir: str | None = None  # None: an absolute TMPDIR under tmp_path
 
     def run(self, tmp_path: Path) -> WholeRun:
-        tree, logs, bin_dir = tmp_path / "home", tmp_path / "logs", tmp_path / "bin"
+        tree, logs = tmp_path / "home", tmp_path / "logs"
         for relative, text in _PLANTED.items():
             _executable(tree / relative, text)
+        fuzz = _log_and_succeed("fuzz") + (self.fuzz or "")
+        _executable(tree / ".local/bin/fuzz", fuzz + "\n")
         if self.probcli is not None:
             body = _log_and_succeed("path-probcli") + self.probcli
             _executable(tree / ".local/bin/probcli", body + "\n")
         logs.mkdir()
-        bin_dir.mkdir()
-        for tool in _TOOLS:
-            (bin_dir / tool).symlink_to(self._real(tool))
-        _executable(bin_dir / "curl", _CURL)
-        env = {"PATH": str(bin_dir), "LOGS": str(logs)}
+        tmpdir = self.tmpdir or str(tmp_path / "tmp")
+        (tmp_path / tmpdir).mkdir(parents=True)
+        env = {
+            "PATH": str(self._bin(tmp_path / "bin")),
+            "LOGS": str(logs),
+            "TMPDIR": tmpdir,
+        }
         if self.home is not None:
             env["HOME"] = self.home
         result = subprocess.run(
             [self._real("sh"), str(_INSTALL_SH), *self.args],
             env=env,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="surrogateescape",
             check=False,
             timeout=60,
             cwd=tmp_path,
         )
         return WholeRun(result, logs)
+
+    def _bin(self, bin_dir: Path) -> Path:
+        bin_dir.mkdir()
+        for tool in _TOOLS:
+            (bin_dir / tool).symlink_to(self._real(tool))
+        _executable(bin_dir / "curl", _CURL)
+        if self.build:
+            (bin_dir / "mktemp").symlink_to(self._real("mktemp"))
+            _executable(bin_dir / "git", _GIT)
+            for tool in _BUILD_TOOLS:
+                _executable(bin_dir / tool, _log_and_succeed(tool) + "exit 0\n")
+        return bin_dir
 
     @staticmethod
     def _real(tool: str) -> str:

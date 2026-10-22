@@ -248,11 +248,17 @@ PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
 PROB_HOME="$HOME/Applications/ProB"
 
 # probcli's own output is shown to the reader when it fails or reports the
-# wrong version. It is shown as text, not replayed to the terminal: tab and
-# newline survive, every other control character and DEL is dropped, so an
-# escape sequence in it cannot rewrite the screen or the window title.
-# LC_ALL=C makes tr work on bytes, whatever the user's locale.
-printable() { LC_ALL=C tr -d '\000-\010\013-\037\177'; }
+# wrong version, and fuzz's -Dv output when fuzz will not run. It is shown
+# as text, not replayed to the terminal, so an escape sequence in it cannot
+# rewrite the screen or the window title. Both tools print ASCII, so every
+# byte outside printable ASCII goes except tab and newline: \000-\010 and
+# \013-\037 (the C0 controls but tab \011 and newline \012), and
+# \177-\377 -- DEL, the 8-bit C1 controls some terminals honour (0x9B is
+# CSI), and every byte of a multi-byte UTF-8 sequence, which includes the
+# UTF-8 encoding of a C1 control (C2 9B). LC_ALL=C makes tr work on bytes
+# whatever the user's locale; under a UTF-8 locale, BSD tr stops at the
+# first byte that is not valid UTF-8 and drops the rest.
+printable() { LC_ALL=C tr -d '\000-\010\013-\037\177-\377'; }
 
 # Run the named function with set -e genuinely in force, leaving its exit
 # status in RUN_ERREXIT_RC. POSIX ignores -e for every command run, at any
@@ -733,7 +739,7 @@ install_fuzz() (
   # argument.
   FUZZ_PROBE_OUT="$("$FUZZ_HOME/bin/fuzz" -Dv < /dev/null 2>&1)" || {
     echo "  ! $FUZZ_HOME/bin/fuzz is installed but would not run:" >&2
-    printf '%s\n' "$FUZZ_PROBE_OUT" | while IFS= read -r line; do echo "    $line" >&2; done
+    printf '%s\n' "$FUZZ_PROBE_OUT" | printable | while IFS= read -r line; do echo "    $line" >&2; done
     return 1
   }
 
@@ -1004,7 +1010,7 @@ else
   else
     FUZZ_STATUS="wont-run"
     warn "fuzz resolves to $RESOLVED_FUZZ, but it would not run:"
-    printf '%s\n' "$FUZZ_PROBE_OUT" | while IFS= read -r line; do warn "  $line"; done
+    printf '%s\n' "$FUZZ_PROBE_OUT" | printable | while IFS= read -r line; do warn "  $line"; done
   fi
 fi
 
