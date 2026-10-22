@@ -33,7 +33,7 @@ from tests.install_probcli_runner import (
     VERSION,
     Scenario,
 )
-from tests.install_sh_source import CurlFlags, InstallSh, ProbArchive
+from tests.install_sh_source import CurlFlags, Damage, InstallSh, ProbArchive
 
 # Fixed flag -> value pairs every ProB fetch must carry (None: no value).
 EXPECTED_FLAGS: Final[dict[str, str | None]] = {
@@ -191,10 +191,15 @@ def test_non_hash_pin_fails_before_any_download(tmp_path: Path, pin: str) -> Non
     assert not run.archive_left()
 
 
-def test_shipped_pin_never_installs_the_served_fixture(tmp_path: Path) -> None:
-    # The shipped value, whatever it is: a placeholder today ("no verified
-    # pin"), a real hash once one lands ("mismatch" against this fixture).
-    # Either way the served archive is never read, installed, or kept.
+def test_shipped_pins_fail_closed(tmp_path: Path) -> None:
+    # Each shipped value is a real hash or a marked placeholder; for this
+    # OS's, whatever it is -- a placeholder today ("no verified pin"), a real
+    # hash once one lands ("mismatch" against this fixture) -- the served
+    # archive is never read, installed, or kept.
+    for name, value in InstallSh().pins().items():
+        assert re.fullmatch(r"[0-9a-f]{64}", value) or value.startswith(
+            "PLACEHOLDER-"
+        ), f"install.sh {name} is neither a SHA-256 nor a marked placeholder: {value!r}"
     run = Scenario().run(tmp_path)
 
     err = run.result.stderr
@@ -261,6 +266,55 @@ def test_probcli_reporting_another_version_fails(tmp_path: Path) -> None:
     assert "✓ probcli" not in run.result.stdout
 
 
+def test_probcli_printing_no_version_is_unreadable_and_shown(tmp_path: Path) -> None:
+    # The archive's probcli prints "ProB command line, version " and no x.y.z.
+    run = Scenario.pinned(ProbArchive.with_probcli(SYSTEM, "")).run(tmp_path)
+
+    err = run.result.stderr
+    assert run.result.returncode != 0
+    assert f"expected probcli {VERSION}, got: unreadable\n" in err
+    assert "/probcli -version printed:\n      ProB command line, version" in err
+
+
+@pytest.mark.parametrize("damage", ["not-an-archive", "bad-checksum"])
+def test_pinned_archive_that_does_not_read_is_never_extracted(
+    tmp_path: Path, damage: Damage
+) -> None:
+    # Pinned to its own hash, so only the archive integrity check stands
+    # between it and the extractor.
+    run = Scenario.pinned(GOOD.damaged(damage)).run(tmp_path)
+
+    kind = "zip archive" if SYSTEM == "Darwin" else "gzip tarball"
+    assert run.result.returncode != 0
+    assert HOST_URL in run.result.stderr
+    assert f"did not return a {kind} (got: " in run.result.stderr
+    assert run.extractions() == []
+    assert not run.installed()
+
+
+def test_pinned_archive_without_probcli_fails(tmp_path: Path) -> None:
+    run = Scenario.pinned(ProbArchive.without_probcli(SYSTEM)).run(tmp_path)
+
+    err = run.result.stderr
+    assert run.result.returncode != 0
+    archive = run.home / "Applications" / GOOD.name
+    assert f"extracted {archive} but there is no probcli" in err
+    assert "✓ probcli" not in run.result.stdout
+    assert not run.installed()
+
+
+@pytest.mark.parametrize("home", ["home", ""], ids=["relative", "empty"])
+def test_non_absolute_home_fails_before_anything_else(
+    tmp_path: Path, home: str
+) -> None:
+    run = replace(Scenario.pinned(), home=home, absolute_home=False).run(tmp_path)
+
+    assert run.result.returncode != 0
+    assert f"HOME is not an absolute path (HOME='{home}')" in run.result.stderr
+    assert run.calls("curl") == [], "a relative HOME still reached the host"
+    assert not (tmp_path / home / "Applications").exists()
+
+
 # The fixtures must not depend on the clock: a pin hashed from one build has
 # to verify the next. The timestamps are checked where they live, in the
 # headers, since two builds in the same second would agree by accident.
@@ -280,10 +334,3 @@ def test_zip_fixture_carries_a_fixed_timestamp() -> None:
     assert data[10:14] == b"\x00\x00\x21\x00"
     with zipfile.ZipFile(io.BytesIO(data)) as zf:
         assert {i.date_time for i in zf.infolist()} == {(1980, 1, 1, 0, 0, 0)}
-
-
-def test_shipped_pins_are_hashes_or_fail_closed_placeholders() -> None:
-    for name, value in InstallSh().pins().items():
-        assert re.fullmatch(r"[0-9a-f]{64}", value) or value.startswith(
-            "PLACEHOLDER-"
-        ), f"install.sh {name} is neither a SHA-256 nor a marked placeholder: {value!r}"

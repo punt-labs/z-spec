@@ -279,6 +279,14 @@ install_probcli() (
   # partial failure never gets reported as success.
   set -eu
 
+  # Every path below hangs off $HOME ($PROB_HOME, the archive, the cd into
+  # the extraction directory); a relative or empty HOME would scatter them
+  # under whatever directory the installer happened to run from.
+  case "$HOME" in
+    /*) ;;
+    *) echo "  ! HOME is not an absolute path (HOME='$HOME') -- cannot install probcli" >&2; return 1 ;;
+  esac
+
   # Already at the right version, wherever the engine would actually find it
   # ($PROBCLI, PATH, or the conventional path)? Skip the download entirely --
   # and do not install into $PROB_HOME on top of it, which would leave two
@@ -481,8 +489,14 @@ install_probcli() (
   # Exact match, not substring: a future 1.15.10 must not silently pass as
   # 1.15.1.
   PROB_VER="$(printf '%s\n' "$PROB_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+  # Its output is shown, indented, so "unreadable" can be told apart from a
+  # real other version without re-running it by hand.
   test "$PROB_VER" = "$PROB_VERSION" || {
-    echo "  ! expected probcli $PROB_VERSION, got: $PROB_VER" >&2
+    echo "  ! expected probcli $PROB_VERSION, got: ${PROB_VER:-unreadable}" >&2
+    echo "    $PROB_HOME/probcli -version printed:" >&2
+    printf '%s\n' "$PROB_OUT" | while IFS= read -r line; do
+      printf '      %s\n' "$line"
+    done >&2
     return 1
   }
 

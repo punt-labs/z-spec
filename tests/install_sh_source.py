@@ -20,9 +20,9 @@ import shlex
 import tarfile
 import zipfile
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Final, Self, final
+from typing import Final, Literal, Self, final
 
 _INSTALL_SH: Final[Path] = Path(__file__).resolve().parent.parent / "install.sh"
 _PROB_VERSION: Final[re.Pattern[str]] = re.compile(r"^PROB_VERSION=(\S+)$", re.M)
@@ -32,6 +32,7 @@ _PIN: Final[re.Pattern[str]] = re.compile(
 _SET_FLAGS: Final[re.Pattern[str]] = re.compile(
     r"^\s*set -- (-fL(?:[^\n]*\\\n)*[^\n]*)$", re.M
 )
+type Damage = Literal["none", "not-an-archive", "bad-checksum"]
 _ARCHIVE_NAMES: Final[dict[str, str]] = {
     "Darwin": "ProB.macos.zip",
     "Linux": "ProB.linux64.tar.gz",
@@ -151,10 +152,18 @@ class ProbArchive:
     The tar.gz is written with a zero gzip header mtime and zero member
     mtimes, and the zip with zipfile's fixed 1980 timestamp, so two builds
     are byte-identical: a pin hashed from one build verifies the next.
+
+    ``damage`` serves what a broken or hostile host might, still under the
+    archive's own name and pinnable by its own hash: ``"not-an-archive"`` is
+    an HTML error page, and ``"bad-checksum"`` is the archive with one byte
+    of its data flipped -- the zip's first member payload (its listing still
+    reads, only a CRC test or an extraction notices) or the gzip trailer's
+    CRC (the tar listing fails).
     """
 
     system: str  # "Linux" (tar.gz) or "Darwin" (zip), as `uname -s` prints
     members: tuple[tuple[str, bytes], ...]
+    damage: Damage = "none"
 
     @classmethod
     def with_probcli(cls, system: str, version: str, *extra: str) -> Self:
@@ -168,11 +177,38 @@ class ProbArchive:
         members += [(name, b"planted by the archive\n") for name in extra]
         return cls(system, tuple(members))
 
+    @classmethod
+    def without_probcli(cls, system: str) -> Self:
+        """Build a well-formed archive whose only member is ProB/README."""
+        return cls(system, (("ProB/README", b"no probcli in this archive\n"),))
+
+    def damaged(self, damage: Damage) -> ProbArchive:
+        """Return this archive served with ``damage``."""
+        return replace(self, damage=damage)
+
     @property
     def name(self) -> str:
         return _ARCHIVE_NAMES[self.system]
 
     def data(self) -> bytes:
+        match self.damage:
+            case "not-an-archive":
+                return b"<html><body><h1>503 Service Unavailable</h1></body></html>\n"
+            case "bad-checksum":
+                return self._flipped(self._intact())
+            case "none":
+                return self._intact()
+
+    def sha256(self) -> str:
+        return hashlib.sha256(self.data()).hexdigest()
+
+    def write(self, directory: Path) -> Path:
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / self.name
+        path.write_bytes(self.data())
+        return path
+
+    def _intact(self) -> bytes:
         buffer = io.BytesIO()
         if self.system == "Darwin":
             with zipfile.ZipFile(buffer, "w") as zf:
@@ -188,11 +224,13 @@ class ProbArchive:
                 tf.addfile(tinfo, io.BytesIO(payload))
         return gzip.compress(buffer.getvalue(), mtime=0)
 
-    def sha256(self) -> str:
-        return hashlib.sha256(self.data()).hexdigest()
-
-    def write(self, directory: Path) -> Path:
-        directory.mkdir(parents=True, exist_ok=True)
-        path = directory / self.name
-        path.write_bytes(self.data())
-        return path
+    def _flipped(self, data: bytes) -> bytes:
+        # The gzip trailer is CRC-32 then ISIZE, 4 bytes each.
+        at = len(data) - 8
+        if self.system == "Darwin":
+            # Stored (uncompressed) members: the payload is in the zip as is.
+            payload = self.members[0][1]
+            if data.count(payload) != 1:
+                raise ValueError("zip payload is not uniquely locatable to damage")
+            at = data.index(payload)
+        return data[:at] + bytes([data[at] ^ 0xFF]) + data[at + 1 :]

@@ -7,7 +7,9 @@ the tools the function needs, so a scenario can take a hash tool away.
 ``curl`` there is a stub that records every argv and refuses, serves a
 locally built ProB-shaped archive, or dies mid-transfer; ``tar`` and
 ``unzip`` are logging wrappers around the real tools, so a test can prove an
-archive was never listed or extracted. No network is touched.
+archive was never listed or extracted. Each logged call is one record of
+NUL-terminated arguments, so an empty argument or one containing a space
+reaches the test exactly as install_probcli passed it. No network is touched.
 """
 
 from __future__ import annotations
@@ -58,7 +60,8 @@ _LOGGED: Final[tuple[str, ...]] = ("tar", "unzip")
 # FETCH=serve: the download copies $FIXTURE to the -o path.
 # FETCH=partial: the transfer dies mid-way (18), leaving partial bytes at -o.
 _STUB_CURL: Final[str] = """#!/bin/sh
-printf '%s\\n' "$*" >> "$LOGS/curl"
+printf '%s\\0' "$@" >> "$LOGS/curl"
+printf '\\n' >> "$LOGS/curl"
 for arg in "$@"; do
   if [ "$CURL_MODE" = old ] && [ "$arg" = "--retry-all-errors" ]; then
     echo "curl: option --retry-all-errors: is unknown" >&2
@@ -90,7 +93,8 @@ echo "curl: (7) Failed to connect to stub host" >&2
 exit 7
 """
 _STUB_LOGGED: Final[str] = """#!/bin/sh
-printf '%s\\n' "$*" >> "$LOGS/{name}"
+printf '%s\\0' "$@" >> "$LOGS/{name}"
+printf '\\n' >> "$LOGS/{name}"
 exec '{real}' "$@"
 """
 _STUB_BROKEN_HASHER: Final[str] = """#!/bin/sh
@@ -128,16 +132,22 @@ class Run:
     logs: Path
 
     def calls(self, tool: str) -> list[list[str]]:
+        """Return every logged argv of ``tool``, argument boundaries intact."""
         log = self.logs / tool
-        lines = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
-        return [ln.split() for ln in lines]
+        if not log.exists():
+            return []
+        *records, tail = log.read_text(encoding="utf-8").split("\0\n")
+        if tail:
+            pytest.fail(f"{tool} log ends in a partial record: {tail!r}")
+        return [record.split("\0") for record in records]
 
     def fetches(self) -> list[list[str]]:
         return [c for c in self.calls("curl") if "-o" in c]
 
     def fetch(self) -> list[str]:
         fetches = self.fetches()
-        assert len(fetches) == 1, f"expected one ProB fetch, got {self.calls('curl')}"
+        if len(fetches) != 1:
+            pytest.fail(f"expected one ProB fetch, got {self.calls('curl')}")
         return fetches[0]
 
     def fetch_flags(self) -> dict[str, str | None]:
@@ -147,7 +157,8 @@ class Run:
         is a difference.
         """
         argv = self.fetch()
-        assert argv[-1].startswith(HOST_URL), f"fetch does not end in the URL: {argv}"
+        if not argv[-1].startswith(HOST_URL):
+            pytest.fail(f"fetch does not end in the URL: {argv}")
         out = argv.index("-o")
         return CurlFlags.parse(argv[:out] + argv[out + 2 : -1]).as_dict()
 
@@ -156,8 +167,8 @@ class Run:
         return self.calls("tar") + self.calls("unzip")
 
     def extractions(self) -> list[list[str]]:
-        tar = [c for c in self.calls("tar") if c and "x" in c[0]]
-        unzip = [c for c in self.calls("unzip") if c and c[0] in ("-q", "-oq")]
+        tar = [c for c in self.calls("tar") if "x" in c[0]]
+        unzip = [c for c in self.calls("unzip") if c[0] in ("-q", "-oq")]
         return tar + unzip
 
     def installed(self) -> bool:
@@ -186,6 +197,7 @@ class Scenario:
     hashers: tuple[str, ...] = HOST_HASHERS
     broken_hashers: bool = False
     home: str = "home"  # HOME, relative to the run's tmp_path
+    absolute_home: bool = True  # False: HOME is passed as that relative path
 
     @classmethod
     def pinned(cls, archive: ProbArchive = GOOD) -> Scenario:
@@ -196,15 +208,16 @@ class Scenario:
         source = InstallSh().install_probcli_source()
         if self.pin is not None:
             shipped = f'{_PIN_VAR}="{InstallSh().pins()[_PIN_VAR]}"'
-            assert shipped in source, f"{_PIN_VAR} assignment not inside the slice"
+            if shipped not in source:
+                pytest.fail(f"{_PIN_VAR} assignment not inside the slice")
             source = source.replace(shipped, f'{_PIN_VAR}="{self.pin}"')
         funcs = tmp_path / "funcs.sh"
         funcs.write_text(source, encoding="utf-8")
         home, logs = tmp_path / self.home, tmp_path / "logs"
-        home.mkdir(parents=True)
+        home.mkdir(parents=True, exist_ok=True)
         logs.mkdir()
         env = {
-            "HOME": str(home),
+            "HOME": str(home) if self.absolute_home else self.home,
             # No probcli is on this PATH and PROBCLI is unset, so the
             # already-installed shortcut cannot skip the download under test.
             "PATH": str(self._bin(tmp_path / "bin")),
@@ -220,6 +233,7 @@ class Scenario:
             text=True,
             check=False,
             timeout=60,
+            cwd=tmp_path,
         )
         return Run(result, home, logs)
 
