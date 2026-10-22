@@ -178,9 +178,29 @@ def test_extraction_failure_names_the_verified_archive(
     err = run.result.stderr
     assert run.result.returncode != 0
     assert len(run.extractions()) == 1, "the verified archive never reached tar/unzip"
+    assert "simulated extraction failure" in err, "the extractor never failed"
     assert f"FATAL: could not extract {good.name} (from cache key {CACHE_KEY})" in err
     assert "its SHA-256 matched the pin" in err
     assert "no probcli in the ProB" not in err, "ran on past the failed extraction"
+    assert "PROBCLI=" not in run.file("github_env")
+
+
+@pytest.mark.parametrize("cache_hit", [True, False], ids=["hit", "miss"])
+def test_zip_whose_listing_fails_is_never_extracted(
+    tmp_path: Path, cache_hit: bool
+) -> None:
+    # The zip passes unzip -tq (the real tool runs); only unzip -Z1 fails.
+    # Ignoring that would leave the slip guard checking an empty listing.
+    good = _good("Darwin")
+    step = replace(InstallStep.pinned(good, cache_hit=cache_hit), listing_fails=True)
+    run = step.run(tmp_path)
+    err = run.result.stderr
+    assert run.result.returncode != 0
+    assert [c[0] for c in run.calls("unzip")] == ["-tq", "-Z1"]
+    assert "unzip: simulated listing failure" in err
+    assert f"FATAL: {good.name} from " in err
+    assert "is not a valid archive (file -b: " in err
+    assert run.extractions() == [], "an archive whose listing failed was extracted"
     assert "PROBCLI=" not in run.file("github_env")
 
 

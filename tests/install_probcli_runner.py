@@ -166,9 +166,8 @@ class Run:
         return self.calls("tar") + self.calls("unzip")
 
     def extractions(self) -> list[list[str]]:
-        tar = [c for c in self.calls("tar") if "x" in c[0]]
-        unzip = [c for c in self.calls("unzip") if c[0] in ("-q", "-oq")]
-        return tar + unzip
+        """Every tar/unzip call the failing-extractor stub would fail."""
+        return [c for c in self.archive_reads() if StubLog.is_extraction(c)]
 
     def installed(self) -> bool:
         return (self.home / "Applications" / "ProB" / "probcli").exists()
@@ -200,6 +199,7 @@ class Scenario:
     hashers: tuple[str, ...] = HOST_HASHERS
     broken_hashers: bool = False
     extraction_fails: bool = False  # tar -x / unzip -oq fail, listings run
+    listing_fails: bool = False  # unzip -Z1 fails; unzip -tq still runs
     home: str = "home"  # HOME, relative to the run's tmp_path
     absolute_home: bool = True  # False: HOME is passed as that relative path
 
@@ -248,7 +248,10 @@ class Scenario:
             (bin_dir / tool).symlink_to(_real(tool))
         for tool in _LOGGED:
             wrapper = StubLog.wrapper(
-                tool, _real(tool), extraction_fails=self.extraction_fails
+                tool,
+                _real(tool),
+                extraction_fails=self.extraction_fails,
+                listing_fails=self.listing_fails,
             )
             _script(bin_dir / tool, wrapper)
         for tool in self.hashers:

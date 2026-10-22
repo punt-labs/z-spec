@@ -135,8 +135,27 @@ def test_failed_extraction_names_the_archive_and_its_destination(
     archive = run.home / "Applications" / served.name
     assert run.result.returncode != 0
     assert len(run.extractions()) == 1, "the verified archive never reached it"
+    assert "simulated extraction failure" in err, "the extractor never failed"
     assert f"could not extract {archive} into {run.home / 'Applications'}\n" in err
     assert "no probcli at" not in err, "ran on past the failed extraction"
     assert not run.installed()
     assert not run.archive_left(), "the archive was left after a failed extraction"
     assert earlier.exists(), "a failed run removed an earlier install under DEST"
+
+
+def test_zip_whose_listing_fails_is_never_extracted(tmp_path: Path) -> None:
+    # The zip passes its integrity test (unzip -tq runs the real tool); only
+    # unzip -Z1 fails. Ignoring that would leave the slip guard checking an
+    # empty listing and let unzip extract members it never saw.
+    served = ProbArchive.with_probcli("Darwin", VERSION)
+    run = replace(Scenario.pinned(served), listing_fails=True).run(tmp_path)
+
+    err = run.result.stderr
+    archive = run.home / "Applications" / served.name
+    assert run.result.returncode != 0
+    assert [c[0] for c in run.calls("unzip")] == ["-tq", "-Z1"]
+    assert "unzip: simulated listing failure" in err
+    assert f"  ! could not list {archive}\n" in err, err
+    assert run.extractions() == [], "an archive whose listing failed was extracted"
+    assert not run.installed()
+    assert not run.archive_left(), "an archive whose listing failed was left"

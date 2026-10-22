@@ -57,15 +57,21 @@ echo "curl: (7) Failed to connect to stub host" >&2
 exit 7
 """
 )
-_LOG_AND_SUCCEED: Final[str] = "#!/bin/sh\n" + StubLog.append_line("{name}")
+
+
+def _log_and_succeed(name: str) -> str:
+    """A script that logs its call as ``name`` and carries on."""
+    return "#!/bin/sh\n" + StubLog.append_line(name)
+
+
 # Planted under the home tree: relative path -> the text written there.
 _PLANTED: Final[dict[str, str]] = {
     ".local/bin/env": StubLog.append_line("sourced-local-env"),
     ".cargo/env": StubLog.append_line("sourced-cargo-env"),
-    ".local/bin/uv": _LOG_AND_SUCCEED.format(name="uv"),
-    ".local/bin/z-spec": _LOG_AND_SUCCEED.format(name="z-spec"),
-    ".local/bin/fuzz": _LOG_AND_SUCCEED.format(name="fuzz"),
-    "Applications/ProB/probcli": _LOG_AND_SUCCEED.format(name="home-probcli")
+    ".local/bin/uv": _log_and_succeed("uv"),
+    ".local/bin/z-spec": _log_and_succeed("z-spec"),
+    ".local/bin/fuzz": _log_and_succeed("fuzz"),
+    "Applications/ProB/probcli": _log_and_succeed("home-probcli")
     + f"echo 'ProB command line, version {VERSION}'\n",
 }
 
@@ -113,7 +119,7 @@ class WholeInstall:
         for relative, text in _PLANTED.items():
             _executable(tree / relative, text)
         if self.probcli is not None:
-            body = _LOG_AND_SUCCEED.format(name="path-probcli") + self.probcli
+            body = _log_and_succeed("path-probcli") + self.probcli
             _executable(tree / ".local/bin/probcli", body + "\n")
         logs.mkdir()
         bin_dir.mkdir()

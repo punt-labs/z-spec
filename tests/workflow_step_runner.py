@@ -46,10 +46,9 @@ BAD_PINS: Final[dict[str, str]] = {
     "two-lines": "0" * 64 + "\nnot-a-hash",
 }
 
-_LOG_ARGV: Final[str] = StubLog.append_line("{name}")
 _CURL: Final[str] = (
     "#!/bin/sh\n"
-    + _LOG_ARGV.format(name="curl")
+    + StubLog.append_line("curl")
     + """out=""
 while [ $# -gt 0 ]; do
   if [ "$1" = "-o" ]; then out="$2"; shift; fi
@@ -63,13 +62,15 @@ echo "curl: (7) Failed to connect to stub host" >&2
 exit 7
 """
 )
-_BROKEN: Final[str] = (
-    "#!/bin/sh\n"
-    + _LOG_ARGV
-    + """echo "{name}: simulated read error" >&2
-exit 1
-"""
-)
+
+
+def _broken(name: str) -> str:
+    """A ``name`` that logs its call, then fails as an unreadable file would."""
+    return (
+        "#!/bin/sh\n"
+        + StubLog.append_line(name)
+        + f'echo "{name}: simulated read error" >&2\nexit 1\n'
+    )
 
 
 def _tool(name: str) -> str:
@@ -101,9 +102,8 @@ class StepRun:
         return self.calls("tar") + self.calls("unzip")
 
     def extractions(self) -> list[list[str]]:
-        tar = [c for c in self.calls("tar") if "x" in c[0]]
-        unzip = [c for c in self.calls("unzip") if c[0] == "-q"]
-        return tar + unzip
+        """Every tar/unzip call the failing-extractor stub would fail."""
+        return [c for c in self.archive_reads() if StubLog.is_extraction(c)]
 
     def file(self, name: str) -> str:
         """Return a runner file (github_env, github_output), or "" if unwritten."""
@@ -189,6 +189,8 @@ class InstallStep:
     tar/unzip stubs fail every extracting call while listings still run the
     real tool (``StubLog.wrapper``), so a verified archive reaches the
     extractor and the extractor fails -- for any uid, root included.
+    ``listing_fails`` makes ``unzip -Z1`` fail while ``unzip -tq`` still runs,
+    so a good zip passes its integrity test and only its listing fails.
     """
 
     archive: ProbArchive
@@ -199,6 +201,7 @@ class InstallStep:
     fetch: str = "serve"
     broken_shasum: bool = False
     extraction_fails: bool = False
+    listing_fails: bool = False
     # None: the archive's own name, as the prob-pin step would output it.
     archive_name: str | None = None
 
@@ -226,10 +229,13 @@ class InstallStep:
         stubs = {"curl": _CURL}
         for name in ("tar", "unzip"):
             stubs[name] = StubLog.wrapper(
-                name, _tool(name), extraction_fails=self.extraction_fails
+                name,
+                _tool(name),
+                extraction_fails=self.extraction_fails,
+                listing_fails=self.listing_fails,
             )
         stubs["shasum"] = (
-            _BROKEN.format(name="shasum")
+            _broken("shasum")
             if self.broken_shasum
             else StubLog.wrapper("shasum", _tool("shasum"))
         )
