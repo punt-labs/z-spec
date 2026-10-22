@@ -25,10 +25,17 @@ from tests.stub_log import StubLog
 _HOMES: Final[dict[str, str | None]] = {"relative": "home", "empty": "", "unset": None}
 
 
+_REMEDY: Final[str] = (
+    "install.sh: set HOME to your home directory (an absolute path) and re-run\n"
+)
+
+
 def _refusal(home: str | None) -> str:
-    shown = home or ""
-    return f"install.sh: HOME is not an absolute path (HOME='{shown}') -- " + (
-        "refusing to run\n"
+    if home is None:
+        return "install.sh: HOME is unset -- refusing to run\n" + _REMEDY
+    return (
+        f"install.sh: HOME='{home}' is not an absolute path -- refusing to run\n"
+        + _REMEDY
     )
 
 
@@ -78,9 +85,23 @@ def test_install_probcli_refuses_a_non_absolute_home(tmp_path: Path, home: str) 
     run = replace(Scenario.pinned(), home=home, home_mode="relative").run(tmp_path)
 
     assert run.result.returncode != 0
-    assert f"HOME is not an absolute path (HOME='{home}')" in run.result.stderr
+    assert run.result.stderr == (
+        f"  ! HOME='{home}' is not an absolute path -- cannot install probcli\n"
+        "    set HOME to your home directory (an absolute path) and re-run\n"
+    )
     assert run.calls("curl") == [], "a relative HOME still reached the host"
     assert not (tmp_path / home / "Applications").exists()
+
+
+def test_install_probcli_names_an_unset_home(tmp_path: Path) -> None:
+    run = replace(Scenario.pinned(), home_mode="unset").run(tmp_path)
+
+    assert run.result.returncode != 0
+    assert run.result.stderr == (
+        "  ! HOME is unset -- cannot install probcli\n"
+        "    set HOME to your home directory (an absolute path) and re-run\n"
+    )
+    assert run.calls("curl") == [], "an unset HOME still reached the host"
 
 
 def test_install_probcli_never_runs_a_probcli_under_a_relative_home(

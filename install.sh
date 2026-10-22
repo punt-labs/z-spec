@@ -9,10 +9,17 @@ set -eu
 # each of them against whatever directory the installer was started in --
 # sourcing and running files found there -- so it is refused before
 # anything else, argument parsing included. ${HOME-}: an unset HOME gets
-# this message, not set -u's.
+# its own message, not set -u's; ${HOME+set} tells unset from empty.
 case "${HOME-}" in
   /*) ;;
-  *) printf "install.sh: HOME is not an absolute path (HOME='%s') -- refusing to run\n" "${HOME-}" >&2; exit 1 ;;
+  *)
+    if [ -z "${HOME+set}" ]; then
+      printf 'install.sh: HOME is unset -- refusing to run\n' >&2
+    else
+      printf "install.sh: HOME='%s' is not an absolute path -- refusing to run\n" "$HOME" >&2
+    fi
+    printf 'install.sh: set HOME to your home directory (an absolute path) and re-run\n' >&2
+    exit 1 ;;
 esac
 
 # --- Colors (disabled when not a terminal) ---
@@ -330,7 +337,14 @@ install_probcli() (
   # its own, as the tests source it.
   case "${HOME-}" in
     /*) ;;
-    *) echo "  ! HOME is not an absolute path (HOME='${HOME-}') -- cannot install probcli" >&2; return 1 ;;
+    *)
+      if [ -z "${HOME+set}" ]; then
+        echo "  ! HOME is unset -- cannot install probcli" >&2
+      else
+        echo "  ! HOME='$HOME' is not an absolute path -- cannot install probcli" >&2
+      fi
+      echo "    set HOME to your home directory (an absolute path) and re-run" >&2
+      return 1 ;;
   esac
 
   # Already at the right version, wherever the engine would actually find it
