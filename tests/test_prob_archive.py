@@ -9,14 +9,18 @@ they are bsdtar's verdicts, on Linux GNU tar's.
 
 from __future__ import annotations
 
+import io
 import shutil
 import subprocess
+import tarfile
+import zipfile
 from pathlib import Path
 from typing import Final
 
 import pytest
 
-from tests.install_sh_source import InstallSh, ProbArchive
+from tests.install_sh_source import InstallSh
+from tests.prob_archive import ProbArchive
 
 _VERSION: Final[str] = InstallSh().prob_version()
 
@@ -66,3 +70,24 @@ def test_corrupt_zip_lists_but_fails_its_crc_test(tmp_path: Path) -> None:
 def test_corrupt_archive_hashes_differently(system: str) -> None:
     good = ProbArchive.with_probcli(system, _VERSION)
     assert good.damaged("corrupt").sha256() != good.sha256()
+
+
+# The fixtures must not depend on the clock: a pin hashed from one build has
+# to verify the next. The timestamps are checked where they live, in the
+# headers, since two builds in the same second would agree by accident.
+def test_tar_fixture_carries_no_timestamp() -> None:
+    data = ProbArchive.with_probcli("Linux", _VERSION).data()
+    assert data[:2] == b"\x1f\x8b"
+    assert data[4:8] == b"\0\0\0\0", "gzip MTIME must be zero for a stable hash"
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
+        assert [m.mtime for m in tf.getmembers()] == [0]
+
+
+def test_zip_fixture_carries_a_fixed_timestamp() -> None:
+    data = ProbArchive.with_probcli("Darwin", _VERSION, "ProB/x").data()
+    # Local file header: signature, then mod time (bytes 10-11) and mod
+    # date (12-13); 1980-01-01 00:00:00 is time 0, date 0x0021.
+    assert data[:4] == b"PK\x03\x04"
+    assert data[10:14] == b"\x00\x00\x21\x00"
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        assert {i.date_time for i in zf.infolist()} == {(1980, 1, 1, 0, 0, 0)}

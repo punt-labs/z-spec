@@ -1,10 +1,10 @@
-"""The specs job's ProB steps, run offline: what they do, not where they sit.
+"""The specs job's install step, run offline: what it does, not where it sits.
 
-Each test runs a shipped ``run:`` block through ``workflow_step_runner``:
-under ``bash -e`` with a stub-first PATH, so a tampered, unpinned, missing,
-corrupt, or hostile archive can be served or cached and every tar/unzip/curl
-call observed. Three steps are covered: the pin selection, the install, and
-the verify.
+Each test runs the shipped "Install probcli" ``run:`` block through
+``workflow_step_runner``: under ``bash -e`` with a stub-first PATH, so a
+tampered, unpinned, missing, corrupt, or hostile archive can be served or
+cached and every tar/unzip/curl call observed. The pin selection and the
+verify step have their own modules.
 """
 
 from __future__ import annotations
@@ -15,97 +15,29 @@ from typing import Final
 
 import pytest
 
-from tests.install_sh_source import Damage, ProbArchive
+from tests.prob_archive import Damage, ProbArchive
 from tests.workflow_source import Workflow
-from tests.workflow_step_runner import CACHE_KEY, InstallStep, StepHarness
+from tests.workflow_step_runner import (
+    BAD_PINS,
+    CACHE_KEY,
+    PIN_VARS,
+    PROB_VERSION,
+    InstallStep,
+)
 
 _HOST: Final[str] = "stups.hhu-hosting.de"
 _SYSTEMS: Final[list[str]] = ["Linux", "Darwin"]
-_PIN_VARS: Final[dict[str, str]] = {
-    "Linux": "PROB_SHA256_LINUX",
-    "Darwin": "PROB_SHA256_MACOS",
-}
 _WF: Final[Workflow] = Workflow()
-_VERSION: Final[str] = _WF.job_env("specs", "PROB_VERSION")
-_BAD_PINS: Final[dict[str, str]] = {
-    "placeholder": "PLACEHOLDER-unverified-awaiting-download-from-prob-host",
-    "empty": "",
-    "uppercase": "A" * 64,
-    "short": "0" * 63,
-    "long": "0" * 65,
-    "non-hex": "g" * 64,
-    "two-lines": "0" * 64 + "\nnot-a-hash",
-}
-# The malformed pins the select step names as such: an empty one fails
-# earlier (${VAR:?}), and a two-line one gets its own message.
-_MALFORMED: Final[dict[str, str]] = {
-    k: v for k, v in _BAD_PINS.items() if k not in ("empty", "two-lines")
-}
 
 
 def _url(archive: ProbArchive) -> str:
-    return f"https://{_HOST}/downloads/prob/tcltk/releases/{_VERSION}/{archive.name}"
+    return (
+        f"https://{_HOST}/downloads/prob/tcltk/releases/{PROB_VERSION}/{archive.name}"
+    )
 
 
 def _good(system: str, *extra: str) -> ProbArchive:
-    return ProbArchive.with_probcli(system, _VERSION, *extra)
-
-
-# --- Behaviour: the select step ---------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("runner_os", "system"), [("Linux", "Linux"), ("macOS", "Darwin")]
-)
-def test_select_outputs_this_os_archive_and_pin(
-    tmp_path: Path, runner_os: str, system: str
-) -> None:
-    pins = {"PROB_SHA256_LINUX": "1" * 64, "PROB_SHA256_MACOS": "2" * 64}
-    run = StepHarness.select(runner_os, pins).run(tmp_path)
-    assert run.result.returncode == 0, run.result.stderr
-    archive, pin = _good(system).name, pins[_PIN_VARS[system]]
-    assert run.file("github_output") == f"archive={archive}\nsha256={pin}\n"
-
-
-@pytest.mark.parametrize(
-    ("runner_os", "pin", "message"),
-    [
-        ("Windows", "1" * 64, "no ProB archive for runner OS 'Windows'"),
-        ("Linux", "", "PROB_SHA256_LINUX is empty"),
-        ("macOS", "", "PROB_SHA256_MACOS is empty"),
-        ("Linux", "1" * 64 + "\nsha256=" + "2" * 64, "spans more than one line"),
-    ],
-)
-def test_select_refuses_and_writes_no_output(
-    tmp_path: Path, runner_os: str, pin: str, message: str
-) -> None:
-    pins = dict.fromkeys(_PIN_VARS.values(), pin)
-    run = StepHarness.select(runner_os, pins).run(tmp_path)
-    assert run.result.returncode != 0
-    assert message in run.result.stderr
-    assert "no verified SHA-256 pin" not in run.result.stderr, "ran on past its cause"
-    assert run.file("github_output") == ""
-
-
-@pytest.mark.parametrize(
-    ("runner_os", "system"), [("Linux", "Linux"), ("macOS", "Darwin")]
-)
-@pytest.mark.parametrize("pin", _MALFORMED.values(), ids=_MALFORMED.keys())
-def test_select_refuses_a_malformed_pin_before_the_cache_key(
-    tmp_path: Path, runner_os: str, system: str, pin: str
-) -> None:
-    # The cache key is built from this step's output; a pin that can never
-    # verify an archive must not reach it.
-    pins = dict.fromkeys(_PIN_VARS.values(), pin)
-    run = StepHarness.select(runner_os, pins).run(tmp_path)
-    err = run.result.stderr
-    assert run.result.returncode != 0
-    assert f"FATAL: no verified SHA-256 pin for {_good(system).name}" in err
-    assert f"pin is not 64 lowercase hex digits (value: {pin})" in err
-    assert run.file("github_output") == ""
-
-
-# --- Behaviour: the install step ---------------------------------------------
+    return ProbArchive.with_probcli(system, PROB_VERSION, *extra)
 
 
 @pytest.mark.parametrize("system", _SYSTEMS)
@@ -133,7 +65,7 @@ def test_tampered_archive_fails_closed(
 def test_shipped_pin_never_installs_the_fixture(tmp_path: Path, system: str) -> None:
     # A placeholder today ("no verified pin"), a real hash once one lands
     # ("mismatch" against this fixture): the fixture is never read.
-    shipped = _WF.job_env("specs", _PIN_VARS[system])
+    shipped = _WF.job_env("specs", PIN_VARS[system])
     run = InstallStep(_good(system), shipped, cache_hit=True, cached=True).run(tmp_path)
     err = run.result.stderr
     assert run.result.returncode != 0
@@ -143,7 +75,7 @@ def test_shipped_pin_never_installs_the_fixture(tmp_path: Path, system: str) -> 
 
 
 @pytest.mark.parametrize("system", _SYSTEMS)
-@pytest.mark.parametrize("pin", _BAD_PINS.values(), ids=_BAD_PINS.keys())
+@pytest.mark.parametrize("pin", BAD_PINS.values(), ids=BAD_PINS.keys())
 def test_non_hash_pin_fails_before_any_download(
     tmp_path: Path, system: str, pin: str
 ) -> None:
@@ -229,7 +161,9 @@ def test_pinned_archive_without_probcli_fails(tmp_path: Path, system: str) -> No
     run = InstallStep.pinned(archive, cache_hit=True).run(tmp_path)
     err = run.result.stderr
     assert run.result.returncode != 0
-    assert f"FATAL: no probcli in the ProB {_VERSION} archive from cache key " in err
+    assert (
+        f"FATAL: no probcli in the ProB {PROB_VERSION} archive from cache key " in err
+    )
     assert "ProB/README" in err, "the extracted tree is not listed"
     assert "PROBCLI=" not in run.file("github_env")
 
@@ -279,48 +213,3 @@ def test_download_failure_names_the_url_and_stops(tmp_path: Path) -> None:
     assert f"FATAL: ProB download failed: https://{_HOST}/" in run.result.stderr
     assert "could not read or hash" not in run.result.stderr, "ran on past curl"
     assert run.archive_reads() == []
-
-
-# --- Behaviour: the verify step ----------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "body",
-    [
-        f"echo 'ProB command line, version {_VERSION}'",
-        f"echo 'ProB command line, version {_VERSION}' >&2",
-        f"echo 'ProB {_VERSION}'; echo 'built with Tcl 8.6.13, SICStus 4.9.0'",
-    ],
-    ids=["stdout", "stderr-only", "first-version-wins"],
-)
-def test_verify_accepts_the_pinned_version(tmp_path: Path, body: str) -> None:
-    result = StepHarness.verify(body).run(tmp_path).result
-    assert result.returncode == 0, result.stderr
-
-
-@pytest.mark.parametrize(
-    ("body", "got"),
-    [
-        (f"echo 'ProB {_VERSION}0'", f"{_VERSION}0"),
-        ("echo 'ProB, no version'", "unreadable"),
-    ],
-)
-def test_verify_rejects_any_other_version(tmp_path: Path, body: str, got: str) -> None:
-    result = StepHarness.verify(body).run(tmp_path).result
-    assert result.returncode != 0
-    assert f"FATAL: expected probcli {_VERSION}, got: {got}" in result.stderr
-
-
-def test_verify_shows_why_probcli_would_not_run(tmp_path: Path) -> None:
-    body = "echo 'error while loading shared libraries: libtcl8.6.so' >&2; exit 127"
-    result = StepHarness.verify(body).run(tmp_path).result
-    assert result.returncode != 0
-    assert "-version failed; its output:" in result.stderr
-    assert "libtcl8.6.so" in result.stderr
-
-
-def test_verify_names_a_missing_fuzz(tmp_path: Path) -> None:
-    # PATH is the stub directory alone: a host fuzz cannot satisfy the step.
-    result = StepHarness.verify(f"echo {_VERSION}", fuzz=False).run(tmp_path).result
-    assert result.returncode != 0
-    assert "FATAL: fuzz is not on PATH" in result.stderr

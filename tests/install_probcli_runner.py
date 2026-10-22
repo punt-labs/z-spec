@@ -24,7 +24,8 @@ from typing import Final, final
 
 import pytest
 
-from tests.install_sh_source import CurlFlags, InstallSh, ProbArchive
+from tests.install_sh_source import CurlFlags, InstallSh
+from tests.prob_archive import ProbArchive
 
 SYSTEM: Final[str] = platform.system()
 _PIN_VAR: Final[str] = (

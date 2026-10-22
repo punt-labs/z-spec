@@ -11,7 +11,9 @@ NOT be cached: it exists to prove the live download a user's install does.
 These tests read ``.github/workflows/test.yml`` as text (``Workflow``) and
 check structure: step order, which shell branch a command sits in, how the
 steps are wired to each other, and parity with install.sh. What the steps
-DO is checked by running them, in test_workflow_probcli_steps.py.
+DO is checked by running them: test_workflow_prob_pin_step.py,
+test_workflow_probcli_steps.py (the install) and
+test_workflow_probcli_verify_step.py.
 """
 
 from __future__ import annotations

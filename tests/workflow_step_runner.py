@@ -24,12 +24,26 @@ from typing import Final, Self, final
 
 import pytest
 
-from tests.install_sh_source import ProbArchive
+from tests.prob_archive import ProbArchive
 from tests.workflow_source import Workflow
 
 SYSTEM_PATH: Final[str] = os.pathsep.join(("/usr/bin", "/bin"))
 PROB_VERSION: Final[str] = Workflow().job_env("specs", "PROB_VERSION")
 CACHE_KEY: Final[str] = f"prob-archive-Linux-{PROB_VERSION}-stub"
+PIN_VARS: Final[dict[str, str]] = {
+    "Linux": "PROB_SHA256_LINUX",
+    "Darwin": "PROB_SHA256_MACOS",
+}
+# Pins that can never verify an archive, by the name a test reports them as.
+BAD_PINS: Final[dict[str, str]] = {
+    "placeholder": "PLACEHOLDER-unverified-awaiting-download-from-prob-host",
+    "empty": "",
+    "uppercase": "A" * 64,
+    "short": "0" * 63,
+    "long": "0" * 65,
+    "non-hex": "g" * 64,
+    "two-lines": "0" * 64 + "\nnot-a-hash",
+}
 
 # One record per call: each argument NUL-terminated, then a newline.
 _LOG_ARGV: Final[str] = """printf '%s\\0' "$@" >> "$LOGS/{name}"
