@@ -113,16 +113,18 @@ jobs:
       # unreachable, reddening every specs leg. The DOWNLOADED ARCHIVE (not
       # the extracted tree) is cached per OS + PROB_VERSION, so once warm a
       # host outage cannot red this job and a hit makes zero requests to the
-      # host. Every archive, cached or fresh, then goes through the same
-      # SHA-256 pin, integrity check, slip guard, and extraction. The
-      # installer job deliberately has no cache: it proves the live user
-      # download path.
+      # host. The key also carries this OS's SHA-256 pin, so changing a pin
+      # is an automatic miss: an archive cached under the old pin is never
+      # restored to be checked against the new one. Every archive, cached or
+      # fresh, then goes through the same SHA-256 pin, integrity check, slip
+      # guard, and extraction. The installer job deliberately has no cache:
+      # it proves the live user download path.
       - name: Restore cached ProB archive
         id: prob-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/prob-archive
-          key: prob-archive-${{ runner.os }}-${{ env.PROB_VERSION }}
+          key: prob-archive-${{ runner.os }}-${{ env.PROB_VERSION }}-${{ runner.os == 'macOS' && env.PROB_SHA256_MACOS || env.PROB_SHA256_LINUX }}
 
       # The ProB release archives carry probcli; pinned rather than "latest"
       # so a spec gate failure means the specs changed, not the tool. The
@@ -155,7 +157,7 @@ jobs:
             PROB_URL="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/${PROB_VERSION}/${ARCHIVE}"
             SOURCE="download ${PROB_URL}"
             HINT=""
-            echo "ProB archive cache miss (cache-hit='${CACHE_HIT}', key ${CACHE_KEY}) -- downloading"
+            echo "ProB archive cache miss (cache-hit='${CACHE_HIT}', key ${CACHE_KEY}) -- downloading ${PROB_URL}"
             # Same flags as install.sh's install_probcli() (see the comment
             # there; a test gates the parity): HTTPS only, transient drops
             # recover, a sustained outage fails in about 2.5 minutes.
@@ -163,15 +165,27 @@ jobs:
               --connect-timeout 20 --retry 5 --retry-connrefused \
               --retry-max-time 300 --speed-limit 1024 --speed-time 60 \
               --retry-all-errors \
-              -o "${ARCHIVE_PATH}" "${PROB_URL}"
+              -o "${ARCHIVE_PATH}" "${PROB_URL}" || {
+              echo "FATAL: ProB download failed: ${PROB_URL}" >&2
+              exit 1
+            }
           fi
           # SHA-256 pin, before anything reads the archive's contents. This,
           # not the slip guard, is what protects the cache layer: a cache
-          # entry is never trusted more than a fresh download.
-          ACTUAL_SHA256="$(shasum -a 256 "${ARCHIVE_PATH}" | cut -d' ' -f1)"
+          # entry is never trusted more than a fresh download. The archive is
+          # read from stdin, so its path never reaches shasum's argv. The
+          # pipeline's status is cut's, so a failing shasum shows up as an
+          # empty hash -- reported as the tool failing, never as a mismatch.
+          ACTUAL_SHA256="$(shasum -a 256 < "${ARCHIVE_PATH}" | cut -d' ' -f1)"
+          if [ -z "${ACTUAL_SHA256}" ]; then
+            echo "FATAL: could not compute SHA-256 (sha tool failed) for ${ARCHIVE_PATH}, from ${SOURCE}" >&2
+            exit 1
+          fi
+          # Format first, so "mismatch" below only ever means a real
+          # comparison of two hashes failed.
           if ! printf '%s\n' "${EXPECTED_SHA256}" | grep -qE '^[0-9a-f]{64}$'; then
             echo "FATAL: no verified SHA-256 pin for ${ARCHIVE} (ProB ${PROB_VERSION}):" >&2
-            echo "  job env carries a placeholder: ${EXPECTED_SHA256}" >&2
+            echo "  pin is not 64 lowercase hex digits (value: ${EXPECTED_SHA256})" >&2
             echo "  actual: ${ACTUAL_SHA256} (${ARCHIVE_PATH}, from ${SOURCE})" >&2
             exit 1
           fi
@@ -221,7 +235,11 @@ jobs:
       - name: Verify both binaries resolve
         run: |
           command -v fuzz
-          PROB_OUT="$("${PROBCLI}" -version)"
+          if ! PROB_OUT="$("${PROBCLI}" -version 2>&1)"; then
+            echo "FATAL: ${PROBCLI} -version failed; its output:" >&2
+            printf '%s\n' "${PROB_OUT}" >&2
+            exit 1
+          fi
           printf '%s\n' "${PROB_OUT}"
           PROB_VER="$(printf '%s\n' "${PROB_OUT}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)"
           if [ "${PROB_VER}" != "${PROB_VERSION}" ]; then
