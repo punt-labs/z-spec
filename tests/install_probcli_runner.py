@@ -2,8 +2,11 @@
 
 The text from ``PROB_VERSION=`` through the function's closing ``)`` is
 sliced out of install.sh and sourced under ``sh``; the only edit is the pin
-value for the running OS. PATH is a directory built per run holding only
+value for the archive's OS. PATH is a directory built per run holding only
 the tools the function needs, so a scenario can take a hash tool away.
+``uname`` there reports the OS the scenario's archive is for, so both of
+install_probcli's archive branches -- the macOS zip (unzip) and the Linux
+tar.gz (tar) -- run on every host, each with the host's own unzip and tar.
 ``curl`` there is a stub that records every argv and refuses, serves a
 locally built ProB-shaped archive, or dies mid-transfer; ``tar`` and
 ``unzip`` are logging wrappers around the real tools, so a test can prove an
@@ -29,9 +32,12 @@ from tests.prob_archive import ProbArchive
 from tests.stub_log import StubLog
 
 SYSTEM: Final[str] = platform.system()
-_PIN_VAR: Final[str] = (
-    "PROB_SHA256_MACOS" if SYSTEM == "Darwin" else "PROB_SHA256_LINUX"
-)
+# Both archive formats, as `uname -s` names the OS each is for.
+SYSTEMS: Final[tuple[str, ...]] = ("Linux", "Darwin")
+_PIN_VARS: Final[dict[str, str]] = {
+    "Linux": "PROB_SHA256_LINUX",
+    "Darwin": "PROB_SHA256_MACOS",
+}
 VERSION: Final[str] = InstallSh().prob_version()
 GOOD: Final[ProbArchive] = ProbArchive.with_probcli(SYSTEM, VERSION)
 HOST_URL: Final[str] = "https://stups.hhu-hosting.de/"
@@ -51,7 +57,6 @@ _TOOLS: Final[tuple[str, ...]] = (
     "mkdir",
     "rm",
     "tr",
-    "uname",
 )
 _LOGGED: Final[tuple[str, ...]] = ("tar", "unzip")
 
@@ -129,6 +134,7 @@ class Run:
     result: subprocess.CompletedProcess[str]
     home: Path
     logs: Path
+    archive_name: str  # ProB.linux64.tar.gz or ProB.macos.zip
 
     def calls(self, tool: str) -> list[list[str]]:
         """Return every logged argv of ``tool``, argument boundaries intact."""
@@ -168,7 +174,7 @@ class Run:
         return (self.home / "Applications" / "ProB" / "probcli").exists()
 
     def archive_left(self) -> bool:
-        return (self.home / "Applications" / GOOD.name).exists()
+        return (self.home / "Applications" / self.archive_name).exists()
 
     def escaped(self) -> bool:
         """Whether an archive member named "escaped" landed anywhere."""
@@ -181,7 +187,11 @@ class Run:
 @final
 @dataclass(frozen=True, slots=True)
 class Scenario:
-    """How to run install_probcli: curl's behaviour, the pin, the tools."""
+    """How to run install_probcli: curl's behaviour, the pin, the tools.
+
+    The run takes the OS ``archive`` is for: ``uname -s`` reports it, and
+    its PROB_SHA256_* pin is the one replaced.
+    """
 
     curl_mode: str = "modern"
     fetch: str = "serve"
@@ -201,10 +211,11 @@ class Scenario:
     def run(self, tmp_path: Path) -> Run:
         source = InstallSh().install_probcli_source()
         if self.pin is not None:
-            shipped = f'{_PIN_VAR}="{InstallSh().pins()[_PIN_VAR]}"'
+            var = _PIN_VARS[self.archive.system]
+            shipped = f'{var}="{InstallSh().pins()[var]}"'
             if shipped not in source:
-                pytest.fail(f"{_PIN_VAR} assignment not inside the slice")
-            source = source.replace(shipped, f'{_PIN_VAR}="{self.pin}"')
+                pytest.fail(f"{var} assignment not inside the slice")
+            source = source.replace(shipped, f'{var}="{self.pin}"')
         funcs = tmp_path / "funcs.sh"
         funcs.write_text(source, encoding="utf-8")
         home, logs = tmp_path / self.home, tmp_path / "logs"
@@ -229,7 +240,7 @@ class Scenario:
             timeout=60,
             cwd=tmp_path,
         )
-        return Run(result, home, logs)
+        return Run(result, home, logs, self.archive.name)
 
     def _bin(self, bin_dir: Path) -> Path:
         bin_dir.mkdir()
@@ -246,4 +257,8 @@ class Scenario:
             else:
                 (bin_dir / tool).symlink_to(_real(tool))
         _script(bin_dir / "curl", _STUB_CURL)
+        system = self.archive.system
+        _script(
+            bin_dir / "uname", f'#!/bin/sh\n[ "$1" = -s ] || exit 2\necho {system}\n'
+        )
         return bin_dir

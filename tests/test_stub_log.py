@@ -28,7 +28,7 @@ type Reader = Callable[[Path], Callable[[str], list[list[str]]]]
 _DONE: Final[subprocess.CompletedProcess[str]] = subprocess.CompletedProcess([], 0)
 # Each runner's calls(), reading the log directory <root>/logs.
 _READERS: Final[dict[str, Reader]] = {
-    "install_probcli_runner": lambda root: Run(_DONE, root, root / "logs").calls,
+    "install_probcli_runner": lambda root: Run(_DONE, root, root / "logs", "").calls,
     "workflow_step_runner": lambda root: StepRun(_DONE, root).calls,
 }
 _AWKWARD: Final[list[list[str]]] = [
