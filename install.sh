@@ -675,6 +675,16 @@ install_fuzz() (
     echo "  ! could not create a scratch build directory for fuzz" >&2
     return 1
   }
+  # mktemp prints the path as $TMPDIR spells it, so a relative TMPDIR gives
+  # a relative path -- one that stops naming the scratch directory once the
+  # cd below moves into it, leaving the EXIT trap's rm -rf to remove
+  # nothing. It is made absolute before the trap or the cd can use it.
+  FUZZ_BUILD_DIR_ABS="$(cd "$FUZZ_BUILD_DIR" && pwd -P)" || {
+    echo "  ! could not resolve the scratch build directory $FUZZ_BUILD_DIR" >&2
+    rm -rf "$FUZZ_BUILD_DIR"
+    return 1
+  }
+  FUZZ_BUILD_DIR="$FUZZ_BUILD_DIR_ABS"
   # The clone is pure build scratch -- nothing in it is the install, which
   # lands under $FUZZ_HOME via `make install` below. Remove it on every exit
   # path, success or failure, so a curl | sh run never leaves a source tree
