@@ -7,43 +7,33 @@ sustained outage exits nonzero within minutes -- checks the pin's format
 before any download, and verifies the archive against a per-OS SHA-256 pin
 before reading anything inside it.
 
-These tests run the shipped ``install_probcli`` function itself, not a copy:
-the text from ``PROB_VERSION=`` through the function's closing ``)`` is
-sliced out of install.sh and sourced under ``sh``. PATH is a directory built
-per run holding only the tools the function needs, so a test can take a hash
-tool away. ``curl`` on it is a stub that records every argv and either
-refuses the connection or serves a locally built ProB-shaped archive;
-``tar`` and ``unzip`` are logging wrappers around the real tools, so a test
-can prove an archive was never listed or extracted. No network is touched.
-The only edit to the slice is the pin value for the running OS; every other
-line runs as shipped.
+These tests run the shipped ``install_probcli`` function itself, not a copy,
+through ``install_probcli_runner.Scenario``: offline, on a per-run PATH,
+with curl stubbed and tar/unzip logged, so each test can say both what the
+installer printed and which tools it never called.
 """
 
 from __future__ import annotations
 
 import io
-import platform
 import re
-import shutil
-import stat
-import subprocess
 import tarfile
 import zipfile
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from pathlib import Path
-from typing import Final, final
+from typing import Final
 
 import pytest
 
-from tests.install_sh_source import CurlFlags, InstallSh, ProbArchive
-
-_SYSTEM: Final[str] = platform.system()
-_PIN_VAR: Final[str] = (
-    "PROB_SHA256_MACOS" if _SYSTEM == "Darwin" else "PROB_SHA256_LINUX"
+from tests.install_probcli_runner import (
+    GOOD,
+    HOST_HASHERS,
+    HOST_URL,
+    SYSTEM,
+    VERSION,
+    Scenario,
 )
-_VERSION: Final[str] = InstallSh().prob_version()
-_GOOD: Final[ProbArchive] = ProbArchive.with_probcli(_SYSTEM, _VERSION)
-_HOST: Final[str] = "https://stups.hhu-hosting.de/"
+from tests.install_sh_source import CurlFlags, InstallSh, ProbArchive
 
 # Fixed flag -> value pairs every ProB fetch must carry (None: no value).
 EXPECTED_FLAGS: Final[dict[str, str | None]] = {
@@ -57,210 +47,6 @@ EXPECTED_FLAGS: Final[dict[str, str | None]] = {
     "--speed-limit": "1024",
     "--speed-time": "60",
 }
-
-# Everything install_probcli (and the stubs) run, besides sh builtins. Hash
-# tools are linked separately, so a scenario can leave either one out.
-_TOOLS: Final[tuple[str, ...]] = (
-    "cat",
-    "chmod",
-    "cp",
-    "cut",
-    "file",
-    "grep",
-    "gzip",
-    "head",
-    "mkdir",
-    "rm",
-    "uname",
-)
-_LOGGED: Final[tuple[str, ...]] = ("tar", "unzip")
-
-# CURL_MODE=modern: a curl >= 7.71 that accepts --retry-all-errors.
-# CURL_MODE=old: a real pre-7.71 curl -- ANY invocation carrying
-#   --retry-all-errors dies with exit 2 before doing anything, exactly as
-#   curl 7.68 does; a bare --version still succeeds.
-# FETCH=refuse: every download fails with curl's own "couldn't connect" (7).
-# FETCH=serve: the download copies $FIXTURE to the -o path.
-# FETCH=partial: the transfer dies mid-way (18), leaving partial bytes at -o.
-_STUB_CURL: Final[str] = """#!/bin/sh
-printf '%s\\n' "$*" >> "$LOGS/curl"
-for arg in "$@"; do
-  if [ "$CURL_MODE" = old ] && [ "$arg" = "--retry-all-errors" ]; then
-    echo "curl: option --retry-all-errors: is unknown" >&2
-    echo "curl: try 'curl --help' for more information" >&2
-    exit 2
-  fi
-done
-for arg in "$@"; do
-  if [ "$arg" = "--version" ]; then
-    echo "curl 7.68.0 (x86_64-pc-linux-gnu) libcurl/7.68.0 (stub)"
-    exit 0
-  fi
-done
-out=""
-while [ $# -gt 0 ]; do
-  if [ "$1" = "-o" ]; then out="$2"; shift; fi
-  shift
-done
-if [ "$FETCH" = serve ]; then
-  cp "$FIXTURE" "$out"
-  exit 0
-fi
-if [ "$FETCH" = partial ]; then
-  printf 'partial archive bytes' > "$out"
-  echo "curl: (18) transfer closed with outstanding read data remaining" >&2
-  exit 18
-fi
-echo "curl: (7) Failed to connect to stub host" >&2
-exit 7
-"""
-_STUB_LOGGED: Final[str] = """#!/bin/sh
-printf '%s\\n' "$*" >> "$LOGS/{name}"
-exec '{real}' "$@"
-"""
-_STUB_BROKEN_HASHER: Final[str] = """#!/bin/sh
-echo "{name}: simulated read error" >&2
-exit 1
-"""
-
-
-# The hash tools this host actually has: macOS may ship no sha256sum, and the
-# default run must not demand one. Scenarios that remove a tool say so.
-_HOST_HASHERS: Final[tuple[str, ...]] = tuple(
-    tool for tool in ("sha256sum", "shasum") if shutil.which(tool)
-)
-
-
-def _real(tool: str) -> str:
-    found = shutil.which(tool)
-    if found is None:
-        pytest.fail(f"the host has no {tool}, which install_probcli needs")
-    return found
-
-
-def _script(path: Path, text: str) -> None:
-    path.write_text(text, encoding="utf-8")
-    path.chmod(path.stat().st_mode | stat.S_IXUSR)
-
-
-@final
-@dataclass(frozen=True, slots=True)
-class Run:
-    """One sourced run of install_probcli: its outcome and every tool call."""
-
-    result: subprocess.CompletedProcess[str]
-    home: Path
-    logs: Path
-
-    def calls(self, tool: str) -> list[list[str]]:
-        log = self.logs / tool
-        lines = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
-        return [ln.split() for ln in lines]
-
-    def fetches(self) -> list[list[str]]:
-        return [c for c in self.calls("curl") if "-o" in c]
-
-    def fetch(self) -> list[str]:
-        fetches = self.fetches()
-        assert len(fetches) == 1, f"expected one ProB fetch, got {self.calls('curl')}"
-        return fetches[0]
-
-    def fetch_flags(self) -> dict[str, str | None]:
-        """Return every flag of the real fetch, -o <out> and the URL aside.
-
-        All of them, not just the expected ones: an added flag (--insecure)
-        is a difference.
-        """
-        argv = self.fetch()
-        assert argv[-1].startswith(_HOST), f"fetch does not end in the URL: {argv}"
-        out = argv.index("-o")
-        return CurlFlags.parse(argv[:out] + argv[out + 2 : -1]).as_dict()
-
-    def archive_reads(self) -> list[list[str]]:
-        """Every tar/unzip call: a list, test, or extraction of the archive."""
-        return self.calls("tar") + self.calls("unzip")
-
-    def extractions(self) -> list[list[str]]:
-        tar = [c for c in self.calls("tar") if c and "x" in c[0]]
-        unzip = [c for c in self.calls("unzip") if c and c[0] in ("-q", "-oq")]
-        return tar + unzip
-
-    def installed(self) -> bool:
-        return (self.home / "Applications" / "ProB" / "probcli").exists()
-
-    def archive_left(self) -> bool:
-        return (self.home / "Applications" / _GOOD.name).exists()
-
-    def escaped(self) -> bool:
-        """Whether an archive member named "escaped" landed anywhere."""
-        return any(
-            p.exists()
-            for p in (self.home / "escaped", self.home / "Applications" / "escaped")
-        )
-
-
-@final
-@dataclass(frozen=True, slots=True)
-class Scenario:
-    """How to run install_probcli: curl's behaviour, the pin, the tools."""
-
-    curl_mode: str = "modern"
-    fetch: str = "serve"
-    pin: str | None = None  # None: the shipped pin, unmodified
-    archive: ProbArchive = _GOOD
-    hashers: tuple[str, ...] = _HOST_HASHERS
-    broken_hashers: bool = False
-    home: str = "home"  # HOME, relative to the run's tmp_path
-
-    @classmethod
-    def pinned(cls, archive: ProbArchive = _GOOD) -> Scenario:
-        """A run whose pin is ``archive``'s own hash."""
-        return cls(pin=archive.sha256(), archive=archive)
-
-    def run(self, tmp_path: Path) -> Run:
-        source = InstallSh().install_probcli_source()
-        if self.pin is not None:
-            shipped = f'{_PIN_VAR}="{InstallSh().pins()[_PIN_VAR]}"'
-            assert shipped in source, f"{_PIN_VAR} assignment not inside the slice"
-            source = source.replace(shipped, f'{_PIN_VAR}="{self.pin}"')
-        funcs = tmp_path / "funcs.sh"
-        funcs.write_text(source, encoding="utf-8")
-        home, logs = tmp_path / self.home, tmp_path / "logs"
-        home.mkdir(parents=True)
-        logs.mkdir()
-        env = {
-            "HOME": str(home),
-            # No probcli is on this PATH and PROBCLI is unset, so the
-            # already-installed shortcut cannot skip the download under test.
-            "PATH": str(self._bin(tmp_path / "bin")),
-            "LOGS": str(logs),
-            "CURL_MODE": self.curl_mode,
-            "FETCH": self.fetch,
-            "FIXTURE": str(self.archive.write(tmp_path / "fixture")),
-        }
-        result = subprocess.run(
-            [_real("sh"), "-c", '. "$1"; install_probcli', "sh", str(funcs)],
-            env=env,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=60,
-        )
-        return Run(result, home, logs)
-
-    def _bin(self, bin_dir: Path) -> Path:
-        bin_dir.mkdir()
-        for tool in _TOOLS:
-            (bin_dir / tool).symlink_to(_real(tool))
-        for tool in _LOGGED:
-            _script(bin_dir / tool, _STUB_LOGGED.format(name=tool, real=_real(tool)))
-        for tool in self.hashers:
-            if self.broken_hashers:
-                _script(bin_dir / tool, _STUB_BROKEN_HASHER.format(name=tool))
-            else:
-                (bin_dir / tool).symlink_to(_real(tool))
-        _script(bin_dir / "curl", _STUB_CURL)
-        return bin_dir
 
 
 def test_slice_ends_inside_the_installer() -> None:
@@ -321,7 +107,7 @@ def test_sustained_failure_fails_loudly(tmp_path: Path) -> None:
     run = replace(Scenario.pinned(), fetch="refuse").run(tmp_path)
 
     assert run.result.returncode != 0
-    assert f"download failed: {_HOST}" in run.result.stderr
+    assert f"download failed: {HOST_URL}" in run.result.stderr
     assert "Failed to connect" in run.result.stderr
     assert "could not read or hash" not in run.result.stderr
 
@@ -330,7 +116,7 @@ def test_interrupted_download_leaves_no_partial_archive(tmp_path: Path) -> None:
     run = replace(Scenario.pinned(), fetch="partial").run(tmp_path)
 
     assert run.result.returncode != 0
-    assert f"download failed: {_HOST}" in run.result.stderr
+    assert f"download failed: {HOST_URL}" in run.result.stderr
     assert not run.archive_left(), "a partial download was left on disk"
     assert run.archive_reads() == []
 
@@ -340,7 +126,7 @@ def test_matching_pin_installs_and_runs_probcli(tmp_path: Path) -> None:
 
     assert run.result.returncode == 0, run.result.stderr
     assert re.search(
-        rf"✓ probcli \S+/ProB/probcli \({re.escape(_VERSION)}\)$",
+        rf"✓ probcli \S+/ProB/probcli \({re.escape(VERSION)}\)$",
         run.result.stdout,
         re.M,
     ), run.result.stdout
@@ -348,7 +134,7 @@ def test_matching_pin_installs_and_runs_probcli(tmp_path: Path) -> None:
     assert not run.archive_left(), "a verified archive is removed after install"
 
 
-@pytest.mark.parametrize("hasher", _HOST_HASHERS)
+@pytest.mark.parametrize("hasher", HOST_HASHERS)
 def test_home_with_a_backslash_still_verifies(tmp_path: Path, hasher: str) -> None:
     # Given a file NAME with a backslash, sha256sum and shasum escape it and
     # prefix the hash with "\"; hashing stdin keeps the hash clean.
@@ -367,9 +153,9 @@ def test_mismatched_pin_fails_before_the_archive_is_read(tmp_path: Path) -> None
     assert run.result.returncode != 0
     assert "SHA-256 mismatch" in err
     assert f"expected: {wrong}" in err
-    assert f"actual:   {_GOOD.sha256()}" in err
-    assert _GOOD.name in err
-    assert _HOST in err
+    assert f"actual:   {GOOD.sha256()}" in err
+    assert GOOD.name in err
+    assert HOST_URL in err
     assert run.archive_reads() == [], "a mismatched archive was listed or extracted"
     assert not run.installed()
     assert not run.archive_left(), "the unverified archive was left on disk"
@@ -396,7 +182,7 @@ def test_non_hash_pin_fails_before_any_download(tmp_path: Path, pin: str) -> Non
 
     err = run.result.stderr
     assert run.result.returncode != 0
-    assert f"no verified SHA-256 pin for {_GOOD.name}" in err
+    assert f"no verified SHA-256 pin for {GOOD.name}" in err
     assert f"pin is not 64 lowercase hex digits (value: {pin})" in err
     assert "SHA-256 mismatch" not in err
     assert run.calls("curl") == [], "a non-hash pin still reached curl"
@@ -425,7 +211,7 @@ def test_pinned_archive_with_an_escaping_member_is_never_extracted(
 ) -> None:
     # The pin only proves the archive is the one the publisher shipped; the
     # slip guard is what stops a hostile publisher's ../ or absolute member.
-    run = Scenario.pinned(ProbArchive.with_probcli(_SYSTEM, _VERSION, member)).run(
+    run = Scenario.pinned(ProbArchive.with_probcli(SYSTEM, VERSION, member)).run(
         tmp_path
     )
 
@@ -467,11 +253,11 @@ def test_failing_hash_tool_is_not_reported_as_a_mismatch(tmp_path: Path) -> None
 
 
 def test_probcli_reporting_another_version_fails(tmp_path: Path) -> None:
-    other = f"{_VERSION}0"  # 1.15.10 must not pass as 1.15.1
-    run = Scenario.pinned(ProbArchive.with_probcli(_SYSTEM, other)).run(tmp_path)
+    other = f"{VERSION}0"  # 1.15.10 must not pass as 1.15.1
+    run = Scenario.pinned(ProbArchive.with_probcli(SYSTEM, other)).run(tmp_path)
 
     assert run.result.returncode != 0
-    assert f"expected probcli {_VERSION}, got: {other}" in run.result.stderr
+    assert f"expected probcli {VERSION}, got: {other}" in run.result.stderr
     assert "✓ probcli" not in run.result.stdout
 
 
@@ -479,7 +265,7 @@ def test_probcli_reporting_another_version_fails(tmp_path: Path) -> None:
 # to verify the next. The timestamps are checked where they live, in the
 # headers, since two builds in the same second would agree by accident.
 def test_tar_fixture_carries_no_timestamp() -> None:
-    data = ProbArchive.with_probcli("Linux", _VERSION).data()
+    data = ProbArchive.with_probcli("Linux", VERSION).data()
     assert data[:2] == b"\x1f\x8b"
     assert data[4:8] == b"\0\0\0\0", "gzip MTIME must be zero for a stable hash"
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
@@ -487,7 +273,7 @@ def test_tar_fixture_carries_no_timestamp() -> None:
 
 
 def test_zip_fixture_carries_a_fixed_timestamp() -> None:
-    data = ProbArchive.with_probcli("Darwin", _VERSION, "ProB/x").data()
+    data = ProbArchive.with_probcli("Darwin", VERSION, "ProB/x").data()
     # Local file header: signature, then mod time (bytes 10-11) and mod
     # date (12-13); 1980-01-01 00:00:00 is time 0, date 0x0021.
     assert data[:4] == b"PK\x03\x04"
