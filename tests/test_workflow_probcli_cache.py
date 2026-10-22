@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from tests import install_sh_source
+from tests.install_sh_source import CurlFlags, InstallSh
 
 _WORKFLOW: Final[Path] = (
     Path(__file__).resolve().parent.parent / ".github" / "workflows" / "test.yml"
@@ -227,12 +227,12 @@ def test_cache_actions_are_sha_pinned_and_agree() -> None:
 def test_prob_version_defined_once_and_matches_install_sh() -> None:
     specs = _jobs()["specs"]
     assert specs.count("PROB_VERSION:") == 1, "PROB_VERSION overridden in specs"
-    assert _job_env(specs, "PROB_VERSION") == install_sh_source.prob_version()
+    assert _job_env(specs, "PROB_VERSION") == InstallSh().prob_version()
 
 
 def test_sha256_pins_match_install_sh() -> None:
     specs = _jobs()["specs"]
-    for name, value in install_sh_source.pins().items():
+    for name, value in InstallSh().pins().items():
         assert _job_env(specs, name) == value, f"{name} differs from install.sh"
 
 
@@ -286,9 +286,9 @@ def test_specs_curl_matches_install_sh_flags() -> None:
     out = argv.index("-o")
     assert argv[out + 1] == "${ARCHIVE_PATH}"
     assert argv[-1] == "${PROB_URL}"
-    flags = argv[1:out] + argv[out + 2 : -1]
-    expected = [*install_sh_source.fetch_flags(), "--retry-all-errors"]
-    assert sorted(flags) == sorted(expected), (
+    flags = CurlFlags.parse(argv[1:out] + argv[out + 2 : -1]).as_dict()
+    expected = InstallSh().fetch_flags().with_flag("--retry-all-errors").as_dict()
+    assert flags == expected, (
         f"specs curl flags drifted from install.sh:\n  specs:   {flags}\n"
         f"  install: {expected}"
     )

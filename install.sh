@@ -302,6 +302,23 @@ install_probcli() (
     *)      echo "  ! unsupported OS for probcli: $(uname -s) -- install by hand" >&2; return 1 ;;
   esac
 
+  # The pin's format is checked before anything is downloaded: a value that
+  # is not exactly 64 lowercase hex digits (a placeholder, an empty or
+  # truncated value, uppercase) can never verify an archive, so no request
+  # goes to the ProB host and no unverified archive ever lands on disk. It
+  # never means "skip verification". Past this point "SHA-256 mismatch"
+  # only ever means a real comparison of two hashes failed.
+  case "$PROB_SHA256" in
+    *[!0-9a-f]*|"") PIN_FORMAT_OK=0 ;;
+    *) if [ "${#PROB_SHA256}" -eq 64 ]; then PIN_FORMAT_OK=1; else PIN_FORMAT_OK=0; fi ;;
+  esac
+  if [ "$PIN_FORMAT_OK" != "1" ]; then
+    echo "  ! no verified SHA-256 pin for $PROB_ARCHIVE_NAME (ProB $PROB_VERSION):" >&2
+    echo "    pin is not 64 lowercase hex digits (value: $PROB_SHA256)" >&2
+    echo "    nothing downloaded -- set install.sh's per-OS PROB_SHA256_* pin" >&2
+    return 1
+  fi
+
   for tool in curl file; do
     command -v "$tool" >/dev/null 2>&1 || {
       echo "  ! $tool not found -- cannot install probcli" >&2
@@ -309,11 +326,13 @@ install_probcli() (
     }
   done
   # sha256sum is GNU coreutils (most Linux); shasum ships with macOS and with
-  # perl elsewhere. Either prints "<hash>  <file>".
+  # perl elsewhere. The file is read from stdin, so its name never reaches
+  # the tool's argv (no option injection, no escaped-name "\" prefix on the
+  # output) and either prints "<hash>  -".
   if command -v sha256sum >/dev/null 2>&1; then
-    sha256_of() { sha256sum "$1" | cut -d' ' -f1; }
+    sha256_of() { sha256sum < "$1" | cut -d' ' -f1; }
   elif command -v shasum >/dev/null 2>&1; then
-    sha256_of() { shasum -a 256 "$1" | cut -d' ' -f1; }
+    sha256_of() { shasum -a 256 < "$1" | cut -d' ' -f1; }
   else
     echo "  ! neither sha256sum nor shasum found -- cannot verify probcli" >&2
     return 1
@@ -367,21 +386,19 @@ install_probcli() (
   }
 
   # Verified before the archive is listed or extracted: nothing from an
-  # archive whose hash is not the pinned one is ever unpacked. A placeholder
-  # (not 64 hex digits) is "no verified pin" and fails the same way. The
-  # unverified file is removed so it cannot be unpacked by hand later.
+  # archive whose hash is not the pinned one is ever unpacked. The
+  # unverified file is removed so it cannot be unpacked by hand later. A
+  # pipeline's status is its last command's, so a hash tool that fails
+  # leaves cut printing nothing; that is reported as the tool failing, not
+  # as a mismatch against an empty hash.
   ACTUAL_SHA256="$(sha256_of "$ARCHIVE")"
-  case "$PROB_SHA256" in
-    *[!0-9a-f]*|"")
-      echo "  ! no verified SHA-256 pin for $PROB_ARCHIVE_NAME (ProB $PROB_VERSION):" >&2
-      echo "    install.sh carries a placeholder ($PROB_SHA256)." >&2
-      echo "    actual:  $ACTUAL_SHA256" >&2
-      echo "    archive: $ARCHIVE (from $PROB_URL) -- removed, not extracted" >&2
-      rm -f "$ARCHIVE"
-      return 1
-      ;;
-  esac
-  if [ "${#PROB_SHA256}" -ne 64 ] || [ "$ACTUAL_SHA256" != "$PROB_SHA256" ]; then
+  if [ -z "$ACTUAL_SHA256" ]; then
+    echo "  ! could not compute SHA-256 (sha tool failed) for $ARCHIVE" >&2
+    echo "    archive: $ARCHIVE (from $PROB_URL) -- removed, not extracted" >&2
+    rm -f "$ARCHIVE"
+    return 1
+  fi
+  if [ "$ACTUAL_SHA256" != "$PROB_SHA256" ]; then
     echo "  ! SHA-256 mismatch for $PROB_ARCHIVE_NAME (ProB $PROB_VERSION):" >&2
     echo "    expected: $PROB_SHA256" >&2
     echo "    actual:   $ACTUAL_SHA256" >&2
