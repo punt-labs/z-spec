@@ -63,6 +63,9 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    # Job-level so the cache key and the install step read one value.
+    env:
+      PROB_VERSION: "1.15.1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
@@ -95,6 +98,21 @@ jobs:
           ./install.sh --fuzz-only
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      # The ProB archive comes from a single university host
+      # (stups.hhu-hosting.de) that has dropped connections and gone fully
+      # unreachable, reddening every specs leg. The DOWNLOADED ARCHIVE (not
+      # the extracted tree) is cached per OS + PROB_VERSION, so once warm a
+      # host outage cannot red this job and a hit makes zero requests to the
+      # host -- while the slip guard and extraction below still run on every
+      # archive, cached or fresh. The installer job deliberately has no
+      # cache: it proves the live user download path.
+      - name: Restore cached ProB archive
+        id: prob-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/prob-archive
+          key: prob-archive-${{ runner.os }}-${{ env.PROB_VERSION }}
+
       # The ProB release archives carry probcli; pinned rather than "latest"
       # so a spec gate failure means the specs changed, not the tool. The
       # archive name and format differ per OS, and the layout inside is not
@@ -103,29 +121,47 @@ jobs:
       # Makefile declares `PROBCLI ?=`.
       - name: Install probcli
         env:
-          PROB_VERSION: "1.15.1"
+          CACHE_HIT: ${{ steps.prob-cache.outputs.cache-hit }}
         run: |
-          mkdir -p "${RUNNER_TEMP}/ProB"
+          mkdir -p "${RUNNER_TEMP}/ProB" "${RUNNER_TEMP}/prob-archive"
           case "$(uname -s)" in
             Darwin) ARCHIVE="ProB.macos.zip" ;;
             *)      ARCHIVE="ProB.linux64.tar.gz" ;;
           esac
-          curl -fL -o "${RUNNER_TEMP}/${ARCHIVE}" \
-            "https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/${PROB_VERSION}/${ARCHIVE}"
+          ARCHIVE_PATH="${RUNNER_TEMP}/prob-archive/${ARCHIVE}"
+          if [ "${CACHE_HIT}" = "true" ]; then
+            if [ ! -f "${ARCHIVE_PATH}" ]; then
+              echo "FATAL: cache hit but ${ARCHIVE_PATH} is missing" >&2
+              exit 1
+            fi
+            echo "ProB ${PROB_VERSION} archive restored from cache -- no download"
+          else
+            # Same bounded-retry flags as install.sh's install_probcli()
+            # (see the comment there): transient drops recover, a sustained
+            # outage fails this step in about 2.5 minutes, not 133s per try.
+            curl -fL --connect-timeout 20 --retry 5 --retry-connrefused \
+              --retry-all-errors --retry-max-time 300 \
+              --speed-limit 1024 --speed-time 60 \
+              -o "${ARCHIVE_PATH}" \
+              "https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/${PROB_VERSION}/${ARCHIVE}"
+          fi
           # Same zip-slip/tar-slip guard as install.sh's install_probcli():
           # an absolute path or ../ segment in the listing could write
-          # outside the dest dir if the archive host is compromised.
+          # outside the dest dir if the archive host is compromised. It runs
+          # on cached archives too -- a cache entry is never trusted more
+          # than a fresh download. A non-archive (an HTML error page, a
+          # truncated file) fails the listing itself, under bash -e.
           case "${ARCHIVE}" in
-            *.zip) LISTING="$(unzip -Z1 "${RUNNER_TEMP}/${ARCHIVE}")" ;;
-            *)     LISTING="$(tar -tzf "${RUNNER_TEMP}/${ARCHIVE}")" ;;
+            *.zip) LISTING="$(unzip -Z1 "${ARCHIVE_PATH}")" ;;
+            *)     LISTING="$(tar -tzf "${ARCHIVE_PATH}")" ;;
           esac
           if printf '%s\n' "${LISTING}" | grep -qE '^/|(^|/)\.\./'; then
             echo "FATAL: probcli archive contains unsafe paths (absolute or ../)" >&2
             exit 1
           fi
           case "${ARCHIVE}" in
-            *.zip) unzip -q "${RUNNER_TEMP}/${ARCHIVE}" -d "${RUNNER_TEMP}/ProB" ;;
-            *)     tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}/ProB" ;;
+            *.zip) unzip -q "${ARCHIVE_PATH}" -d "${RUNNER_TEMP}/ProB" ;;
+            *)     tar -xzf "${ARCHIVE_PATH}" -C "${RUNNER_TEMP}/ProB" ;;
           esac
           PROBCLI="$(find "${RUNNER_TEMP}/ProB" -type f -name probcli | head -n 1)"
           if [ -z "${PROBCLI}" ]; then
@@ -141,6 +177,18 @@ jobs:
         run: |
           command -v fuzz
           "${PROBCLI}" -version
+
+      # Save only on a miss, and only here: after the slip guard passed and
+      # the extracted probcli actually ran. A corrupt or hostile archive
+      # fails a step above and is never cached, and saving before
+      # `make test` means a spec regression on this run does not throw away
+      # a known-good archive.
+      - name: Save ProB archive to cache
+        if: steps.prob-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/prob-archive
+          key: ${{ steps.prob-cache.outputs.cache-primary-key }}
 
       # type-z-* (fuzz) then test-z-* (probcli) over every examples/*.tex.
       - run: make type
@@ -163,6 +211,12 @@ jobs:
   # afterward -- the copy + mktexlsr chain, which a bare runner can never
   # exercise. --no-plugin because CI runners have no claude CLI; the plugin
   # step would auto-skip anyway, and this job's subject is the toolchain.
+  #
+  # No ProB archive cache here, unlike the specs job, and no local-archive
+  # override in install.sh: this job exists to prove the live download a
+  # user's install performs, so an outage of the ProB host reddening it is
+  # an honest signal. install_probcli's own bounded curl retries absorb
+  # transient drops.
   installer:
     strategy:
       fail-fast: false
