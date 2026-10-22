@@ -307,7 +307,28 @@ install_probcli() (
 
   # -f makes curl exit nonzero on 404/5xx instead of saving the error page as
   # if it were the archive -- the exact silent failure z-spec-68e fixed.
-  curl -fL -o "$ARCHIVE" "$PROB_URL" || {
+  #
+  # The retry flags make one dropped connection recoverable while keeping a
+  # sustained outage of the ProB host a loud, bounded failure:
+  #   --connect-timeout 20   a dead host costs 20s per attempt, not the OS
+  #                          TCP default (over two minutes on Linux)
+  #   --retry 5              up to 6 attempts, exponential backoff 1s..16s
+  #   --retry-connrefused    a refused connection counts as transient
+  #   --retry-max-time 300   no new attempt starts after 5 minutes
+  #   --speed-limit 1024 --speed-time 60
+  #                          a transfer stalled under 1 KB/s for a minute is
+  #                          aborted (and retried) instead of hanging forever
+  #   --retry-all-errors     also retries DNS failures, TLS and mid-transfer
+  #                          resets. It needs curl >= 7.71, so it is probed
+  #                          rather than assumed: an older curl still
+  #                          installs, with --retry's narrower transient set,
+  #                          instead of failing on an unknown option.
+  set -- --connect-timeout 20 --retry 5 --retry-connrefused \
+    --retry-max-time 300 --speed-limit 1024 --speed-time 60
+  if curl --retry-all-errors --version >/dev/null 2>&1; then
+    set -- "$@" --retry-all-errors
+  fi
+  curl -fL "$@" -o "$ARCHIVE" "$PROB_URL" || {
     echo "  ! download failed: $PROB_URL" >&2
     return 1
   }
