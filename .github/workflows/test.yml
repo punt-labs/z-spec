@@ -63,6 +63,22 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    # Job-level so the cache key and the install step read one value. Must
+    # equal install.sh's PROB_VERSION (a test gates the parity).
+    env:
+      PROB_VERSION: "1.15.1"
+      # SHA-256 of each per-OS ProB archive, checked before the archive is
+      # read, on cache hits and fresh downloads alike. Must equal
+      # install.sh's PROB_SHA256_LINUX / PROB_SHA256_MACOS (test-gated).
+      # Trust-on-first-use: the ProB host publishes no checksum or
+      # signature, so each archive was fetched twice over HTTPS with
+      # identical hashes. A pin proves a later download or cache entry
+      # matches those bytes, not that the ProB authors produced them. A
+      # value that is not 64 lowercase hex digits fails the prob-pin step
+      # closed with a "no verified SHA-256 pin" error, before the cache is
+      # consulted or anything is downloaded.
+      PROB_SHA256_LINUX: "b0d411f71c81cfe9fdc2d898f3ef0fd7dcccc4223211cf1475b45ca46d344c24"
+      PROB_SHA256_MACOS: "6e85c88eee56ec7f18f4b1737693b1dc4bfbf4f9081c42def8c09afff48f24c2"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
@@ -95,41 +111,177 @@ jobs:
           ./install.sh --fuzz-only
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      # The ProB archive comes from a single university host
+      # (stups.hhu-hosting.de) that has dropped connections and gone fully
+      # unreachable, reddening every specs leg. The DOWNLOADED ARCHIVE (not
+      # the extracted tree) is cached per OS + PROB_VERSION, so once warm a
+      # host outage cannot red this job and a hit makes zero requests to the
+      # host. Every archive, cached or fresh, then goes through the same
+      # SHA-256 pin, integrity check, slip guard, and extraction. The
+      # installer job deliberately has no cache: it proves the live user
+      # download path.
+      #
+      # This OS's archive name and pin are chosen once, here, and both the
+      # cache key and the install step read these outputs, so the two can
+      # never disagree about which pin is in force. The pin's full format is
+      # checked here, before anything is written to GITHUB_OUTPUT, so a value
+      # that can never verify an archive (a placeholder, empty, uppercase, a
+      # wrong length, a second line) never reaches the cache key: no restore
+      # is attempted under it and nothing is downloaded. An empty pin fails
+      # first (${VAR:?}), and a pin with a newline gets its own message, since
+      # it would otherwise add a line of its own to GITHUB_OUTPUT. The digits
+      # are spelled out: a range like 0-9a-f follows the locale's collation.
+      # The install step repeats the format check as defence in depth.
+      - name: Select this OS's ProB archive and pin
+        id: prob-pin
+        run: |
+          case "${RUNNER_OS}" in
+            macOS) ARCHIVE="ProB.macos.zip";      PIN="${PROB_SHA256_MACOS:?job env PROB_SHA256_MACOS is empty}" ;;
+            Linux) ARCHIVE="ProB.linux64.tar.gz"; PIN="${PROB_SHA256_LINUX:?job env PROB_SHA256_LINUX is empty}" ;;
+            *)     echo "FATAL: no ProB archive for runner OS '${RUNNER_OS}'" >&2; exit 1 ;;
+          esac
+          case "${PIN}" in
+            *$'\n'*) echo "FATAL: the ${RUNNER_OS} ProB pin spans more than one line" >&2; exit 1 ;;
+          esac
+          if [ "${#PIN}" -ne 64 ] || [ -n "${PIN//[0123456789abcdef]/}" ]; then
+            echo "FATAL: no verified SHA-256 pin for ${ARCHIVE} (ProB ${PROB_VERSION}):" >&2
+            echo "  pin is not 64 lowercase hex digits (value: ${PIN})" >&2
+            echo "  no cache restored, nothing downloaded -- set the job env's PROB_SHA256_* pin" >&2
+            exit 1
+          fi
+          printf 'archive=%s\nsha256=%s\n' "${ARCHIVE}" "${PIN}" >> "${GITHUB_OUTPUT}"
+
+      # The pin is in the key so that changing it is an automatic miss: an
+      # archive cached under the old pin is never even restored. The key is
+      # bookkeeping, not the safety: what keeps a wrong archive out is the
+      # install step's SHA-256 check, which every archive -- restored or
+      # downloaded -- must pass before anything reads it.
+      - name: Restore cached ProB archive
+        id: prob-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/prob-archive
+          key: prob-archive-${{ runner.os }}-${{ env.PROB_VERSION }}-${{ steps.prob-pin.outputs.sha256 }}
+
       # The ProB release archives carry probcli; pinned rather than "latest"
       # so a spec gate failure means the specs changed, not the tool. The
       # archive name and format differ per OS, and the layout inside is not
       # contracted, so locate the binary instead of assuming a path, and fail
       # loudly if it is absent. PROBCLI/PROB_HOME go to the env because the
-      # Makefile declares `PROBCLI ?=`.
+      # Makefile declares `PROBCLI ?=`. Every FATAL names where the archive
+      # came from -- a cache key (with the command to evict it) or the
+      # download URL -- because the fix differs.
       - name: Install probcli
         env:
-          PROB_VERSION: "1.15.1"
+          ARCHIVE: ${{ steps.prob-pin.outputs.archive }}
+          EXPECTED_SHA256: ${{ steps.prob-pin.outputs.sha256 }}
+          CACHE_HIT: ${{ steps.prob-cache.outputs.cache-hit }}
+          CACHE_KEY: ${{ steps.prob-cache.outputs.cache-primary-key }}
         run: |
-          mkdir -p "${RUNNER_TEMP}/ProB"
-          case "$(uname -s)" in
-            Darwin) ARCHIVE="ProB.macos.zip" ;;
-            *)      ARCHIVE="ProB.linux64.tar.gz" ;;
-          esac
-          curl -fL -o "${RUNNER_TEMP}/${ARCHIVE}" \
-            "https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/${PROB_VERSION}/${ARCHIVE}"
-          # Same zip-slip/tar-slip guard as install.sh's install_probcli():
-          # an absolute path or ../ segment in the listing could write
-          # outside the dest dir if the archive host is compromised.
+          mkdir -p "${RUNNER_TEMP}/ProB" "${RUNNER_TEMP}/prob-archive"
           case "${ARCHIVE}" in
-            *.zip) LISTING="$(unzip -Z1 "${RUNNER_TEMP}/${ARCHIVE}")" ;;
-            *)     LISTING="$(tar -tzf "${RUNNER_TEMP}/${ARCHIVE}")" ;;
+            ProB.macos.zip|ProB.linux64.tar.gz) ;;
+            *) echo "FATAL: unknown ProB archive name '${ARCHIVE}' from the prob-pin step" >&2; exit 1 ;;
           esac
-          if printf '%s\n' "${LISTING}" | grep -qE '^/|(^|/)\.\./'; then
-            echo "FATAL: probcli archive contains unsafe paths (absolute or ../)" >&2
+          # The pin's format first, above the hit/miss branch, so a value
+          # that can never verify an archive (a placeholder, empty, uppercase,
+          # a wrong length, a second line) fails before any download on
+          # either path. The prob-pin step already refuses such a pin; this
+          # is defence in depth, so the step never trusts its input's shape.
+          # The digits are spelled out: a range like 0-9a-f follows the
+          # locale's collation and can admit other characters. Past this
+          # point "SHA-256 mismatch" only ever means a real comparison of two
+          # hashes failed.
+          case "${EXPECTED_SHA256}" in
+            *[!0123456789abcdef]*|"") PIN_FORMAT_OK=0 ;;
+            *) if [ "${#EXPECTED_SHA256}" -eq 64 ]; then PIN_FORMAT_OK=1; else PIN_FORMAT_OK=0; fi ;;
+          esac
+          if [ "${PIN_FORMAT_OK}" != "1" ]; then
+            echo "FATAL: no verified SHA-256 pin for ${ARCHIVE} (ProB ${PROB_VERSION}):" >&2
+            echo "  pin is not 64 lowercase hex digits (value: ${EXPECTED_SHA256})" >&2
+            echo "  nothing downloaded or read -- set the job env's PROB_SHA256_* pin" >&2
             exit 1
           fi
+          ARCHIVE_PATH="${RUNNER_TEMP}/prob-archive/${ARCHIVE}"
+          if [ "${CACHE_HIT}" = "true" ]; then
+            SOURCE="cache key ${CACHE_KEY}"
+            HINT="; evict it with: gh cache delete '${CACHE_KEY}' -R '${GITHUB_REPOSITORY}'"
+            if [ ! -f "${ARCHIVE_PATH}" ]; then
+              echo "FATAL: cache hit but ${ARCHIVE_PATH} is missing (${SOURCE})${HINT}" >&2
+              exit 1
+            fi
+            echo "ProB ${PROB_VERSION} archive restored from ${SOURCE} -- no download"
+          else
+            PROB_URL="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/${PROB_VERSION}/${ARCHIVE}"
+            SOURCE="download ${PROB_URL}"
+            HINT=""
+            echo "ProB archive cache miss (cache-hit='${CACHE_HIT}', key ${CACHE_KEY}) -- downloading ${PROB_URL}"
+            # Same flags as install.sh's install_probcli() (see the comment
+            # there; a test gates the parity): HTTPS only, transient drops
+            # recover, a sustained outage fails in about 2.5 minutes.
+            curl -fL --proto '=https' --proto-redir '=https' \
+              --connect-timeout 20 --retry 5 --retry-connrefused \
+              --retry-max-time 300 --speed-limit 1024 --speed-time 60 \
+              --retry-all-errors \
+              -o "${ARCHIVE_PATH}" "${PROB_URL}" || {
+              echo "FATAL: ProB download failed: ${PROB_URL}" >&2
+              exit 1
+            }
+          fi
+          # SHA-256 pin, before anything reads the archive's contents. This,
+          # not the slip guard, is what protects the cache layer: a cache
+          # entry is never trusted more than a fresh download. The archive is
+          # read from stdin, so its path never reaches shasum's argv. The
+          # pipeline's status is cut's, so an unreadable archive or a failing
+          # shasum shows up as an empty hash -- reported as such, never as a
+          # mismatch.
+          ACTUAL_SHA256="$(shasum -a 256 < "${ARCHIVE_PATH}" | cut -d' ' -f1)"
+          if [ -z "${ACTUAL_SHA256}" ]; then
+            echo "FATAL: could not read or hash ${ARCHIVE_PATH} (from ${SOURCE})${HINT}" >&2
+            exit 1
+          fi
+          if [ "${ACTUAL_SHA256}" != "${EXPECTED_SHA256}" ]; then
+            echo "FATAL: SHA-256 mismatch for ${ARCHIVE} (ProB ${PROB_VERSION})${HINT}" >&2
+            echo "  expected: ${EXPECTED_SHA256}" >&2
+            echo "  actual:   ${ACTUAL_SHA256}" >&2
+            echo "  archive:  ${ARCHIVE_PATH}, from ${SOURCE}" >&2
+            exit 1
+          fi
+          not_an_archive() {
+            echo "FATAL: ${ARCHIVE} from ${SOURCE} is not a valid archive (file -b: $(file -b "${ARCHIVE_PATH}"))${HINT}" >&2
+            exit 1
+          }
           case "${ARCHIVE}" in
-            *.zip) unzip -q "${RUNNER_TEMP}/${ARCHIVE}" -d "${RUNNER_TEMP}/ProB" ;;
-            *)     tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}/ProB" ;;
+            *.zip)
+              unzip -tq "${ARCHIVE_PATH}" >/dev/null || not_an_archive
+              LISTING="$(unzip -Z1 "${ARCHIVE_PATH}")" || not_an_archive ;;
+            *)
+              LISTING="$(tar -tzf "${ARCHIVE_PATH}")" || not_an_archive ;;
+          esac
+          # Same zip-slip/tar-slip guard as install.sh's install_probcli():
+          # an absolute path or ../ segment in the archive's own listing
+          # could write outside the dest dir if the archive's publisher or
+          # host is compromised. It inspects the archive's members, not the
+          # cache layer -- the SHA-256 pin above covers that.
+          if printf '%s\n' "${LISTING}" | grep -qE '^/|(^|/)\.\./'; then
+            echo "FATAL: probcli archive from ${SOURCE} contains unsafe paths (absolute or ../)${HINT}" >&2
+            exit 1
+          fi
+          # The archive passed the SHA-256 pin and listed cleanly, so a failed
+          # extraction is the pinned archive itself or the runner's disk --
+          # never a stale or tampered cache entry.
+          extract_failed() {
+            echo "FATAL: could not extract ${ARCHIVE} (from ${SOURCE}) into ${RUNNER_TEMP}/ProB;" >&2
+            echo "  its SHA-256 matched the pin, so this is the pinned archive or the runner's disk" >&2
+            exit 1
+          }
+          case "${ARCHIVE}" in
+            *.zip) unzip -q "${ARCHIVE_PATH}" -d "${RUNNER_TEMP}/ProB" || extract_failed ;;
+            *)     tar -xzf "${ARCHIVE_PATH}" -C "${RUNNER_TEMP}/ProB" || extract_failed ;;
           esac
           PROBCLI="$(find "${RUNNER_TEMP}/ProB" -type f -name probcli | head -n 1)"
           if [ -z "${PROBCLI}" ]; then
-            echo "FATAL: no probcli in the ProB ${PROB_VERSION} archive" >&2
+            echo "FATAL: no probcli in the ProB ${PROB_VERSION} archive from ${SOURCE}" >&2
             find "${RUNNER_TEMP}/ProB" -maxdepth 2 >&2
             exit 1
           fi
@@ -137,10 +289,40 @@ jobs:
           echo "PROBCLI=${PROBCLI}" >> "${GITHUB_ENV}"
           echo "PROB_HOME=$(dirname "${PROBCLI}")" >> "${GITHUB_ENV}"
 
+      # Exact match, not substring, same as install.sh: 1.15.10 must not
+      # pass as 1.15.1.
       - name: Verify both binaries resolve
         run: |
-          command -v fuzz
-          "${PROBCLI}" -version
+          FUZZ_PATH="$(command -v fuzz)" || {
+            echo "FATAL: fuzz is not on PATH (${PATH}); the fuzz build step installs it to \$HOME/.local/bin" >&2
+            exit 1
+          }
+          echo "fuzz: ${FUZZ_PATH}"
+          if ! PROB_OUT="$("${PROBCLI}" -version 2>&1)"; then
+            echo "FATAL: ${PROBCLI} -version failed; its output:" >&2
+            printf '%s\n' "${PROB_OUT}" >&2
+            exit 1
+          fi
+          printf '%s\n' "${PROB_OUT}"
+          PROB_VER="$(printf '%s\n' "${PROB_OUT}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)"
+          if [ "${PROB_VER}" != "${PROB_VERSION}" ]; then
+            echo "FATAL: expected probcli ${PROB_VERSION}, got: ${PROB_VER:-unreadable}" >&2
+            exit 1
+          fi
+
+      # Save only on a miss, and only here: after the SHA-256 pin, the slip
+      # guard, and the version check all passed. A mismatched, corrupt, or
+      # hostile archive fails a step above and is never cached, and saving
+      # before `make test` means a spec regression on this run does not
+      # throw away a known-good archive. A failed save (cache service down,
+      # key raced by a parallel run) is only a warning, so the job stays
+      # green but the next run downloads again.
+      - name: Save ProB archive to cache
+        if: steps.prob-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/prob-archive
+          key: ${{ steps.prob-cache.outputs.cache-primary-key }}
 
       # type-z-* (fuzz) then test-z-* (probcli) over every examples/*.tex.
       - run: make type
@@ -163,6 +345,12 @@ jobs:
   # afterward -- the copy + mktexlsr chain, which a bare runner can never
   # exercise. --no-plugin because CI runners have no claude CLI; the plugin
   # step would auto-skip anyway, and this job's subject is the toolchain.
+  #
+  # No ProB archive cache here, unlike the specs job, and no local-archive
+  # override in install.sh: this job exists to prove the live download a
+  # user's install performs, so an outage of the ProB host reddening it is
+  # an honest signal. install_probcli's own bounded curl retries absorb
+  # transient drops.
   installer:
     strategy:
       fail-fast: false

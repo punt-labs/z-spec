@@ -3,6 +3,25 @@
 # Usage: curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/<SHA>/install.sh | sh
 set -eu
 
+# Every path this installer reads, writes, sources, or runs hangs off $HOME:
+# the uv env file it sources, the ~/.local/bin it puts on PATH, the probcli
+# it runs from ~/Applications/ProB. A relative or empty HOME would resolve
+# each of them against whatever directory the installer was started in --
+# sourcing and running files found there -- so it is refused before
+# anything else, argument parsing included. ${HOME-}: an unset HOME gets
+# its own message, not set -u's; ${HOME+set} tells unset from empty.
+case "${HOME-}" in
+  /*) ;;
+  *)
+    if [ -z "${HOME+set}" ]; then
+      printf 'install.sh: HOME is unset -- refusing to run\n' >&2
+    else
+      printf "install.sh: HOME='%s' is not an absolute path -- refusing to run\n" "$HOME" >&2
+    fi
+    printf 'install.sh: set HOME to your home directory (an absolute path) and re-run\n' >&2
+    exit 1 ;;
+esac
+
 # --- Colors (disabled when not a terminal) ---
 if [ -t 1 ]; then
   BOLD='\033[1m' GREEN='\033[32m' YELLOW='\033[33m' NC='\033[0m'
@@ -219,8 +238,52 @@ if [ "$FUZZ_ONLY_REQUESTED" = "0" ]; then
 fi
 
 PROB_VERSION=1.15.1
+# SHA-256 of each per-OS ProB $PROB_VERSION archive, checked before the
+# archive is listed or extracted. HTTPS authenticates the connection, not the
+# file: a compromised or replaced archive on the host would otherwise be
+# installed and executed. Bump these in lockstep with PROB_VERSION, and with
+# PROB_SHA256_LINUX / PROB_SHA256_MACOS in .github/workflows/test.yml (a test
+# gates the parity).
+#
+# The ProB host publishes no checksum or signature, so these are
+# trust-on-first-use: each archive was fetched twice over HTTPS with identical
+# hashes. They prove a later download matches those bytes, not that the ProB
+# authors produced them. Any value that is not 64 lowercase hex digits makes
+# install_probcli fail closed with a "no verified pin" error -- it never skips
+# verification.
+PROB_SHA256_LINUX="b0d411f71c81cfe9fdc2d898f3ef0fd7dcccc4223211cf1475b45ca46d344c24"
+PROB_SHA256_MACOS="6e85c88eee56ec7f18f4b1737693b1dc4bfbf4f9081c42def8c09afff48f24c2"
 PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
 PROB_HOME="$HOME/Applications/ProB"
+
+# probcli's own output is shown to the reader when it fails or reports the
+# wrong version, and fuzz's -Dv output when fuzz will not run. It is shown
+# as text, not replayed to the terminal, so an escape sequence in it cannot
+# rewrite the screen or the window title. Both tools print ASCII, so every
+# byte outside printable ASCII goes except tab and newline: \000-\010 and
+# \013-\037 (the C0 controls but tab \011 and newline \012), and
+# \177-\377 -- DEL, the 8-bit C1 controls some terminals honour (0x9B is
+# CSI), and every byte of a multi-byte UTF-8 sequence, which includes the
+# UTF-8 encoding of a C1 control (C2 9B). LC_ALL=C makes tr work on bytes
+# whatever the user's locale; under a UTF-8 locale, BSD tr stops at the
+# first byte that is not valid UTF-8 and drops the rest.
+printable() { LC_ALL=C tr -d '\000-\010\013-\037\177-\377'; }
+
+# Run the named function with set -e genuinely in force, leaving its exit
+# status in RUN_ERREXIT_RC. POSIX ignores -e for every command run, at any
+# depth, on the left of || or &&, after !, or in an if/while condition: as
+# `install_probcli || warn ...`, the `set -eu` inside install_probcli is
+# accepted and then not applied, so a failing command it does not handle
+# runs on and the install can still report success. Run here as a plain
+# command, with the caller's -e lifted for this one call so a failure is
+# captured rather than fatal to install.sh, it is applied. Call this as a
+# plain command too -- under ||, &&, !, or if, -e is ignored again.
+run_errexit() {
+  set +e
+  "$@"
+  RUN_ERREXIT_RC=$?
+  set -e
+}
 
 # Mirror src/punt_zspec/prob.py's resolve_probcli() exactly: $PROBCLI (if it
 # names a file) wins, then PATH, then the conventional path -- in that order.
@@ -261,10 +324,30 @@ resolve_fuzz_path() {
 }
 
 install_probcli() (
-  # Subshell: a failure anywhere here returns nonzero without aborting the
-  # rest of install.sh under set -e, and every path below is explicit so a
-  # partial failure never gets reported as success.
+  # A subshell, so its set -eu and its variables stay inside it. Call it
+  # only through run_errexit: under || or && (or in an if) -e is ignored
+  # throughout this body. Every failure below is handled explicitly -- it
+  # says what failed and removes the downloaded archive -- and -e is only
+  # the backstop that turns a failure nothing here handles into a nonzero
+  # return instead of a reported success.
   set -eu
+
+  # Every path below hangs off $HOME ($PROB_HOME, the archive, the cd into
+  # the extraction directory); a relative or empty HOME would scatter them
+  # under whatever directory the installer happened to run from. The top of
+  # install.sh already refuses such a HOME; this copy guards the function on
+  # its own, as the tests source it.
+  case "${HOME-}" in
+    /*) ;;
+    *)
+      if [ -z "${HOME+set}" ]; then
+        echo "  ! HOME is unset -- cannot install probcli" >&2
+      else
+        echo "  ! HOME='$HOME' is not an absolute path -- cannot install probcli" >&2
+      fi
+      echo "    set HOME to your home directory (an absolute path) and re-run" >&2
+      return 1 ;;
+  esac
 
   # Already at the right version, wherever the engine would actually find it
   # ($PROBCLI, PATH, or the conventional path)? Skip the download entirely --
@@ -284,10 +367,29 @@ install_probcli() (
   fi
 
   case "$(uname -s)" in
-    Darwin) PROB_ARCHIVE_NAME="ProB.macos.zip" ;;
-    Linux)  PROB_ARCHIVE_NAME="ProB.linux64.tar.gz" ;;
+    Darwin) PROB_ARCHIVE_NAME="ProB.macos.zip";      PROB_SHA256="$PROB_SHA256_MACOS" ;;
+    Linux)  PROB_ARCHIVE_NAME="ProB.linux64.tar.gz"; PROB_SHA256="$PROB_SHA256_LINUX" ;;
     *)      echo "  ! unsupported OS for probcli: $(uname -s) -- install by hand" >&2; return 1 ;;
   esac
+
+  # The pin's format is checked before anything is downloaded: a value that
+  # is not exactly 64 lowercase hex digits (a placeholder, an empty or
+  # truncated value, uppercase, a second line) can never verify an archive,
+  # so no request goes to the ProB host and no unverified archive ever lands
+  # on disk. It never means "skip verification". Past this point "SHA-256
+  # mismatch" only ever means a real comparison of two hashes failed. The
+  # digits are spelled out: a range like 0-9a-f follows the locale's
+  # collation order and can admit other characters.
+  case "$PROB_SHA256" in
+    *[!0123456789abcdef]*|"") PIN_FORMAT_OK=0 ;;
+    *) if [ "${#PROB_SHA256}" -eq 64 ]; then PIN_FORMAT_OK=1; else PIN_FORMAT_OK=0; fi ;;
+  esac
+  if [ "$PIN_FORMAT_OK" != "1" ]; then
+    echo "  ! no verified SHA-256 pin for $PROB_ARCHIVE_NAME (ProB $PROB_VERSION):" >&2
+    echo "    pin is not 64 lowercase hex digits (value: $PROB_SHA256)" >&2
+    echo "    nothing downloaded -- set install.sh's per-OS PROB_SHA256_* pin" >&2
+    return 1
+  fi
 
   for tool in curl file; do
     command -v "$tool" >/dev/null 2>&1 || {
@@ -295,6 +397,18 @@ install_probcli() (
       return 1
     }
   done
+  # sha256sum is GNU coreutils (most Linux); shasum ships with macOS and with
+  # perl elsewhere. The file is read from stdin, so its name never reaches
+  # the tool's argv (no option injection, no escaped-name "\" prefix on the
+  # output) and either prints "<hash>  -".
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256_of() { sha256sum < "$1" | cut -d' ' -f1; }
+  elif command -v shasum >/dev/null 2>&1; then
+    sha256_of() { shasum -a 256 < "$1" | cut -d' ' -f1; }
+  else
+    echo "  ! neither sha256sum nor shasum found -- cannot verify probcli" >&2
+    return 1
+  fi
   case "$PROB_ARCHIVE_NAME" in
     *.zip) command -v unzip >/dev/null 2>&1 || { echo "  ! unzip not found -- cannot install probcli" >&2; return 1; } ;;
     *.tar.gz) command -v tar >/dev/null 2>&1 || { echo "  ! tar not found -- cannot install probcli" >&2; return 1; } ;;
@@ -307,10 +421,66 @@ install_probcli() (
 
   # -f makes curl exit nonzero on 404/5xx instead of saving the error page as
   # if it were the archive -- the exact silent failure z-spec-68e fixed.
-  curl -fL -o "$ARCHIVE" "$PROB_URL" || {
+  #
+  # The retry flags make one dropped connection recoverable while keeping a
+  # sustained outage of the ProB host a loud, bounded failure:
+  #   --connect-timeout 20   a dead host costs 20s per attempt, not the OS
+  #                          TCP default (over two minutes on Linux)
+  #   --retry 5              up to 6 attempts, exponential backoff 1s..16s
+  #   --retry-connrefused    a refused connection counts as transient
+  #   --retry-max-time 300   no new attempt starts after 5 minutes
+  #   --speed-limit 1024 --speed-time 60
+  #                          a transfer stalled under 1 KB/s for a minute is
+  #                          aborted (and retried) instead of hanging forever
+  #   --proto '=https' --proto-redir '=https'
+  #                          neither the request nor any redirect may leave
+  #                          HTTPS
+  #   --retry-all-errors     also retries DNS failures, TLS and mid-transfer
+  #                          resets. It needs curl >= 7.71, so it is probed
+  #                          rather than assumed: an older curl still
+  #                          installs, with --retry's narrower transient set
+  #                          and a warning, instead of failing on an unknown
+  #                          option.
+  # The unprobed flags set the real floor: --retry-connrefused needs curl
+  # >= 7.52 (December 2016); everything else here is older still.
+  set -- -fL --proto '=https' --proto-redir '=https' \
+    --connect-timeout 20 --retry 5 --retry-connrefused \
+    --retry-max-time 300 --speed-limit 1024 --speed-time 60
+  if curl --retry-all-errors --version >/dev/null 2>&1; then
+    set -- "$@" --retry-all-errors
+  else
+    echo "  ! $(curl --version 2>/dev/null | head -n 1) predates --retry-all-errors;" >&2
+    echo "    downloading probcli with the narrower --retry set" >&2
+  fi
+  # A failed transfer can leave partial bytes at -o; they are removed so no
+  # unverified fragment stays on disk.
+  curl "$@" -o "$ARCHIVE" "$PROB_URL" || {
     echo "  ! download failed: $PROB_URL" >&2
+    rm -f "$ARCHIVE"
     return 1
   }
+
+  # Verified before the archive is listed or extracted: nothing from an
+  # archive whose hash is not the pinned one is ever unpacked. The
+  # unverified file is removed so it cannot be unpacked by hand later. A
+  # pipeline's status is its last command's, so an unreadable file or a
+  # hash tool that fails leaves cut printing nothing; that is reported as
+  # such, not as a mismatch against an empty hash.
+  ACTUAL_SHA256="$(sha256_of "$ARCHIVE")"
+  if [ -z "$ACTUAL_SHA256" ]; then
+    echo "  ! could not read or hash $ARCHIVE (the SHA-256 tool printed nothing)" >&2
+    echo "    archive: $ARCHIVE (from $PROB_URL) -- removed, not extracted" >&2
+    rm -f "$ARCHIVE"
+    return 1
+  fi
+  if [ "$ACTUAL_SHA256" != "$PROB_SHA256" ]; then
+    echo "  ! SHA-256 mismatch for $PROB_ARCHIVE_NAME (ProB $PROB_VERSION):" >&2
+    echo "    expected: $PROB_SHA256" >&2
+    echo "    actual:   $ACTUAL_SHA256" >&2
+    echo "    archive:  $ARCHIVE (from $PROB_URL) -- removed, not extracted" >&2
+    rm -f "$ARCHIVE"
+    return 1
+  fi
 
   # An absolute path or a "../" segment in the listing could write outside
   # $DEST (zip-slip / tar-slip) -- checked before either extractor ever
@@ -323,31 +493,45 @@ install_probcli() (
     return 0
   }
 
+  # Every failure from here on removes the downloaded archive, as the hash
+  # checks above do: a verified archive that will not read, holds no
+  # probcli, or will not extract is no more use left in ~/Applications than
+  # an unverified one. What was extracted is NOT removed: $DEST is
+  # ~/Applications or $PROB_HOME, which may hold a ProB installed before
+  # this run, and nothing here can tell its files from this archive's.
+
   case "$PROB_ARCHIVE_NAME" in
     *.zip)
       unzip -tq "$ARCHIVE" || {
         echo "  ! $PROB_URL did not return a zip archive (got: $(file -b "$ARCHIVE"))" >&2
+        rm -f "$ARCHIVE"
         return 1
       }
-      LISTING="$(unzip -Z1 "$ARCHIVE")" || { echo "  ! could not list $ARCHIVE" >&2; return 1; }
+      LISTING="$(unzip -Z1 "$ARCHIVE")" || { echo "  ! could not list $ARCHIVE" >&2; rm -f "$ARCHIVE"; return 1; }
       reject_unsafe_archive_paths "$LISTING" || {
         echo "  ! $ARCHIVE contains an absolute or ../ path -- refusing to extract" >&2
+        rm -f "$ARCHIVE"
         return 1
       }
       if printf '%s\n' "$LISTING" | grep -q '^ProB/'; then DEST="$HOME/Applications"; else DEST="$PROB_HOME"; fi
-      unzip -oq "$ARCHIVE" -d "$DEST" || { echo "  ! could not extract $ARCHIVE into $DEST" >&2; return 1; }
+      unzip -oq "$ARCHIVE" -d "$DEST" || { echo "  ! could not extract $ARCHIVE into $DEST" >&2; rm -f "$ARCHIVE"; return 1; }
       ;;
     *.tar.gz)
       LISTING="$(tar -tzf "$ARCHIVE")" || {
         echo "  ! $PROB_URL did not return a gzip tarball (got: $(file -b "$ARCHIVE"))" >&2
+        rm -f "$ARCHIVE"
         return 1
       }
       reject_unsafe_archive_paths "$LISTING" || {
         echo "  ! $ARCHIVE contains an absolute or ../ path -- refusing to extract" >&2
+        rm -f "$ARCHIVE"
         return 1
       }
       if printf '%s\n' "$LISTING" | grep -q '^ProB/'; then DEST="$HOME/Applications"; else DEST="$PROB_HOME"; fi
-      tar -xzf "$ARCHIVE" -C "$DEST" || { echo "  ! could not extract $ARCHIVE into $DEST" >&2; return 1; }
+      # Extract from inside $DEST rather than with -C: GNU tar unquotes the
+      # -C argument, so a HOME containing a backslash ("a\b") names a
+      # different, missing directory. The -f argument is not unquoted.
+      (cd "$DEST" && tar -xzf "$ARCHIVE") || { echo "  ! could not extract $ARCHIVE into $DEST" >&2; rm -f "$ARCHIVE"; return 1; }
       ;;
   esac
 
@@ -366,28 +550,38 @@ install_probcli() (
       echo "    $PROB_HOME/probcli. The archive layout is not what this" >&2
       echo "    script expects." >&2
     fi
+    rm -f "$ARCHIVE"
     return 1
   }
 
   PROB_OUT="$("$PROB_HOME/probcli" -version 2>&1)" || {
     echo "  ! $PROB_HOME/probcli is installed but would not run:" >&2
-    printf '%s\n' "$PROB_OUT" >&2
+    printf '%s\n' "$PROB_OUT" | printable >&2
+    rm -f "$ARCHIVE"
     return 1
   }
 
   # Exact match, not substring: a future 1.15.10 must not silently pass as
   # 1.15.1.
   PROB_VER="$(printf '%s\n' "$PROB_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+  # Its output is shown, indented, so "unreadable" can be told apart from a
+  # real other version without re-running it by hand.
   test "$PROB_VER" = "$PROB_VERSION" || {
-    echo "  ! expected probcli $PROB_VERSION, got: $PROB_VER" >&2
+    echo "  ! expected probcli $PROB_VERSION, got: ${PROB_VER:-unreadable}" >&2
+    echo "    $PROB_HOME/probcli -version printed:" >&2
+    printf '%s\n' "$PROB_OUT" | printable | while IFS= read -r line; do
+      printf '      %s\n' "$line"
+    done >&2
+    rm -f "$ARCHIVE"
     return 1
   }
 
   # The archive itself is not the install -- $PROB_HOME/probcli is. Leaving
   # a multi-hundred-MB .zip/.tar.gz in ~/Applications after a verified-good
   # extraction is pure clutter and invites confusion about which one is
-  # "installed"; only remove it once every check above has passed.
-  rm -f "$ARCHIVE"
+  # "installed"; it goes on success as on every failure above. Failing to
+  # remove it does not undo a verified install, so that is a warning.
+  rm -f "$ARCHIVE" || echo "  ! could not remove the downloaded $ARCHIVE -- delete it by hand" >&2
 
   echo "  ✓ probcli $PROB_HOME/probcli ($PROB_VERSION)"
 )
@@ -396,7 +590,8 @@ install_probcli() (
 # that mode wants fuzz only, and a caller who also needs probcli (this
 # repo's own CI specs job does) installs it separately, on its own terms.
 if [ "$FUZZ_ONLY_REQUESTED" = "0" ]; then
-  install_probcli || warn "probcli install failed -- see the error above"
+  run_errexit install_probcli
+  [ "$RUN_ERREXIT_RC" = 0 ] || warn "probcli install failed -- see the error above"
 fi
 
 FUZZ_REPO="https://github.com/Spivoxity/fuzz.git"
@@ -408,10 +603,10 @@ FUZZ_REF="2a202a0b6f7328e729b54ef352d3bb4c6dfeb2e5"
 FUZZ_HOME="$HOME/.local"
 
 install_fuzz() (
-  # Subshell, same discipline as install_probcli: a failure anywhere here
-  # returns nonzero without aborting the rest of install.sh under set -e,
-  # and every path below is explicit so a partial build/install never gets
-  # reported as success.
+  # Same discipline as install_probcli: a subshell, called only through
+  # run_errexit so set -e is in force; every failure below is handled
+  # explicitly, and -e is the backstop that keeps one nothing here handles
+  # from being reported as a successful build.
   set -eu
 
   # Already resolves ($FUZZ or PATH, same precedence as resolve_fuzz() in
@@ -482,6 +677,22 @@ install_fuzz() (
     echo "  ! could not create a scratch build directory for fuzz" >&2
     return 1
   }
+  # mktemp prints the path as $TMPDIR spells it, so a relative TMPDIR gives
+  # a relative path -- one that stops naming the scratch directory once the
+  # cd below moves into it, leaving the EXIT trap's rm -rf to remove
+  # nothing. It is made absolute before the trap or the cd can use it.
+  # CDPATH is emptied for this cd: a relative path found through a CDPATH
+  # entry makes cd print the new directory to stdout, which this capture
+  # would take as a second line of the path. -P takes the physical
+  # directory, as pwd -P does; -- keeps a TMPDIR that starts with - from
+  # being read as an option. CDPATH='' rather than a bare CDPATH=, which
+  # is the same assignment but draws lint warning SC1007.
+  FUZZ_BUILD_DIR_ABS="$(CDPATH='' cd -P -- "$FUZZ_BUILD_DIR" && pwd -P)" || {
+    echo "  ! could not resolve the scratch build directory $FUZZ_BUILD_DIR" >&2
+    rm -rf "$FUZZ_BUILD_DIR"
+    return 1
+  }
+  FUZZ_BUILD_DIR="$FUZZ_BUILD_DIR_ABS"
   # The clone is pure build scratch -- nothing in it is the install, which
   # lands under $FUZZ_HOME via `make install` below. Remove it on every exit
   # path, success or failure, so a curl | sh run never leaves a source tree
@@ -560,7 +771,7 @@ install_fuzz() (
   # argument.
   FUZZ_PROBE_OUT="$("$FUZZ_HOME/bin/fuzz" -Dv < /dev/null 2>&1)" || {
     echo "  ! $FUZZ_HOME/bin/fuzz is installed but would not run:" >&2
-    printf '%s\n' "$FUZZ_PROBE_OUT" | while IFS= read -r line; do echo "    $line" >&2; done
+    printf '%s\n' "$FUZZ_PROBE_OUT" | printable | while IFS= read -r line; do echo "    $line" >&2; done
     return 1
   }
 
@@ -697,7 +908,8 @@ if [ "$FUZZ_ONLY_REQUESTED" = "1" ]; then
 fi
 
 FUZZ_INSTALL_OK=1
-install_fuzz || { FUZZ_INSTALL_OK=0; warn "fuzz install failed -- see the error above"; }
+run_errexit install_fuzz
+[ "$RUN_ERREXIT_RC" = 0 ] || { FUZZ_INSTALL_OK=0; warn "fuzz install failed -- see the error above"; }
 
 # --fuzz-only wants a hard failure, not the soft warn above: the CLI and
 # probcli steps were skipped entirely for this mode, so a failed fuzz build
@@ -778,7 +990,7 @@ else
   if ! RESOLVED_PROBCLI_OUT="$("$RESOLVED_PROBCLI" -version 2>&1)"; then
     PROBCLI_STATUS="wont-run"
     warn "probcli resolves to $RESOLVED_PROBCLI, but it would not run:"
-    printf '%s\n' "$RESOLVED_PROBCLI_OUT" | while IFS= read -r line; do warn "  $line"; done
+    printf '%s\n' "$RESOLVED_PROBCLI_OUT" | printable | while IFS= read -r line; do warn "  $line"; done
     warn "Missing Tcl/Tk libraries and macOS quarantine are the usual causes."
   elif RESOLVED_PROBCLI_VER="$(printf '%s\n' "$RESOLVED_PROBCLI_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)" && [ "$RESOLVED_PROBCLI_VER" = "$PROB_VERSION" ]; then
     HAVE_PROBCLI=1
@@ -830,7 +1042,7 @@ else
   else
     FUZZ_STATUS="wont-run"
     warn "fuzz resolves to $RESOLVED_FUZZ, but it would not run:"
-    printf '%s\n' "$FUZZ_PROBE_OUT" | while IFS= read -r line; do warn "  $line"; done
+    printf '%s\n' "$FUZZ_PROBE_OUT" | printable | while IFS= read -r line; do warn "  $line"; done
   fi
 fi
 

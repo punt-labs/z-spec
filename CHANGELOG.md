@@ -57,6 +57,36 @@ All notable changes to this project will be documented in this file.
   does not, covering every current and future pre-publish tree with no
   branch-name list to maintain.
 
+- **A ProB download outage no longer reds the `specs` CI job.** Every CI
+  leg used to download the ProB archive fresh from its single host,
+  `stups.hhu-hosting.de`; when that host went down on 2026-10-22 every
+  `specs` and `installer` leg failed. The `specs` job now caches the
+  verified archive (`actions/cache`, keyed on OS, `PROB_VERSION` and the
+  pinned SHA-256), so a cache hit makes no request to the host. Every ProB
+  download — in CI and in `install.sh` — retries transient failures with
+  bounded backoff and still fails loudly on a sustained outage. The
+  `installer` job is deliberately not cached: it keeps proving the live
+  download a user's install performs.
+
+### Security
+
+- **The ProB archive is pinned by SHA-256 and fetched over HTTPS only.**
+  `install.sh` and the `specs` CI job verify each archive against a per-OS
+  SHA-256 pin before listing or extracting it, on both the cache-hit and
+  download paths, and refuse a malformed pin before any download. The
+  pins are trust-on-first-use: HHU publishes no checksum or signature for
+  ProB, so they prove later downloads and cache entries match the bytes
+  first fetched on 2026-10-22, not that HHU produced them. Downloads use
+  `--proto '=https' --proto-redir '=https'`.
+
+- **`install.sh` refuses a relative or unset `HOME`** before anything is
+  sourced, executed or put on `PATH` from a `HOME`-derived path, so a
+  relative `HOME` can no longer make it run files from the current
+  directory. It also strips control characters from probcli and fuzz output
+  before printing it, and runs its probcli and fuzz installers with
+  `set -e` genuinely in force so an unhandled failure is reported, never
+  passed off as success.
+
 ## [0.20.5] - 2026-08-31
 
 ### Fixed
