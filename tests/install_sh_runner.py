@@ -130,7 +130,8 @@ class WholeInstall:
     probcli placed in ``home/.local/bin``, which the installer finds on PATH
     once it has put that directory there; ``None`` leaves none. ``fuzz`` is
     the shell body of the fuzz planted there (``None``: one that succeeds).
-    ``tmpdir`` is TMPDIR verbatim, created under tmp_path; ``None`` is
+    ``tmpdir`` is TMPDIR verbatim, created under tmp_path unless it is
+    already there (a test may make it a symlink); ``None`` is
     ``tmp_path / "tmp"``.
     """
 
@@ -152,7 +153,7 @@ class WholeInstall:
             _executable(tree / ".local/bin/probcli", body + "\n")
         logs.mkdir()
         tmpdir = self.tmpdir or str(tmp_path / "tmp")
-        (tmp_path / tmpdir).mkdir(parents=True)
+        (tmp_path / tmpdir).mkdir(parents=True, exist_ok=True)
         env = {
             "PATH": str(self._bin(tmp_path / "bin")),
             "LOGS": str(logs),
