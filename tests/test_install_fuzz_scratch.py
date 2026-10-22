@@ -8,7 +8,8 @@ with fuzz's build tools stubbed (``install_sh_runner``) and a fuzz whose
 probe fails, so the build runs to its end and then fails. A TMPDIR that
 is a symlink (macOS's /var is one, to /private/var) must resolve to the
 real directory, so the clone's path cannot depend on how TMPDIR was
-spelled.
+spelled -- nor on CDPATH, which would make the cd that resolves it print
+the directory into the captured path.
 """
 
 from __future__ import annotations
@@ -46,3 +47,27 @@ def test_the_scratch_clone_is_removed_after_a_failed_build(
     assert Path(clones[0][-1]).parent == scratch.resolve()
     assert run.calls("make") == [[], ["install"]], "the build never ran"
     assert list(scratch.iterdir()) == [], "the scratch clone was left behind"
+
+
+def test_a_cdpath_entry_does_not_double_the_scratch_path(tmp_path: Path) -> None:
+    # With "." on CDPATH, a cd to the relative scratch path finds it through
+    # that entry and prints it; captured, the path would be two lines.
+    install = WholeInstall(
+        str(tmp_path / "home"),
+        args=("--fuzz-only",),
+        fuzz="exit 1",
+        build=True,
+        tmpdir="rel-tmp",
+        env=(("CDPATH", ".:/nonexistent"),),
+    )
+    run = install.run(tmp_path)
+
+    scratch = tmp_path / "rel-tmp"
+    clones = [call for call in run.calls("git") if call[:1] == ["clone"]]
+    assert run.result.returncode == 1
+    assert len(clones) == 1, run.calls("git")
+    dest = clones[0][-1]
+    assert "\n" not in dest, f"the scratch path is more than one line: {dest!r}"
+    assert Path(dest).is_absolute(), dest
+    assert Path(dest).parent == scratch.resolve()
+    assert list(scratch.iterdir()) == [], "the scratch dir was left behind"

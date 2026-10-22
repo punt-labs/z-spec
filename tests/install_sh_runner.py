@@ -132,7 +132,7 @@ class WholeInstall:
     the shell body of the fuzz planted there (``None``: one that succeeds).
     ``tmpdir`` is TMPDIR verbatim, created under tmp_path unless it is
     already there (a test may make it a symlink); ``None`` is
-    ``tmp_path / "tmp"``.
+    ``tmp_path / "tmp"``. ``env`` is added to the run's environment.
     """
 
     home: str | None  # None: HOME is unset
@@ -141,6 +141,7 @@ class WholeInstall:
     fuzz: str | None = None  # None: a fuzz that logs and succeeds
     build: bool = False
     tmpdir: str | None = None  # None: an absolute TMPDIR under tmp_path
+    env: tuple[tuple[str, str], ...] = ()
 
     def run(self, tmp_path: Path) -> WholeRun:
         tree, logs = tmp_path / "home", tmp_path / "logs"
@@ -158,6 +159,7 @@ class WholeInstall:
             "PATH": str(self._bin(tmp_path / "bin")),
             "LOGS": str(logs),
             "TMPDIR": tmpdir,
+            **dict(self.env),
         }
         if self.home is not None:
             env["HOME"] = self.home

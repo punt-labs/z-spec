@@ -681,7 +681,13 @@ install_fuzz() (
   # a relative path -- one that stops naming the scratch directory once the
   # cd below moves into it, leaving the EXIT trap's rm -rf to remove
   # nothing. It is made absolute before the trap or the cd can use it.
-  FUZZ_BUILD_DIR_ABS="$(cd "$FUZZ_BUILD_DIR" && pwd -P)" || {
+  # CDPATH is emptied for this cd: a relative path found through a CDPATH
+  # entry makes cd print the new directory to stdout, which this capture
+  # would take as a second line of the path. -P takes the physical
+  # directory, as pwd -P does; -- keeps a TMPDIR that starts with - from
+  # being read as an option. CDPATH='' rather than a bare CDPATH=, which
+  # is the same assignment but draws lint warning SC1007.
+  FUZZ_BUILD_DIR_ABS="$(CDPATH='' cd -P -- "$FUZZ_BUILD_DIR" && pwd -P)" || {
     echo "  ! could not resolve the scratch build directory $FUZZ_BUILD_DIR" >&2
     rm -rf "$FUZZ_BUILD_DIR"
     return 1
