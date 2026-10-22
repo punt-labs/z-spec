@@ -63,9 +63,19 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
-    # Job-level so the cache key and the install step read one value.
+    # Job-level so the cache key and the install step read one value. Must
+    # equal install.sh's PROB_VERSION (a test gates the parity).
     env:
       PROB_VERSION: "1.15.1"
+      # SHA-256 of each per-OS ProB archive, checked before the archive is
+      # read, on cache hits and fresh downloads alike. Must equal
+      # install.sh's PROB_SHA256_LINUX / PROB_SHA256_MACOS (test-gated).
+      # PLACEHOLDERS: the ProB host was unreachable when the pin was
+      # introduced, so no hash was taken from a real download and none is
+      # guessed. A value that is not 64 hex digits fails the install step
+      # closed with a "no verified SHA-256 pin" error.
+      PROB_SHA256_LINUX: "PLACEHOLDER-unverified-awaiting-download-from-prob-host"
+      PROB_SHA256_MACOS: "PLACEHOLDER-unverified-awaiting-download-from-prob-host"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
@@ -103,9 +113,10 @@ jobs:
       # unreachable, reddening every specs leg. The DOWNLOADED ARCHIVE (not
       # the extracted tree) is cached per OS + PROB_VERSION, so once warm a
       # host outage cannot red this job and a hit makes zero requests to the
-      # host -- while the slip guard and extraction below still run on every
-      # archive, cached or fresh. The installer job deliberately has no
-      # cache: it proves the live user download path.
+      # host. Every archive, cached or fresh, then goes through the same
+      # SHA-256 pin, integrity check, slip guard, and extraction. The
+      # installer job deliberately has no cache: it proves the live user
+      # download path.
       - name: Restore cached ProB archive
         id: prob-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -118,45 +129,77 @@ jobs:
       # archive name and format differ per OS, and the layout inside is not
       # contracted, so locate the binary instead of assuming a path, and fail
       # loudly if it is absent. PROBCLI/PROB_HOME go to the env because the
-      # Makefile declares `PROBCLI ?=`.
+      # Makefile declares `PROBCLI ?=`. Every FATAL names where the archive
+      # came from -- a cache key (with the command to evict it) or the
+      # download URL -- because the fix differs.
       - name: Install probcli
         env:
           CACHE_HIT: ${{ steps.prob-cache.outputs.cache-hit }}
+          CACHE_KEY: ${{ steps.prob-cache.outputs.cache-primary-key }}
         run: |
           mkdir -p "${RUNNER_TEMP}/ProB" "${RUNNER_TEMP}/prob-archive"
           case "$(uname -s)" in
-            Darwin) ARCHIVE="ProB.macos.zip" ;;
-            *)      ARCHIVE="ProB.linux64.tar.gz" ;;
+            Darwin) ARCHIVE="ProB.macos.zip";      EXPECTED_SHA256="${PROB_SHA256_MACOS}" ;;
+            *)      ARCHIVE="ProB.linux64.tar.gz"; EXPECTED_SHA256="${PROB_SHA256_LINUX}" ;;
           esac
           ARCHIVE_PATH="${RUNNER_TEMP}/prob-archive/${ARCHIVE}"
           if [ "${CACHE_HIT}" = "true" ]; then
+            SOURCE="cache key ${CACHE_KEY}"
+            HINT="; evict it with: gh cache delete '${CACHE_KEY}' -R '${GITHUB_REPOSITORY}'"
             if [ ! -f "${ARCHIVE_PATH}" ]; then
-              echo "FATAL: cache hit but ${ARCHIVE_PATH} is missing" >&2
+              echo "FATAL: cache hit but ${ARCHIVE_PATH} is missing (${SOURCE})${HINT}" >&2
               exit 1
             fi
-            echo "ProB ${PROB_VERSION} archive restored from cache -- no download"
+            echo "ProB ${PROB_VERSION} archive restored from ${SOURCE} -- no download"
           else
-            # Same bounded-retry flags as install.sh's install_probcli()
-            # (see the comment there): transient drops recover, a sustained
-            # outage fails this step in about 2.5 minutes, not 133s per try.
-            curl -fL --connect-timeout 20 --retry 5 --retry-connrefused \
-              --retry-all-errors --retry-max-time 300 \
-              --speed-limit 1024 --speed-time 60 \
-              -o "${ARCHIVE_PATH}" \
-              "https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/${PROB_VERSION}/${ARCHIVE}"
+            PROB_URL="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/${PROB_VERSION}/${ARCHIVE}"
+            SOURCE="download ${PROB_URL}"
+            HINT=""
+            echo "ProB archive cache miss (cache-hit='${CACHE_HIT}', key ${CACHE_KEY}) -- downloading"
+            # Same flags as install.sh's install_probcli() (see the comment
+            # there; a test gates the parity): HTTPS only, transient drops
+            # recover, a sustained outage fails in about 2.5 minutes.
+            curl -fL --proto '=https' --proto-redir '=https' \
+              --connect-timeout 20 --retry 5 --retry-connrefused \
+              --retry-max-time 300 --speed-limit 1024 --speed-time 60 \
+              --retry-all-errors \
+              -o "${ARCHIVE_PATH}" "${PROB_URL}"
           fi
-          # Same zip-slip/tar-slip guard as install.sh's install_probcli():
-          # an absolute path or ../ segment in the listing could write
-          # outside the dest dir if the archive host is compromised. It runs
-          # on cached archives too -- a cache entry is never trusted more
-          # than a fresh download. A non-archive (an HTML error page, a
-          # truncated file) fails the listing itself, under bash -e.
+          # SHA-256 pin, before anything reads the archive's contents. This,
+          # not the slip guard, is what protects the cache layer: a cache
+          # entry is never trusted more than a fresh download.
+          ACTUAL_SHA256="$(shasum -a 256 "${ARCHIVE_PATH}" | cut -d' ' -f1)"
+          if ! printf '%s\n' "${EXPECTED_SHA256}" | grep -qE '^[0-9a-f]{64}$'; then
+            echo "FATAL: no verified SHA-256 pin for ${ARCHIVE} (ProB ${PROB_VERSION}):" >&2
+            echo "  job env carries a placeholder: ${EXPECTED_SHA256}" >&2
+            echo "  actual: ${ACTUAL_SHA256} (${ARCHIVE_PATH}, from ${SOURCE})" >&2
+            exit 1
+          fi
+          if [ "${ACTUAL_SHA256}" != "${EXPECTED_SHA256}" ]; then
+            echo "FATAL: SHA-256 mismatch for ${ARCHIVE} (ProB ${PROB_VERSION})${HINT}" >&2
+            echo "  expected: ${EXPECTED_SHA256}" >&2
+            echo "  actual:   ${ACTUAL_SHA256}" >&2
+            echo "  archive:  ${ARCHIVE_PATH}, from ${SOURCE}" >&2
+            exit 1
+          fi
+          not_an_archive() {
+            echo "FATAL: ${ARCHIVE} from ${SOURCE} is not a valid archive (file -b: $(file -b "${ARCHIVE_PATH}"))${HINT}" >&2
+            exit 1
+          }
           case "${ARCHIVE}" in
-            *.zip) LISTING="$(unzip -Z1 "${ARCHIVE_PATH}")" ;;
-            *)     LISTING="$(tar -tzf "${ARCHIVE_PATH}")" ;;
+            *.zip)
+              unzip -tq "${ARCHIVE_PATH}" >/dev/null || not_an_archive
+              LISTING="$(unzip -Z1 "${ARCHIVE_PATH}")" || not_an_archive ;;
+            *)
+              LISTING="$(tar -tzf "${ARCHIVE_PATH}")" || not_an_archive ;;
           esac
+          # Same zip-slip/tar-slip guard as install.sh's install_probcli():
+          # an absolute path or ../ segment in the archive's own listing
+          # could write outside the dest dir if the archive's publisher or
+          # host is compromised. It inspects the archive's members, not the
+          # cache layer -- the SHA-256 pin above covers that.
           if printf '%s\n' "${LISTING}" | grep -qE '^/|(^|/)\.\./'; then
-            echo "FATAL: probcli archive contains unsafe paths (absolute or ../)" >&2
+            echo "FATAL: probcli archive from ${SOURCE} contains unsafe paths (absolute or ../)${HINT}" >&2
             exit 1
           fi
           case "${ARCHIVE}" in
@@ -165,7 +208,7 @@ jobs:
           esac
           PROBCLI="$(find "${RUNNER_TEMP}/ProB" -type f -name probcli | head -n 1)"
           if [ -z "${PROBCLI}" ]; then
-            echo "FATAL: no probcli in the ProB ${PROB_VERSION} archive" >&2
+            echo "FATAL: no probcli in the ProB ${PROB_VERSION} archive from ${SOURCE}" >&2
             find "${RUNNER_TEMP}/ProB" -maxdepth 2 >&2
             exit 1
           fi
@@ -173,16 +216,26 @@ jobs:
           echo "PROBCLI=${PROBCLI}" >> "${GITHUB_ENV}"
           echo "PROB_HOME=$(dirname "${PROBCLI}")" >> "${GITHUB_ENV}"
 
+      # Exact match, not substring, same as install.sh: 1.15.10 must not
+      # pass as 1.15.1.
       - name: Verify both binaries resolve
         run: |
           command -v fuzz
-          "${PROBCLI}" -version
+          PROB_OUT="$("${PROBCLI}" -version)"
+          printf '%s\n' "${PROB_OUT}"
+          PROB_VER="$(printf '%s\n' "${PROB_OUT}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)"
+          if [ "${PROB_VER}" != "${PROB_VERSION}" ]; then
+            echo "FATAL: expected probcli ${PROB_VERSION}, got: ${PROB_VER:-unreadable}" >&2
+            exit 1
+          fi
 
-      # Save only on a miss, and only here: after the slip guard passed and
-      # the extracted probcli actually ran. A corrupt or hostile archive
-      # fails a step above and is never cached, and saving before
-      # `make test` means a spec regression on this run does not throw away
-      # a known-good archive.
+      # Save only on a miss, and only here: after the SHA-256 pin, the slip
+      # guard, and the version check all passed. A mismatched, corrupt, or
+      # hostile archive fails a step above and is never cached, and saving
+      # before `make test` means a spec regression on this run does not
+      # throw away a known-good archive. A failed save (cache service down,
+      # key raced by a parallel run) is only a warning, so the job stays
+      # green but the next run downloads again.
       - name: Save ProB archive to cache
         if: steps.prob-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
