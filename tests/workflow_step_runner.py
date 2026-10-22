@@ -63,7 +63,6 @@ echo "curl: (7) Failed to connect to stub host" >&2
 exit 7
 """
 )
-_LOGGED: Final[str] = "#!/bin/sh\n" + _LOG_ARGV + "exec '{real}' \"$@\"\n"
 _BROKEN: Final[str] = (
     "#!/bin/sh\n"
     + _LOG_ARGV
@@ -186,10 +185,10 @@ class InstallStep:
 
     ``archive`` is what the restored cache holds (``cached``) or what the
     host serves on a miss; ``pin`` is the prob-pin step's sha256 output and
-    ``archive_name`` its archive output. ``writable_dest`` off pre-creates
-    the extraction directory read-only, so extracting into it fails -- for
-    a non-root user, as GitHub's runners and a developer's shell are; root
-    ignores the mode, and a test relying on it then fails rather than passes.
+    ``archive_name`` its archive output. ``extraction_fails`` makes the
+    tar/unzip stubs fail every extracting call while listings still run the
+    real tool (``StubLog.wrapper``), so a verified archive reaches the
+    extractor and the extractor fails -- for any uid, root included.
     """
 
     archive: ProbArchive
@@ -199,7 +198,7 @@ class InstallStep:
     cached: bool = False
     fetch: str = "serve"
     broken_shasum: bool = False
-    writable_dest: bool = True
+    extraction_fails: bool = False
     # None: the archive's own name, as the prob-pin step would output it.
     archive_name: str | None = None
 
@@ -211,10 +210,6 @@ class InstallStep:
     def run(self, tmp_path: Path) -> StepRun:
         if self.cached:
             self.archive.write(tmp_path / "runner" / "prob-archive")
-        dest = tmp_path / "runner" / "ProB"
-        if not self.writable_dest:
-            dest.mkdir(parents=True)
-            dest.chmod(0o555)
         name = self.archive.name if self.archive_name is None else self.archive_name
         env = (
             ("PROB_VERSION", PROB_VERSION),
@@ -225,19 +220,17 @@ class InstallStep:
             ("FETCH", self.fetch),
             ("FIXTURE", str(self.archive.write(tmp_path / "served"))),
         )
-        try:
-            return StepHarness("Install probcli", env, self._stubs()).run(tmp_path)
-        finally:
-            if dest.exists():
-                dest.chmod(0o755)
+        return StepHarness("Install probcli", env, self._stubs()).run(tmp_path)
 
     def _stubs(self) -> tuple[tuple[str, str], ...]:
         stubs = {"curl": _CURL}
         for name in ("tar", "unzip"):
-            stubs[name] = _LOGGED.format(name=name, real=_tool(name))
+            stubs[name] = StubLog.wrapper(
+                name, _tool(name), extraction_fails=self.extraction_fails
+            )
         stubs["shasum"] = (
             _BROKEN.format(name="shasum")
             if self.broken_shasum
-            else _LOGGED.format(name="shasum", real=_tool("shasum"))
+            else StubLog.wrapper("shasum", _tool("shasum"))
         )
         return tuple(stubs.items())

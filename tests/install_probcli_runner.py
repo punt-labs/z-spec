@@ -95,9 +95,6 @@ echo "curl: (7) Failed to connect to stub host" >&2
 exit 7
 """
 )
-_STUB_LOGGED: Final[str] = (
-    "#!/bin/sh\n" + StubLog.append_line("{name}") + "exec '{real}' \"$@\"\n"
-)
 _STUB_BROKEN_HASHER: Final[str] = """#!/bin/sh
 echo "{name}: simulated read error" >&2
 exit 1
@@ -191,6 +188,7 @@ class Scenario:
     archive: ProbArchive = GOOD
     hashers: tuple[str, ...] = HOST_HASHERS
     broken_hashers: bool = False
+    extraction_fails: bool = False  # tar -x / unzip -oq fail, listings run
     home: str = "home"  # HOME, relative to the run's tmp_path
     absolute_home: bool = True  # False: HOME is passed as that relative path
 
@@ -237,7 +235,10 @@ class Scenario:
         for tool in _TOOLS:
             (bin_dir / tool).symlink_to(_real(tool))
         for tool in _LOGGED:
-            _script(bin_dir / tool, _STUB_LOGGED.format(name=tool, real=_real(tool)))
+            wrapper = StubLog.wrapper(
+                tool, _real(tool), extraction_fails=self.extraction_fails
+            )
+            _script(bin_dir / tool, wrapper)
         for tool in self.hashers:
             if self.broken_hashers:
                 _script(bin_dir / tool, _STUB_BROKEN_HASHER.format(name=tool))

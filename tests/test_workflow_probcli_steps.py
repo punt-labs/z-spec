@@ -174,9 +174,10 @@ def test_extraction_failure_names_the_verified_archive(
 ) -> None:
     good = _good(system)
     step = InstallStep(good, good.sha256(), cache_hit=True, cached=True)
-    run = replace(step, writable_dest=False).run(tmp_path)
+    run = replace(step, extraction_fails=True).run(tmp_path)
     err = run.result.stderr
     assert run.result.returncode != 0
+    assert len(run.extractions()) == 1, "the verified archive never reached tar/unzip"
     assert f"FATAL: could not extract {good.name} (from cache key {CACHE_KEY})" in err
     assert "its SHA-256 matched the pin" in err
     assert "no probcli in the ProB" not in err, "ran on past the failed extraction"

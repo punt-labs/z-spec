@@ -10,6 +10,7 @@ Run through ``install_probcli_runner.Scenario``, as the fetch tests are.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -80,4 +81,19 @@ def test_pinned_archive_without_probcli_fails(tmp_path: Path) -> None:
     archive = run.home / "Applications" / GOOD.name
     assert f"extracted {archive} but there is no probcli" in err
     assert "✓ probcli" not in run.result.stdout
+    assert not run.installed()
+
+
+def test_failed_extraction_names_the_archive_and_its_destination(
+    tmp_path: Path,
+) -> None:
+    # The archive verifies and lists cleanly; only the extractor fails.
+    run = replace(Scenario.pinned(), extraction_fails=True).run(tmp_path)
+
+    err = run.result.stderr
+    archive = run.home / "Applications" / GOOD.name
+    assert run.result.returncode != 0
+    assert len(run.extractions()) == 1, "the verified archive never reached it"
+    assert f"could not extract {archive} into {run.home / 'Applications'}\n" in err
+    assert "no probcli at" not in err, "ran on past the failed extraction"
     assert not run.installed()

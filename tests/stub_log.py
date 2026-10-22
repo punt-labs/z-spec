@@ -41,6 +41,26 @@ class StubLog:
         """
         return f'printf \'%s\\0\' "$#" "$@" >> "$LOGS/{name}"\n'
 
+    @classmethod
+    def wrapper(cls, name: str, real: str, *, extraction_fails: bool = False) -> str:
+        """Return a stub that logs its call as ``name``, then runs ``real``.
+
+        With ``extraction_fails``, an extracting call -- ``tar -x...``,
+        ``unzip -q`` or ``unzip -oq``, the forms install.sh and the workflow
+        use -- fails as an unwritable destination would, whatever the uid;
+        listing and testing calls (``-tzf``, ``-tq``, ``-Z1``) still run
+        ``real``, so a good archive gets as far as its extraction.
+        """
+        script = "#!/bin/sh\n" + cls.append_line(name)
+        if extraction_fails:
+            script += (
+                'case "$1" in\n'
+                f'  -x*|-q|-oq) echo "{name}: simulated extraction failure" >&2; '
+                "exit 1 ;;\n"
+                "esac\n"
+            )
+        return script + f"exec '{real}' \"$@\"\n"
+
     def calls(self, tool: str) -> list[list[str]]:
         """Return every logged argv of ``tool``, in call order.
 
