@@ -304,12 +304,14 @@ install_probcli() (
 
   # The pin's format is checked before anything is downloaded: a value that
   # is not exactly 64 lowercase hex digits (a placeholder, an empty or
-  # truncated value, uppercase) can never verify an archive, so no request
-  # goes to the ProB host and no unverified archive ever lands on disk. It
-  # never means "skip verification". Past this point "SHA-256 mismatch"
-  # only ever means a real comparison of two hashes failed.
+  # truncated value, uppercase, a second line) can never verify an archive,
+  # so no request goes to the ProB host and no unverified archive ever lands
+  # on disk. It never means "skip verification". Past this point "SHA-256
+  # mismatch" only ever means a real comparison of two hashes failed. The
+  # digits are spelled out: a range like 0-9a-f follows the locale's
+  # collation order and can admit other characters.
   case "$PROB_SHA256" in
-    *[!0-9a-f]*|"") PIN_FORMAT_OK=0 ;;
+    *[!0123456789abcdef]*|"") PIN_FORMAT_OK=0 ;;
     *) if [ "${#PROB_SHA256}" -eq 64 ]; then PIN_FORMAT_OK=1; else PIN_FORMAT_OK=0; fi ;;
   esac
   if [ "$PIN_FORMAT_OK" != "1" ]; then
@@ -380,20 +382,23 @@ install_probcli() (
     echo "  ! $(curl --version 2>/dev/null | head -n 1) predates --retry-all-errors;" >&2
     echo "    downloading probcli with the narrower --retry set" >&2
   fi
+  # A failed transfer can leave partial bytes at -o; they are removed so no
+  # unverified fragment stays on disk.
   curl "$@" -o "$ARCHIVE" "$PROB_URL" || {
     echo "  ! download failed: $PROB_URL" >&2
+    rm -f "$ARCHIVE"
     return 1
   }
 
   # Verified before the archive is listed or extracted: nothing from an
   # archive whose hash is not the pinned one is ever unpacked. The
   # unverified file is removed so it cannot be unpacked by hand later. A
-  # pipeline's status is its last command's, so a hash tool that fails
-  # leaves cut printing nothing; that is reported as the tool failing, not
-  # as a mismatch against an empty hash.
+  # pipeline's status is its last command's, so an unreadable file or a
+  # hash tool that fails leaves cut printing nothing; that is reported as
+  # such, not as a mismatch against an empty hash.
   ACTUAL_SHA256="$(sha256_of "$ARCHIVE")"
   if [ -z "$ACTUAL_SHA256" ]; then
-    echo "  ! could not compute SHA-256 (sha tool failed) for $ARCHIVE" >&2
+    echo "  ! could not read or hash $ARCHIVE (the SHA-256 tool printed nothing)" >&2
     echo "    archive: $ARCHIVE (from $PROB_URL) -- removed, not extracted" >&2
     rm -f "$ARCHIVE"
     return 1
@@ -442,7 +447,10 @@ install_probcli() (
         return 1
       }
       if printf '%s\n' "$LISTING" | grep -q '^ProB/'; then DEST="$HOME/Applications"; else DEST="$PROB_HOME"; fi
-      tar -xzf "$ARCHIVE" -C "$DEST" || { echo "  ! could not extract $ARCHIVE into $DEST" >&2; return 1; }
+      # Extract from inside $DEST rather than with -C: GNU tar unquotes the
+      # -C argument, so a HOME containing a backslash ("a\b") names a
+      # different, missing directory. The -f argument is not unquoted.
+      (cd "$DEST" && tar -xzf "$ARCHIVE") || { echo "  ! could not extract $ARCHIVE into $DEST" >&2; return 1; }
       ;;
   esac
 

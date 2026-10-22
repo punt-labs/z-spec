@@ -21,11 +21,14 @@ line runs as shipped.
 
 from __future__ import annotations
 
+import io
 import platform
 import re
 import shutil
 import stat
 import subprocess
+import tarfile
+import zipfile
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Final, final
@@ -78,6 +81,7 @@ _LOGGED: Final[tuple[str, ...]] = ("tar", "unzip")
 #   curl 7.68 does; a bare --version still succeeds.
 # FETCH=refuse: every download fails with curl's own "couldn't connect" (7).
 # FETCH=serve: the download copies $FIXTURE to the -o path.
+# FETCH=partial: the transfer dies mid-way (18), leaving partial bytes at -o.
 _STUB_CURL: Final[str] = """#!/bin/sh
 printf '%s\\n' "$*" >> "$LOGS/curl"
 for arg in "$@"; do
@@ -102,6 +106,11 @@ if [ "$FETCH" = serve ]; then
   cp "$FIXTURE" "$out"
   exit 0
 fi
+if [ "$FETCH" = partial ]; then
+  printf 'partial archive bytes' > "$out"
+  echo "curl: (18) transfer closed with outstanding read data remaining" >&2
+  exit 18
+fi
 echo "curl: (7) Failed to connect to stub host" >&2
 exit 7
 """
@@ -113,6 +122,13 @@ _STUB_BROKEN_HASHER: Final[str] = """#!/bin/sh
 echo "{name}: simulated read error" >&2
 exit 1
 """
+
+
+# The hash tools this host actually has: macOS may ship no sha256sum, and the
+# default run must not demand one. Scenarios that remove a tool say so.
+_HOST_HASHERS: Final[tuple[str, ...]] = tuple(
+    tool for tool in ("sha256sum", "shasum") if shutil.which(tool)
+)
 
 
 def _real(tool: str) -> str:
@@ -149,14 +165,16 @@ class Run:
         assert len(fetches) == 1, f"expected one ProB fetch, got {self.calls('curl')}"
         return fetches[0]
 
-    def flag_pairs(self) -> dict[str, str | None]:
-        """Return the fetch's value for each expected flag (None: no value)."""
+    def fetch_flags(self) -> dict[str, str | None]:
+        """Return every flag of the real fetch, -o <out> and the URL aside.
+
+        All of them, not just the expected ones: an added flag (--insecure)
+        is a difference.
+        """
         argv = self.fetch()
-        pairs: dict[str, str | None] = {}
-        for flag, value in EXPECTED_FLAGS.items():
-            assert flag in argv, f"ProB fetch lost {flag}: {argv}"
-            pairs[flag] = None if value is None else argv[argv.index(flag) + 1]
-        return pairs
+        assert argv[-1].startswith(_HOST), f"fetch does not end in the URL: {argv}"
+        out = argv.index("-o")
+        return CurlFlags.parse(argv[:out] + argv[out + 2 : -1]).as_dict()
 
     def archive_reads(self) -> list[list[str]]:
         """Every tar/unzip call: a list, test, or extraction of the archive."""
@@ -173,6 +191,13 @@ class Run:
     def archive_left(self) -> bool:
         return (self.home / "Applications" / _GOOD.name).exists()
 
+    def escaped(self) -> bool:
+        """Whether an archive member named "escaped" landed anywhere."""
+        return any(
+            p.exists()
+            for p in (self.home / "escaped", self.home / "Applications" / "escaped")
+        )
+
 
 @final
 @dataclass(frozen=True, slots=True)
@@ -183,8 +208,9 @@ class Scenario:
     fetch: str = "serve"
     pin: str | None = None  # None: the shipped pin, unmodified
     archive: ProbArchive = _GOOD
-    hashers: tuple[str, ...] = ("sha256sum", "shasum")
+    hashers: tuple[str, ...] = _HOST_HASHERS
     broken_hashers: bool = False
+    home: str = "home"  # HOME, relative to the run's tmp_path
 
     @classmethod
     def pinned(cls, archive: ProbArchive = _GOOD) -> Scenario:
@@ -199,8 +225,8 @@ class Scenario:
             source = source.replace(shipped, f'{_PIN_VAR}="{self.pin}"')
         funcs = tmp_path / "funcs.sh"
         funcs.write_text(source, encoding="utf-8")
-        home, logs = tmp_path / "home", tmp_path / "logs"
-        home.mkdir()
+        home, logs = tmp_path / self.home, tmp_path / "logs"
+        home.mkdir(parents=True)
         logs.mkdir()
         env = {
             "HOME": str(home),
@@ -244,11 +270,15 @@ def test_slice_ends_inside_the_installer() -> None:
 
 
 @pytest.mark.parametrize("curl_mode", ["modern", "old"])
-def test_fetch_carries_https_only_and_bounded_retry_flags(
+def test_fetch_carries_exactly_the_https_only_bounded_retry_flags(
     tmp_path: Path, curl_mode: str
 ) -> None:
+    # Exactly: a flag added to the real call (--insecure, -k) fails this.
     scenario = replace(Scenario.pinned(), curl_mode=curl_mode, fetch="refuse")
-    assert scenario.run(tmp_path).flag_pairs() == EXPECTED_FLAGS
+    expected = dict(EXPECTED_FLAGS)
+    if curl_mode == "modern":
+        expected["--retry-all-errors"] = None
+    assert scenario.run(tmp_path).fetch_flags() == expected
 
 
 def test_install_sh_flag_list_is_exactly_the_expected_pairs() -> None:
@@ -293,6 +323,16 @@ def test_sustained_failure_fails_loudly(tmp_path: Path) -> None:
     assert run.result.returncode != 0
     assert f"download failed: {_HOST}" in run.result.stderr
     assert "Failed to connect" in run.result.stderr
+    assert "could not read or hash" not in run.result.stderr
+
+
+def test_interrupted_download_leaves_no_partial_archive(tmp_path: Path) -> None:
+    run = replace(Scenario.pinned(), fetch="partial").run(tmp_path)
+
+    assert run.result.returncode != 0
+    assert f"download failed: {_HOST}" in run.result.stderr
+    assert not run.archive_left(), "a partial download was left on disk"
+    assert run.archive_reads() == []
 
 
 def test_matching_pin_installs_and_runs_probcli(tmp_path: Path) -> None:
@@ -306,6 +346,17 @@ def test_matching_pin_installs_and_runs_probcli(tmp_path: Path) -> None:
     ), run.result.stdout
     assert run.installed()
     assert not run.archive_left(), "a verified archive is removed after install"
+
+
+@pytest.mark.parametrize("hasher", _HOST_HASHERS)
+def test_home_with_a_backslash_still_verifies(tmp_path: Path, hasher: str) -> None:
+    # Given a file NAME with a backslash, sha256sum and shasum escape it and
+    # prefix the hash with "\"; hashing stdin keeps the hash clean.
+    run = replace(Scenario.pinned(), hashers=(hasher,), home="a\\b/home").run(tmp_path)
+
+    assert "\\" in str(run.home)
+    assert run.result.returncode == 0, run.result.stderr
+    assert run.installed()
 
 
 def test_mismatched_pin_fails_before_the_archive_is_read(tmp_path: Path) -> None:
@@ -326,8 +377,16 @@ def test_mismatched_pin_fails_before_the_archive_is_read(tmp_path: Path) -> None
 
 @pytest.mark.parametrize(
     "pin",
-    ["PLACEHOLDER-unverified", "", "A" * 64, "0" * 63, "0" * 65, "g" * 64],
-    ids=["placeholder", "empty", "uppercase", "short", "long", "non-hex"],
+    [
+        "PLACEHOLDER-unverified",
+        "",
+        "A" * 64,
+        "0" * 63,
+        "0" * 65,
+        "g" * 64,
+        "0" * 64 + "\n" + "0" * 64,
+    ],
+    ids=["placeholder", "empty", "uppercase", "short", "long", "non-hex", "2-lines"],
 )
 def test_non_hash_pin_fails_before_any_download(tmp_path: Path, pin: str) -> None:
     # A placeholder, an empty value, uppercase, or a wrong length must never
@@ -360,12 +419,12 @@ def test_shipped_pin_never_installs_the_served_fixture(tmp_path: Path) -> None:
     assert not run.archive_left()
 
 
-@pytest.mark.parametrize("member", ["../escaped", "ProB/../../escaped"])
+@pytest.mark.parametrize("member", ["../escaped", "ProB/../../escaped", "/escaped"])
 def test_pinned_archive_with_an_escaping_member_is_never_extracted(
     tmp_path: Path, member: str
 ) -> None:
     # The pin only proves the archive is the one the publisher shipped; the
-    # slip guard is what stops a hostile publisher's ../ member.
+    # slip guard is what stops a hostile publisher's ../ or absolute member.
     run = Scenario.pinned(ProbArchive.with_probcli(_SYSTEM, _VERSION, member)).run(
         tmp_path
     )
@@ -374,8 +433,8 @@ def test_pinned_archive_with_an_escaping_member_is_never_extracted(
     assert "contains an absolute or ../ path -- refusing to extract" in (
         run.result.stderr
     )
-    assert run.extractions() == [], "an archive with a ../ member was extracted"
-    assert not (run.home / "escaped").exists()
+    assert run.extractions() == [], f"an archive with {member!r} was extracted"
+    assert not run.escaped()
     assert not run.installed()
 
 
@@ -400,7 +459,7 @@ def test_failing_hash_tool_is_not_reported_as_a_mismatch(tmp_path: Path) -> None
 
     err = run.result.stderr
     assert run.result.returncode != 0
-    assert "could not compute SHA-256 (sha tool failed)" in err
+    assert "could not read or hash" in err
     assert "SHA-256 mismatch" not in err
     assert run.archive_reads() == []
     assert not run.installed()
@@ -416,17 +475,25 @@ def test_probcli_reporting_another_version_fails(tmp_path: Path) -> None:
     assert "✓ probcli" not in run.result.stdout
 
 
-@pytest.mark.parametrize("system", ["Linux", "Darwin"])
-def test_fixture_archive_is_byte_identical_across_builds(system: str) -> None:
-    first = ProbArchive.with_probcli(system, _VERSION).data()
-    second = ProbArchive.with_probcli(system, _VERSION).data()
-    assert first == second
-
-
-def test_tar_fixture_gzip_header_carries_no_timestamp() -> None:
+# The fixtures must not depend on the clock: a pin hashed from one build has
+# to verify the next. The timestamps are checked where they live, in the
+# headers, since two builds in the same second would agree by accident.
+def test_tar_fixture_carries_no_timestamp() -> None:
     data = ProbArchive.with_probcli("Linux", _VERSION).data()
     assert data[:2] == b"\x1f\x8b"
     assert data[4:8] == b"\0\0\0\0", "gzip MTIME must be zero for a stable hash"
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tf:
+        assert [m.mtime for m in tf.getmembers()] == [0]
+
+
+def test_zip_fixture_carries_a_fixed_timestamp() -> None:
+    data = ProbArchive.with_probcli("Darwin", _VERSION, "ProB/x").data()
+    # Local file header: signature, then mod time (bytes 10-11) and mod
+    # date (12-13); 1980-01-01 00:00:00 is time 0, date 0x0021.
+    assert data[:4] == b"PK\x03\x04"
+    assert data[10:14] == b"\x00\x00\x21\x00"
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        assert {i.date_time for i in zf.infolist()} == {(1980, 1, 1, 0, 0, 0)}
 
 
 def test_shipped_pins_are_hashes_or_fail_closed_placeholders() -> None:
