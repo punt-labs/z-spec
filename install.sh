@@ -3,6 +3,18 @@
 # Usage: curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/<SHA>/install.sh | sh
 set -eu
 
+# Every path this installer reads, writes, sources, or runs hangs off $HOME:
+# the uv env file it sources, the ~/.local/bin it puts on PATH, the probcli
+# it runs from ~/Applications/ProB. A relative or empty HOME would resolve
+# each of them against whatever directory the installer was started in --
+# sourcing and running files found there -- so it is refused before
+# anything else, argument parsing included. ${HOME-}: an unset HOME gets
+# this message, not set -u's.
+case "${HOME-}" in
+  /*) ;;
+  *) printf "install.sh: HOME is not an absolute path (HOME='%s') -- refusing to run\n" "${HOME-}" >&2; exit 1 ;;
+esac
+
 # --- Colors (disabled when not a terminal) ---
 if [ -t 1 ]; then
   BOLD='\033[1m' GREEN='\033[32m' YELLOW='\033[33m' NC='\033[0m'
@@ -281,10 +293,12 @@ install_probcli() (
 
   # Every path below hangs off $HOME ($PROB_HOME, the archive, the cd into
   # the extraction directory); a relative or empty HOME would scatter them
-  # under whatever directory the installer happened to run from.
-  case "$HOME" in
+  # under whatever directory the installer happened to run from. The top of
+  # install.sh already refuses such a HOME; this copy guards the function on
+  # its own, as the tests source it.
+  case "${HOME-}" in
     /*) ;;
-    *) echo "  ! HOME is not an absolute path (HOME='$HOME') -- cannot install probcli" >&2; return 1 ;;
+    *) echo "  ! HOME is not an absolute path (HOME='${HOME-}') -- cannot install probcli" >&2; return 1 ;;
   esac
 
   # Already at the right version, wherever the engine would actually find it

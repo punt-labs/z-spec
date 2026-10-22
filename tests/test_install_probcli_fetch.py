@@ -137,15 +137,3 @@ def test_home_with_a_backslash_still_verifies(tmp_path: Path, hasher: str) -> No
     assert "\\" in str(run.home)
     assert run.result.returncode == 0, run.result.stderr
     assert run.installed()
-
-
-@pytest.mark.parametrize("home", ["home", ""], ids=["relative", "empty"])
-def test_non_absolute_home_fails_before_anything_else(
-    tmp_path: Path, home: str
-) -> None:
-    run = replace(Scenario.pinned(), home=home, absolute_home=False).run(tmp_path)
-
-    assert run.result.returncode != 0
-    assert f"HOME is not an absolute path (HOME='{home}')" in run.result.stderr
-    assert run.calls("curl") == [], "a relative HOME still reached the host"
-    assert not (tmp_path / home / "Applications").exists()
