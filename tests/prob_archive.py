@@ -63,6 +63,11 @@ class ProbArchive:
         return cls(system, tuple(members))
 
     @classmethod
+    def running(cls, system: str, body: str) -> Self:
+        """Build an archive whose ProB/probcli runs ``body`` under /bin/sh."""
+        return cls(system, (("ProB/probcli", f"#!/bin/sh\n{body}\n".encode()),))
+
+    @classmethod
     def without_probcli(cls, system: str) -> Self:
         """Build a well-formed archive whose only member is ProB/README."""
         return cls(system, (("ProB/README", b"no probcli in this archive\n"),))

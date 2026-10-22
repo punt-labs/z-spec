@@ -36,6 +36,7 @@ def test_pinned_archive_with_an_escaping_member_is_never_extracted(
     assert run.extractions() == [], f"an archive with {member!r} was extracted"
     assert not run.escaped()
     assert not run.installed()
+    assert not run.archive_left(), "a refused archive was left on disk"
 
 
 def test_probcli_reporting_another_version_fails(tmp_path: Path) -> None:
@@ -45,6 +46,18 @@ def test_probcli_reporting_another_version_fails(tmp_path: Path) -> None:
     assert run.result.returncode != 0
     assert f"expected probcli {VERSION}, got: {other}" in run.result.stderr
     assert "✓ probcli" not in run.result.stdout
+    assert not run.archive_left(), "the archive was left after a version mismatch"
+
+
+def test_probcli_that_will_not_run_fails_and_shows_why(tmp_path: Path) -> None:
+    body = "echo 'error while loading shared libraries: libtcl8.6.so' >&2; exit 127"
+    run = Scenario.pinned(ProbArchive.running(SYSTEM, body)).run(tmp_path)
+
+    err = run.result.stderr
+    assert run.result.returncode != 0
+    assert "/ProB/probcli is installed but would not run:\n" in err
+    assert "libtcl8.6.so" in err
+    assert not run.archive_left(), "the archive was left after probcli failed"
 
 
 def test_probcli_printing_no_version_is_unreadable_and_shown(tmp_path: Path) -> None:
@@ -71,6 +84,7 @@ def test_pinned_archive_that_does_not_read_is_never_extracted(
     assert f"did not return a {kind} (got: " in run.result.stderr
     assert run.extractions() == []
     assert not run.installed()
+    assert not run.archive_left(), "an archive that does not read was left"
 
 
 def test_pinned_archive_without_probcli_fails(tmp_path: Path) -> None:
@@ -82,12 +96,17 @@ def test_pinned_archive_without_probcli_fails(tmp_path: Path) -> None:
     assert f"extracted {archive} but there is no probcli" in err
     assert "✓ probcli" not in run.result.stdout
     assert not run.installed()
+    assert not run.archive_left(), "an archive with no probcli was left"
 
 
 def test_failed_extraction_names_the_archive_and_its_destination(
     tmp_path: Path,
 ) -> None:
-    # The archive verifies and lists cleanly; only the extractor fails.
+    # The archive verifies and lists cleanly; only the extractor fails. The
+    # destination already holds a ProB install, which must survive.
+    earlier = tmp_path / "home" / "Applications" / "ProB" / "installed-before"
+    earlier.parent.mkdir(parents=True)
+    earlier.write_text("an earlier ProB install\n", encoding="utf-8")
     run = replace(Scenario.pinned(), extraction_fails=True).run(tmp_path)
 
     err = run.result.stderr
@@ -97,3 +116,5 @@ def test_failed_extraction_names_the_archive_and_its_destination(
     assert f"could not extract {archive} into {run.home / 'Applications'}\n" in err
     assert "no probcli at" not in err, "ran on past the failed extraction"
     assert not run.installed()
+    assert not run.archive_left(), "the archive was left after a failed extraction"
+    assert earlier.exists(), "a failed run removed an earlier install under DEST"

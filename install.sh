@@ -445,34 +445,45 @@ install_probcli() (
     return 0
   }
 
+  # Every failure from here on removes the downloaded archive, as the hash
+  # checks above do: a verified archive that will not read, holds no
+  # probcli, or will not extract is no more use left in ~/Applications than
+  # an unverified one. What was extracted is NOT removed: $DEST is
+  # ~/Applications or $PROB_HOME, which may hold a ProB installed before
+  # this run, and nothing here can tell its files from this archive's.
+
   case "$PROB_ARCHIVE_NAME" in
     *.zip)
       unzip -tq "$ARCHIVE" || {
         echo "  ! $PROB_URL did not return a zip archive (got: $(file -b "$ARCHIVE"))" >&2
+        rm -f "$ARCHIVE"
         return 1
       }
-      LISTING="$(unzip -Z1 "$ARCHIVE")" || { echo "  ! could not list $ARCHIVE" >&2; return 1; }
+      LISTING="$(unzip -Z1 "$ARCHIVE")" || { echo "  ! could not list $ARCHIVE" >&2; rm -f "$ARCHIVE"; return 1; }
       reject_unsafe_archive_paths "$LISTING" || {
         echo "  ! $ARCHIVE contains an absolute or ../ path -- refusing to extract" >&2
+        rm -f "$ARCHIVE"
         return 1
       }
       if printf '%s\n' "$LISTING" | grep -q '^ProB/'; then DEST="$HOME/Applications"; else DEST="$PROB_HOME"; fi
-      unzip -oq "$ARCHIVE" -d "$DEST" || { echo "  ! could not extract $ARCHIVE into $DEST" >&2; return 1; }
+      unzip -oq "$ARCHIVE" -d "$DEST" || { echo "  ! could not extract $ARCHIVE into $DEST" >&2; rm -f "$ARCHIVE"; return 1; }
       ;;
     *.tar.gz)
       LISTING="$(tar -tzf "$ARCHIVE")" || {
         echo "  ! $PROB_URL did not return a gzip tarball (got: $(file -b "$ARCHIVE"))" >&2
+        rm -f "$ARCHIVE"
         return 1
       }
       reject_unsafe_archive_paths "$LISTING" || {
         echo "  ! $ARCHIVE contains an absolute or ../ path -- refusing to extract" >&2
+        rm -f "$ARCHIVE"
         return 1
       }
       if printf '%s\n' "$LISTING" | grep -q '^ProB/'; then DEST="$HOME/Applications"; else DEST="$PROB_HOME"; fi
       # Extract from inside $DEST rather than with -C: GNU tar unquotes the
       # -C argument, so a HOME containing a backslash ("a\b") names a
       # different, missing directory. The -f argument is not unquoted.
-      (cd "$DEST" && tar -xzf "$ARCHIVE") || { echo "  ! could not extract $ARCHIVE into $DEST" >&2; return 1; }
+      (cd "$DEST" && tar -xzf "$ARCHIVE") || { echo "  ! could not extract $ARCHIVE into $DEST" >&2; rm -f "$ARCHIVE"; return 1; }
       ;;
   esac
 
@@ -491,12 +502,14 @@ install_probcli() (
       echo "    $PROB_HOME/probcli. The archive layout is not what this" >&2
       echo "    script expects." >&2
     fi
+    rm -f "$ARCHIVE"
     return 1
   }
 
   PROB_OUT="$("$PROB_HOME/probcli" -version 2>&1)" || {
     echo "  ! $PROB_HOME/probcli is installed but would not run:" >&2
     printf '%s\n' "$PROB_OUT" >&2
+    rm -f "$ARCHIVE"
     return 1
   }
 
@@ -511,13 +524,14 @@ install_probcli() (
     printf '%s\n' "$PROB_OUT" | while IFS= read -r line; do
       printf '      %s\n' "$line"
     done >&2
+    rm -f "$ARCHIVE"
     return 1
   }
 
   # The archive itself is not the install -- $PROB_HOME/probcli is. Leaving
   # a multi-hundred-MB .zip/.tar.gz in ~/Applications after a verified-good
   # extraction is pure clutter and invites confusion about which one is
-  # "installed"; only remove it once every check above has passed.
+  # "installed"; it goes on success as on every failure above.
   rm -f "$ARCHIVE"
 
   echo "  ✓ probcli $PROB_HOME/probcli ($PROB_VERSION)"
