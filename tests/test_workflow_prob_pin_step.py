@@ -75,4 +75,6 @@ def test_select_refuses_a_malformed_pin_before_the_cache_key(
     assert run.result.returncode != 0
     assert f"FATAL: no verified SHA-256 pin for {_name(system)}" in err
     assert f"pin is not 64 lowercase hex digits (value: {pin})" in err
+    fix = "no cache restored, nothing downloaded -- set the job env's PROB_SHA256_* pin"
+    assert f"  {fix}\n" in err
     assert run.file("github_output") == ""

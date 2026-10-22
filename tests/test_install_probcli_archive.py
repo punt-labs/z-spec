@@ -10,6 +10,7 @@ Run through ``install_probcli_runner.Scenario``, as the fetch tests are.
 
 from __future__ import annotations
 
+import re
 from dataclasses import replace
 from pathlib import Path
 
@@ -79,9 +80,14 @@ def test_pinned_archive_that_does_not_read_is_never_extracted(
     run = Scenario.pinned(GOOD.damaged(damage)).run(tmp_path)
 
     kind = "zip archive" if SYSTEM == "Darwin" else "gzip tarball"
+    url = f"{HOST_URL}downloads/prob/tcltk/releases/{VERSION}/{GOOD.name}"
     assert run.result.returncode != 0
-    assert HOST_URL in run.result.stderr
-    assert f"did not return a {kind} (got: " in run.result.stderr
+    # One line: the URL that served it, and what `file` says it is instead.
+    assert re.search(
+        rf"^  ! {re.escape(url)} did not return a {kind} \(got: \S.*\)$",
+        run.result.stderr,
+        re.M,
+    ), run.result.stderr
     assert run.extractions() == []
     assert not run.installed()
     assert not run.archive_left(), "an archive that does not read was left"
