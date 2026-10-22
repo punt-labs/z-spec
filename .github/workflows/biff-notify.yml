@@ -54,6 +54,6 @@ jobs:
           BIFF_RELAY_TOKEN: ${{ secrets.BIFF_RELAY_TOKEN }}
           BIFF_RELAY_TLS_HANDSHAKE_FIRST: ${{ vars.BIFF_RELAY_TLS_HANDSHAKE_FIRST }}
         run: >-
-          uvx --from punt-biff==1.16.0 biff --user github-actions wall
+          uvx --from punt-biff==1.19.0 biff --user github-actions wall
           "CI failed: ${WORKFLOW_NAME} on ${BRANCH} — ${RUN_URL}"
           --duration 2h
