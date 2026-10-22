@@ -7,9 +7,9 @@ structural test pins -- with the runner's environment supplied and a stub
 directory first on a minimal PATH (``/usr/bin:/bin`` after it, nothing from
 the host's own PATH). ``curl`` there serves a local archive or refuses, and
 ``tar``/``unzip``/``shasum`` log every call before running the real tool, so a
-test can prove a rejected archive was never listed or extracted. Each logged
-call is one record of NUL-terminated arguments, so an empty argument or one
-containing a space reaches the test exactly as the step passed it.
+test can prove a rejected archive was never listed or extracted. Every stub
+logs through ``stub_log.StubLog``, so an empty argument or one containing a
+space reaches the test exactly as the step passed it.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from typing import Final, Self, final
 import pytest
 
 from tests.prob_archive import ProbArchive
+from tests.stub_log import StubLog
 from tests.workflow_source import Workflow
 
 SYSTEM_PATH: Final[str] = os.pathsep.join(("/usr/bin", "/bin"))
@@ -45,10 +46,7 @@ BAD_PINS: Final[dict[str, str]] = {
     "two-lines": "0" * 64 + "\nnot-a-hash",
 }
 
-# One record per call: each argument NUL-terminated, then a newline.
-_LOG_ARGV: Final[str] = """printf '%s\\0' "$@" >> "$LOGS/{name}"
-printf '\\n' >> "$LOGS/{name}"
-"""
+_LOG_ARGV: Final[str] = StubLog.append_line("{name}")
 _CURL: Final[str] = (
     "#!/bin/sh\n"
     + _LOG_ARGV.format(name="curl")
@@ -97,13 +95,7 @@ class StepRun:
 
     def calls(self, tool: str) -> list[list[str]]:
         """Return every logged argv of ``tool``, argument boundaries intact."""
-        log = self.root / "logs" / tool
-        if not log.exists():
-            return []
-        *records, tail = log.read_text(encoding="utf-8").split("\0\n")
-        if tail:
-            pytest.fail(f"{tool} log ends in a partial record: {tail!r}")
-        return [record.split("\0") for record in records]
+        return StubLog(self.root / "logs").calls(tool)
 
     def archive_reads(self) -> list[list[str]]:
         """Every tar/unzip call: a list, test, or extraction of the archive."""

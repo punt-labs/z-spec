@@ -7,9 +7,9 @@ the tools the function needs, so a scenario can take a hash tool away.
 ``curl`` there is a stub that records every argv and refuses, serves a
 locally built ProB-shaped archive, or dies mid-transfer; ``tar`` and
 ``unzip`` are logging wrappers around the real tools, so a test can prove an
-archive was never listed or extracted. Each logged call is one record of
-NUL-terminated arguments, so an empty argument or one containing a space
-reaches the test exactly as install_probcli passed it. No network is touched.
+archive was never listed or extracted. Every stub logs through
+``stub_log.StubLog``, so an empty argument or one containing a space reaches
+the test exactly as install_probcli passed it. No network is touched.
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ import pytest
 
 from tests.install_sh_source import CurlFlags, InstallSh
 from tests.prob_archive import ProbArchive
+from tests.stub_log import StubLog
 
 SYSTEM: Final[str] = platform.system()
 _PIN_VAR: Final[str] = (
@@ -60,10 +61,10 @@ _LOGGED: Final[tuple[str, ...]] = ("tar", "unzip")
 # FETCH=refuse: every download fails with curl's own "couldn't connect" (7).
 # FETCH=serve: the download copies $FIXTURE to the -o path.
 # FETCH=partial: the transfer dies mid-way (18), leaving partial bytes at -o.
-_STUB_CURL: Final[str] = """#!/bin/sh
-printf '%s\\0' "$@" >> "$LOGS/curl"
-printf '\\n' >> "$LOGS/curl"
-for arg in "$@"; do
+_STUB_CURL: Final[str] = (
+    "#!/bin/sh\n"
+    + StubLog.append_line("curl")
+    + """for arg in "$@"; do
   if [ "$CURL_MODE" = old ] && [ "$arg" = "--retry-all-errors" ]; then
     echo "curl: option --retry-all-errors: is unknown" >&2
     echo "curl: try 'curl --help' for more information" >&2
@@ -93,11 +94,10 @@ fi
 echo "curl: (7) Failed to connect to stub host" >&2
 exit 7
 """
-_STUB_LOGGED: Final[str] = """#!/bin/sh
-printf '%s\\0' "$@" >> "$LOGS/{name}"
-printf '\\n' >> "$LOGS/{name}"
-exec '{real}' "$@"
-"""
+)
+_STUB_LOGGED: Final[str] = (
+    "#!/bin/sh\n" + StubLog.append_line("{name}") + "exec '{real}' \"$@\"\n"
+)
 _STUB_BROKEN_HASHER: Final[str] = """#!/bin/sh
 echo "{name}: simulated read error" >&2
 exit 1
@@ -134,13 +134,7 @@ class Run:
 
     def calls(self, tool: str) -> list[list[str]]:
         """Return every logged argv of ``tool``, argument boundaries intact."""
-        log = self.logs / tool
-        if not log.exists():
-            return []
-        *records, tail = log.read_text(encoding="utf-8").split("\0\n")
-        if tail:
-            pytest.fail(f"{tool} log ends in a partial record: {tail!r}")
-        return [record.split("\0") for record in records]
+        return StubLog(self.logs).calls(tool)
 
     def fetches(self) -> list[list[str]]:
         return [c for c in self.calls("curl") if "-o" in c]
