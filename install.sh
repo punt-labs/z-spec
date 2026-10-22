@@ -245,12 +245,14 @@ PROB_VERSION=1.15.1
 # PROB_SHA256_LINUX / PROB_SHA256_MACOS in .github/workflows/test.yml (a test
 # gates the parity).
 #
-# PLACEHOLDERS: the ProB host was unreachable when the pin was introduced, so
-# no hash could be taken from a real download, and none is guessed. Any value
-# that is not 64 hex digits makes install_probcli fail closed with a "no
-# verified pin" error -- it never skips verification.
-PROB_SHA256_LINUX="PLACEHOLDER-unverified-awaiting-download-from-prob-host"
-PROB_SHA256_MACOS="PLACEHOLDER-unverified-awaiting-download-from-prob-host"
+# The ProB host publishes no checksum or signature, so these are
+# trust-on-first-use: each archive was fetched twice over HTTPS with identical
+# hashes. They prove a later download matches those bytes, not that the ProB
+# authors produced them. Any value that is not 64 lowercase hex digits makes
+# install_probcli fail closed with a "no verified pin" error -- it never skips
+# verification.
+PROB_SHA256_LINUX="b0d411f71c81cfe9fdc2d898f3ef0fd7dcccc4223211cf1475b45ca46d344c24"
+PROB_SHA256_MACOS="6e85c88eee56ec7f18f4b1737693b1dc4bfbf4f9081c42def8c09afff48f24c2"
 PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
 PROB_HOME="$HOME/Applications/ProB"
 

@@ -9,6 +9,7 @@ verify step have their own modules.
 
 from __future__ import annotations
 
+import re
 from dataclasses import replace
 from pathlib import Path
 from typing import Final
@@ -63,13 +64,17 @@ def test_tampered_archive_fails_closed(
 
 @pytest.mark.parametrize("system", _SYSTEMS)
 def test_shipped_pin_never_installs_the_fixture(tmp_path: Path, system: str) -> None:
-    # A placeholder today ("no verified pin"), a real hash once one lands
-    # ("mismatch" against this fixture): the fixture is never read.
+    # The shipped pin is a real SHA-256 of a real ProB archive, so the
+    # fixture can only fail as a mismatch, and is never read.
     shipped = _WF.job_env("specs", PIN_VARS[system])
+    assert re.fullmatch(r"[0-9a-f]{64}", shipped), (
+        f"{PIN_VARS[system]} is not a SHA-256: {shipped!r}"
+    )
     run = InstallStep(_good(system), shipped, cache_hit=True, cached=True).run(tmp_path)
     err = run.result.stderr
     assert run.result.returncode != 0
-    assert "no verified SHA-256 pin" in err or "SHA-256 mismatch" in err, err
+    assert f"FATAL: SHA-256 mismatch for {_good(system).name}" in err, err
+    assert "no verified SHA-256 pin" not in err, err
     assert run.archive_reads() == []
     assert "PROBCLI=" not in run.file("github_env")
 

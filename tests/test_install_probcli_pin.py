@@ -66,20 +66,20 @@ def test_non_hash_pin_fails_before_any_download(tmp_path: Path, pin: str) -> Non
     assert not run.archive_left()
 
 
-def test_shipped_pins_fail_closed(tmp_path: Path) -> None:
-    # Each shipped value is a real hash or a marked placeholder; for this
-    # OS's, whatever it is -- a placeholder today ("no verified pin"), a real
-    # hash once one lands ("mismatch" against this fixture) -- the served
-    # archive is never read, installed, or kept.
+def test_shipped_pins_are_real_hashes_that_reject_the_fixture(tmp_path: Path) -> None:
+    # Every shipped value is a real SHA-256 of a real ProB archive, so the
+    # fixture this OS is served can only fail as a mismatch -- never as "no
+    # verified pin" -- and is never read, installed, or kept.
     for name, value in InstallSh().pins().items():
-        assert re.fullmatch(r"[0-9a-f]{64}", value) or value.startswith(
-            "PLACEHOLDER-"
-        ), f"install.sh {name} is neither a SHA-256 nor a marked placeholder: {value!r}"
+        assert re.fullmatch(r"[0-9a-f]{64}", value), (
+            f"install.sh {name} is not a SHA-256: {value!r}"
+        )
     run = Scenario().run(tmp_path)
 
     err = run.result.stderr
     assert run.result.returncode != 0
-    assert "no verified SHA-256 pin" in err or "SHA-256 mismatch" in err, err
+    assert "SHA-256 mismatch" in err, err
+    assert "no verified SHA-256 pin" not in err, err
     assert run.archive_reads() == []
     assert not run.installed()
     assert not run.archive_left()
