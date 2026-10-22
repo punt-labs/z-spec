@@ -72,8 +72,9 @@ jobs:
       # install.sh's PROB_SHA256_LINUX / PROB_SHA256_MACOS (test-gated).
       # PLACEHOLDERS: the ProB host was unreachable when the pin was
       # introduced, so no hash was taken from a real download and none is
-      # guessed. A value that is not 64 hex digits fails the install step
-      # closed with a "no verified SHA-256 pin" error.
+      # guessed. A value that is not 64 hex digits fails the prob-pin step
+      # closed with a "no verified SHA-256 pin" error, before the cache is
+      # consulted or anything is downloaded.
       PROB_SHA256_LINUX: "PLACEHOLDER-unverified-awaiting-download-from-prob-host"
       PROB_SHA256_MACOS: "PLACEHOLDER-unverified-awaiting-download-from-prob-host"
     steps:
@@ -120,10 +121,15 @@ jobs:
       #
       # This OS's archive name and pin are chosen once, here, and both the
       # cache key and the install step read these outputs, so the two can
-      # never disagree about which pin is in force. An empty pin fails here
-      # (${VAR:?}); a pin with a newline fails here too, since it would add
-      # a line of its own to GITHUB_OUTPUT. The pin's full format is checked
-      # by the install step, before any download.
+      # never disagree about which pin is in force. The pin's full format is
+      # checked here, before anything is written to GITHUB_OUTPUT, so a value
+      # that can never verify an archive (a placeholder, empty, uppercase, a
+      # wrong length, a second line) never reaches the cache key: no restore
+      # is attempted under it and nothing is downloaded. An empty pin fails
+      # first (${VAR:?}), and a pin with a newline gets its own message, since
+      # it would otherwise add a line of its own to GITHUB_OUTPUT. The digits
+      # are spelled out: a range like 0-9a-f follows the locale's collation.
+      # The install step repeats the format check as defence in depth.
       - name: Select this OS's ProB archive and pin
         id: prob-pin
         run: |
@@ -135,6 +141,12 @@ jobs:
           case "${PIN}" in
             *$'\n'*) echo "FATAL: the ${RUNNER_OS} ProB pin spans more than one line" >&2; exit 1 ;;
           esac
+          if [ "${#PIN}" -ne 64 ] || [ -n "${PIN//[0123456789abcdef]/}" ]; then
+            echo "FATAL: no verified SHA-256 pin for ${ARCHIVE} (ProB ${PROB_VERSION}):" >&2
+            echo "  pin is not 64 lowercase hex digits (value: ${PIN})" >&2
+            echo "  no cache restored, nothing downloaded -- set the job env's PROB_SHA256_* pin" >&2
+            exit 1
+          fi
           printf 'archive=%s\nsha256=%s\n' "${ARCHIVE}" "${PIN}" >> "${GITHUB_OUTPUT}"
 
       # The pin is in the key so that changing it is an automatic miss: an
@@ -172,10 +184,12 @@ jobs:
           # The pin's format first, above the hit/miss branch, so a value
           # that can never verify an archive (a placeholder, empty, uppercase,
           # a wrong length, a second line) fails before any download on
-          # either path. The digits are spelled out: a range like 0-9a-f
-          # follows the locale's collation and can admit other characters.
-          # Past this point "SHA-256 mismatch" only ever means a real
-          # comparison of two hashes failed.
+          # either path. The prob-pin step already refuses such a pin; this
+          # is defence in depth, so the step never trusts its input's shape.
+          # The digits are spelled out: a range like 0-9a-f follows the
+          # locale's collation and can admit other characters. Past this
+          # point "SHA-256 mismatch" only ever means a real comparison of two
+          # hashes failed.
           case "${EXPECTED_SHA256}" in
             *[!0123456789abcdef]*|"") PIN_FORMAT_OK=0 ;;
             *) if [ "${#EXPECTED_SHA256}" -eq 64 ]; then PIN_FORMAT_OK=1; else PIN_FORMAT_OK=0; fi ;;
@@ -251,9 +265,17 @@ jobs:
             echo "FATAL: probcli archive from ${SOURCE} contains unsafe paths (absolute or ../)${HINT}" >&2
             exit 1
           fi
+          # The archive passed the SHA-256 pin and listed cleanly, so a failed
+          # extraction is the pinned archive itself or the runner's disk --
+          # never a stale or tampered cache entry.
+          extract_failed() {
+            echo "FATAL: could not extract ${ARCHIVE} (from ${SOURCE}) into ${RUNNER_TEMP}/ProB;" >&2
+            echo "  its SHA-256 matched the pin, so this is the pinned archive or the runner's disk" >&2
+            exit 1
+          }
           case "${ARCHIVE}" in
-            *.zip) unzip -q "${ARCHIVE_PATH}" -d "${RUNNER_TEMP}/ProB" ;;
-            *)     tar -xzf "${ARCHIVE_PATH}" -C "${RUNNER_TEMP}/ProB" ;;
+            *.zip) unzip -q "${ARCHIVE_PATH}" -d "${RUNNER_TEMP}/ProB" || extract_failed ;;
+            *)     tar -xzf "${ARCHIVE_PATH}" -C "${RUNNER_TEMP}/ProB" || extract_failed ;;
           esac
           PROBCLI="$(find "${RUNNER_TEMP}/ProB" -type f -name probcli | head -n 1)"
           if [ -z "${PROBCLI}" ]; then

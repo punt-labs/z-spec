@@ -167,13 +167,17 @@ def test_sha256_check_runs_on_both_paths_before_the_archive_is_read() -> None:
     hashed = [
         i for i, ln in enumerate(script) if 'shasum -a 256 < "${ARCHIVE_PATH}"' in ln
     ]
+    # Any unzip/tar given the archive: a test (-tq), a listing (-Z1, -tzf),
+    # or an extraction (-q ... -d, -xzf).
     reads = [
         i
         for i, ln in enumerate(script)
-        if re.search(r'(unzip|tar) -\w*[tZx]\w* "\$\{ARCHIVE_PATH\}"', ln)
+        if re.search(r'(unzip|tar) -\w+ "\$\{ARCHIVE_PATH\}"', ln)
     ]
+    flags = {script[i].split('"${ARCHIVE_PATH}"')[0].split()[-1] for i in reads}
+    assert {"-tq", "-Z1", "-tzf", "-q", "-xzf"} <= flags, flags
     assert len(hashed) == 1 and hashed[0] > fi, hashed
-    assert reads and hashed[0] < min(reads)
+    assert hashed[0] < min(reads)
 
 
 def test_specs_curl_matches_install_sh_flags() -> None:

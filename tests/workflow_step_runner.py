@@ -7,7 +7,9 @@ structural test pins -- with the runner's environment supplied and a stub
 directory first on a minimal PATH (``/usr/bin:/bin`` after it, nothing from
 the host's own PATH). ``curl`` there serves a local archive or refuses, and
 ``tar``/``unzip``/``shasum`` log every call before running the real tool, so a
-test can prove a rejected archive was never listed or extracted.
+test can prove a rejected archive was never listed or extracted. Each logged
+call is one record of NUL-terminated arguments, so an empty argument or one
+containing a space reaches the test exactly as the step passed it.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ import os
 import shutil
 import stat
 import subprocess
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass
 from pathlib import Path
 from typing import Final, Self, final
 
@@ -26,11 +28,17 @@ from tests.install_sh_source import ProbArchive
 from tests.workflow_source import Workflow
 
 SYSTEM_PATH: Final[str] = os.pathsep.join(("/usr/bin", "/bin"))
-CACHE_KEY: Final[str] = "prob-archive-Linux-1.15.1-stub"
+PROB_VERSION: Final[str] = Workflow().job_env("specs", "PROB_VERSION")
+CACHE_KEY: Final[str] = f"prob-archive-Linux-{PROB_VERSION}-stub"
 
-_CURL: Final[str] = """#!/bin/sh
-printf '%s\\n' "$*" >> "$LOGS/curl"
-out=""
+# One record per call: each argument NUL-terminated, then a newline.
+_LOG_ARGV: Final[str] = """printf '%s\\0' "$@" >> "$LOGS/{name}"
+printf '\\n' >> "$LOGS/{name}"
+"""
+_CURL: Final[str] = (
+    "#!/bin/sh\n"
+    + _LOG_ARGV.format(name="curl")
+    + """out=""
 while [ $# -gt 0 ]; do
   if [ "$1" = "-o" ]; then out="$2"; shift; fi
   shift
@@ -42,15 +50,15 @@ fi
 echo "curl: (7) Failed to connect to stub host" >&2
 exit 7
 """
-_LOGGED: Final[str] = """#!/bin/sh
-printf '%s\\n' "$*" >> "$LOGS/{name}"
-exec '{real}' "$@"
-"""
-_BROKEN: Final[str] = """#!/bin/sh
-printf '%s\\n' "$*" >> "$LOGS/{name}"
-echo "{name}: simulated read error" >&2
+)
+_LOGGED: Final[str] = "#!/bin/sh\n" + _LOG_ARGV + "exec '{real}' \"$@\"\n"
+_BROKEN: Final[str] = (
+    "#!/bin/sh\n"
+    + _LOG_ARGV
+    + """echo "{name}: simulated read error" >&2
 exit 1
 """
+)
 
 
 def _tool(name: str) -> str:
@@ -74,17 +82,22 @@ class StepRun:
         return self.root / "runner"
 
     def calls(self, tool: str) -> list[list[str]]:
+        """Return every logged argv of ``tool``, argument boundaries intact."""
         log = self.root / "logs" / tool
-        lines = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
-        return [ln.split() for ln in lines]
+        if not log.exists():
+            return []
+        *records, tail = log.read_text(encoding="utf-8").split("\0\n")
+        if tail:
+            pytest.fail(f"{tool} log ends in a partial record: {tail!r}")
+        return [record.split("\0") for record in records]
 
     def archive_reads(self) -> list[list[str]]:
         """Every tar/unzip call: a list, test, or extraction of the archive."""
         return self.calls("tar") + self.calls("unzip")
 
     def extractions(self) -> list[list[str]]:
-        tar = [c for c in self.calls("tar") if c and "x" in c[0]]
-        unzip = [c for c in self.calls("unzip") if c and c[0] == "-q"]
+        tar = [c for c in self.calls("tar") if "x" in c[0]]
+        unzip = [c for c in self.calls("unzip") if c[0] == "-q"]
         return tar + unzip
 
     def file(self, name: str) -> str:
@@ -100,29 +113,33 @@ class StepHarness:
 
     ``stubs`` maps a command name to the text of a script placed first on
     PATH. ``RUNNER_TEMP``, ``GITHUB_ENV``, ``GITHUB_OUTPUT`` and ``LOGS`` are
-    supplied per run.
+    supplied per run. With ``system_path`` off, PATH is the stub directory
+    alone, so nothing installed on the host can be found.
     """
 
     step: str
     env: tuple[tuple[str, str], ...]
     stubs: tuple[tuple[str, str], ...] = ()
+    system_path: bool = True
 
     @classmethod
     def verify(cls, probcli: str, *, fuzz: bool = True) -> Self:
-        """The verify step, with a ``probcli`` whose shell body is given."""
+        """The verify step, with a ``probcli`` whose shell body is given.
+
+        Without the ``fuzz`` stub the PATH is the stub directory alone, so a
+        fuzz the host happens to have in /usr/bin or /bin is never found.
+        """
         stubs = [("probcli", f"#!/bin/sh\n{probcli}\n")]
         if fuzz:
             stubs.append(("fuzz", "#!/bin/sh\nexit 0\n"))
-        env = (("PROB_VERSION", Workflow().job_env("specs", "PROB_VERSION")),)
-        return cls(
-            "Verify both binaries resolve", (*env, ("PROBCLI", "probcli")), tuple(stubs)
-        )
+        env = (("PROB_VERSION", PROB_VERSION), ("PROBCLI", "probcli"))
+        return cls("Verify both binaries resolve", env, tuple(stubs), system_path=fuzz)
 
     @classmethod
     def select(cls, runner_os: str, pins: dict[str, str]) -> Self:
         """The pin-selection step on ``runner_os`` with the given job pins."""
-        env = (("RUNNER_OS", runner_os), *pins.items())
-        return cls("Select this OS's ProB archive and pin", env)
+        env = (("PROB_VERSION", PROB_VERSION), ("RUNNER_OS", runner_os))
+        return cls("Select this OS's ProB archive and pin", (*env, *pins.items()))
 
     def run(self, tmp_path: Path) -> StepRun:
         _, step = Workflow().step("specs", f"name: {self.step}")
@@ -135,9 +152,10 @@ class StepHarness:
             path = bin_dir / name
             path.write_text(text, encoding="utf-8")
             path.chmod(path.stat().st_mode | stat.S_IXUSR)
+        search = [str(bin_dir), SYSTEM_PATH] if self.system_path else [str(bin_dir)]
         env = {
             **dict(self.env),
-            "PATH": f"{bin_dir}{os.pathsep}{SYSTEM_PATH}",
+            "PATH": os.pathsep.join(search),
             "RUNNER_TEMP": str(runner),
             "GITHUB_ENV": str(runner / "github_env"),
             "GITHUB_OUTPUT": str(runner / "github_output"),
@@ -161,34 +179,51 @@ class InstallStep:
     """One run of the "Install probcli" step against a fixture archive.
 
     ``archive`` is what the restored cache holds (``cached``) or what the
-    host serves on a miss; ``pin`` is the prob-pin step's sha256 output.
+    host serves on a miss; ``pin`` is the prob-pin step's sha256 output and
+    ``archive_name`` its archive output. ``writable_dest`` off pre-creates
+    the extraction directory read-only, so extracting into it fails -- for
+    a non-root user, as GitHub's runners and a developer's shell are; root
+    ignores the mode, and a test relying on it then fails rather than passes.
     """
 
     archive: ProbArchive
     pin: str
+    _: KW_ONLY
     cache_hit: bool = False
     cached: bool = False
     fetch: str = "serve"
     broken_shasum: bool = False
+    writable_dest: bool = True
+    # None: the archive's own name, as the prob-pin step would output it.
+    archive_name: str | None = None
 
     @classmethod
     def pinned(cls, archive: ProbArchive, *, cache_hit: bool) -> Self:
         """A run whose pin is ``archive``'s own hash, cached on a hit."""
-        return cls(archive, archive.sha256(), cache_hit, cache_hit)
+        return cls(archive, archive.sha256(), cache_hit=cache_hit, cached=cache_hit)
 
     def run(self, tmp_path: Path) -> StepRun:
         if self.cached:
             self.archive.write(tmp_path / "runner" / "prob-archive")
+        dest = tmp_path / "runner" / "ProB"
+        if not self.writable_dest:
+            dest.mkdir(parents=True)
+            dest.chmod(0o555)
+        name = self.archive.name if self.archive_name is None else self.archive_name
         env = (
-            ("PROB_VERSION", Workflow().job_env("specs", "PROB_VERSION")),
-            ("ARCHIVE", self.archive.name),
+            ("PROB_VERSION", PROB_VERSION),
+            ("ARCHIVE", name),
             ("EXPECTED_SHA256", self.pin),
             ("CACHE_HIT", "true" if self.cache_hit else "false"),
             ("CACHE_KEY", CACHE_KEY),
             ("FETCH", self.fetch),
             ("FIXTURE", str(self.archive.write(tmp_path / "served"))),
         )
-        return StepHarness("Install probcli", env, self._stubs()).run(tmp_path)
+        try:
+            return StepHarness("Install probcli", env, self._stubs()).run(tmp_path)
+        finally:
+            if dest.exists():
+                dest.chmod(0o755)
 
     def _stubs(self) -> tuple[tuple[str, str], ...]:
         stubs = {"curl": _CURL}

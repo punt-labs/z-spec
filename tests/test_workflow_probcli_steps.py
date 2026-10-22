@@ -2,22 +2,22 @@
 
 Each test runs a shipped ``run:`` block through ``workflow_step_runner``:
 under ``bash -e`` with a stub-first PATH, so a tampered, unpinned, missing,
-or hostile archive can be served or cached and every tar/unzip/curl call
-observed. Three steps are covered: the pin selection, the install, and the
-verify.
+corrupt, or hostile archive can be served or cached and every tar/unzip/curl
+call observed. Three steps are covered: the pin selection, the install, and
+the verify.
 """
 
 from __future__ import annotations
 
-import shutil
+from dataclasses import replace
 from pathlib import Path
 from typing import Final
 
 import pytest
 
-from tests.install_sh_source import ProbArchive
+from tests.install_sh_source import Damage, ProbArchive
 from tests.workflow_source import Workflow
-from tests.workflow_step_runner import CACHE_KEY, SYSTEM_PATH, InstallStep, StepHarness
+from tests.workflow_step_runner import CACHE_KEY, InstallStep, StepHarness
 
 _HOST: Final[str] = "stups.hhu-hosting.de"
 _SYSTEMS: Final[list[str]] = ["Linux", "Darwin"]
@@ -32,8 +32,19 @@ _BAD_PINS: Final[dict[str, str]] = {
     "empty": "",
     "uppercase": "A" * 64,
     "short": "0" * 63,
+    "long": "0" * 65,
+    "non-hex": "g" * 64,
     "two-lines": "0" * 64 + "\nnot-a-hash",
 }
+# The malformed pins the select step names as such: an empty one fails
+# earlier (${VAR:?}), and a two-line one gets its own message.
+_MALFORMED: Final[dict[str, str]] = {
+    k: v for k, v in _BAD_PINS.items() if k not in ("empty", "two-lines")
+}
+
+
+def _url(archive: ProbArchive) -> str:
+    return f"https://{_HOST}/downloads/prob/tcltk/releases/{_VERSION}/{archive.name}"
 
 
 def _good(system: str, *extra: str) -> ProbArchive:
@@ -72,6 +83,25 @@ def test_select_refuses_and_writes_no_output(
     run = StepHarness.select(runner_os, pins).run(tmp_path)
     assert run.result.returncode != 0
     assert message in run.result.stderr
+    assert "no verified SHA-256 pin" not in run.result.stderr, "ran on past its cause"
+    assert run.file("github_output") == ""
+
+
+@pytest.mark.parametrize(
+    ("runner_os", "system"), [("Linux", "Linux"), ("macOS", "Darwin")]
+)
+@pytest.mark.parametrize("pin", _MALFORMED.values(), ids=_MALFORMED.keys())
+def test_select_refuses_a_malformed_pin_before_the_cache_key(
+    tmp_path: Path, runner_os: str, system: str, pin: str
+) -> None:
+    # The cache key is built from this step's output; a pin that can never
+    # verify an archive must not reach it.
+    pins = dict.fromkeys(_PIN_VARS.values(), pin)
+    run = StepHarness.select(runner_os, pins).run(tmp_path)
+    err = run.result.stderr
+    assert run.result.returncode != 0
+    assert f"FATAL: no verified SHA-256 pin for {_good(system).name}" in err
+    assert f"pin is not 64 lowercase hex digits (value: {pin})" in err
     assert run.file("github_output") == ""
 
 
@@ -84,7 +114,8 @@ def test_tampered_archive_fails_closed(
     tmp_path: Path, system: str, cache_hit: bool
 ) -> None:
     good = _good(system)
-    step = InstallStep(_good(system, "ProB/x"), good.sha256(), cache_hit, cache_hit)
+    tampered = _good(system, "ProB/x")
+    step = InstallStep(tampered, good.sha256(), cache_hit=cache_hit, cached=cache_hit)
     run = step.run(tmp_path)
     err = run.result.stderr
     assert run.result.returncode != 0
@@ -103,11 +134,12 @@ def test_shipped_pin_never_installs_the_fixture(tmp_path: Path, system: str) -> 
     # A placeholder today ("no verified pin"), a real hash once one lands
     # ("mismatch" against this fixture): the fixture is never read.
     shipped = _WF.job_env("specs", _PIN_VARS[system])
-    run = InstallStep(_good(system), shipped, True, True).run(tmp_path)
+    run = InstallStep(_good(system), shipped, cache_hit=True, cached=True).run(tmp_path)
     err = run.result.stderr
     assert run.result.returncode != 0
     assert "no verified SHA-256 pin" in err or "SHA-256 mismatch" in err, err
     assert run.archive_reads() == []
+    assert "PROBCLI=" not in run.file("github_env")
 
 
 @pytest.mark.parametrize("system", _SYSTEMS)
@@ -127,9 +159,12 @@ def test_non_hash_pin_fails_before_any_download(
 
 
 def test_unknown_archive_name_fails(tmp_path: Path) -> None:
-    result = StepHarness("Install probcli", (("ARCHIVE", ""),)).run(tmp_path).result
-    assert result.returncode != 0
-    assert "unknown ProB archive name ''" in result.stderr
+    # A well-formed pin, so only the archive-name check can stop the step.
+    good = _good("Linux")
+    run = InstallStep(good, good.sha256(), archive_name="").run(tmp_path)
+    assert run.result.returncode != 0
+    assert "unknown ProB archive name ''" in run.result.stderr
+    assert run.calls("curl") == [], "an unknown archive name reached the host"
 
 
 def test_cache_hit_with_no_archive_fails(tmp_path: Path) -> None:
@@ -151,14 +186,67 @@ def test_matching_pin_installs_probcli(
     probcli = run.runner_temp / "ProB" / "ProB" / "probcli"
     assert f"PROBCLI={probcli}\nPROB_HOME={probcli.parent}\n" == run.file("github_env")
     assert len(run.calls("curl")) == (0 if cache_hit else 1)
+    restored = f"archive restored from cache key {CACHE_KEY} -- no download"
+    assert (restored in run.result.stdout) == cache_hit, run.result.stdout
 
 
 def test_cache_miss_logs_the_url_it_fetches(tmp_path: Path) -> None:
     good = _good("Linux")
     run = InstallStep.pinned(good, cache_hit=False).run(tmp_path)
-    url = f"https://{_HOST}/downloads/prob/tcltk/releases/{_VERSION}/{good.name}"
-    assert f"key {CACHE_KEY}) -- downloading {url}" in run.result.stdout
+    url = _url(good)
+    expected = f"cache miss (cache-hit='false', key {CACHE_KEY}) -- downloading {url}"
+    assert expected in run.result.stdout
     assert run.calls("curl")[0][-1] == url
+
+
+@pytest.mark.parametrize("system", _SYSTEMS)
+@pytest.mark.parametrize("cache_hit", [True, False], ids=["hit", "miss"])
+@pytest.mark.parametrize("damage", ["not-an-archive", "bad-checksum"])
+def test_pinned_archive_that_does_not_read_is_named_as_such(
+    tmp_path: Path, system: str, cache_hit: bool, damage: Damage
+) -> None:
+    # Pinned to its own hash, so only the archive integrity check stands
+    # between it and the extractor: an error page, a zip whose listing reads
+    # but whose CRC test fails, a tarball whose gzip CRC fails.
+    served = _good(system).damaged(damage)
+    run = InstallStep.pinned(served, cache_hit=cache_hit).run(tmp_path)
+    err = run.result.stderr
+    assert run.result.returncode != 0
+    assert f"FATAL: {served.name} from " in err
+    assert "is not a valid archive (file -b: " in err
+    if cache_hit:
+        assert f"cache key {CACHE_KEY}" in err
+        assert f"gh cache delete '{CACHE_KEY}'" in err
+    else:
+        assert f"download {_url(served)}" in err
+    assert run.extractions() == [], "an archive that does not read was extracted"
+    assert "PROBCLI=" not in run.file("github_env")
+
+
+@pytest.mark.parametrize("system", _SYSTEMS)
+def test_pinned_archive_without_probcli_fails(tmp_path: Path, system: str) -> None:
+    archive = ProbArchive.without_probcli(system)
+    run = InstallStep.pinned(archive, cache_hit=True).run(tmp_path)
+    err = run.result.stderr
+    assert run.result.returncode != 0
+    assert f"FATAL: no probcli in the ProB {_VERSION} archive from cache key " in err
+    assert "ProB/README" in err, "the extracted tree is not listed"
+    assert "PROBCLI=" not in run.file("github_env")
+
+
+@pytest.mark.parametrize("system", _SYSTEMS)
+def test_extraction_failure_names_the_verified_archive(
+    tmp_path: Path, system: str
+) -> None:
+    good = _good(system)
+    step = InstallStep(good, good.sha256(), cache_hit=True, cached=True)
+    run = replace(step, writable_dest=False).run(tmp_path)
+    err = run.result.stderr
+    assert run.result.returncode != 0
+    assert f"FATAL: could not extract {good.name} (from cache key {CACHE_KEY})" in err
+    assert "its SHA-256 matched the pin" in err
+    assert "no probcli in the ProB" not in err, "ran on past the failed extraction"
+    assert "PROBCLI=" not in run.file("github_env")
 
 
 @pytest.mark.parametrize("system", _SYSTEMS)
@@ -176,7 +264,9 @@ def test_pinned_archive_with_an_escaping_member_is_refused(
 
 def test_failing_hash_tool_is_not_a_mismatch(tmp_path: Path) -> None:
     good = _good("Linux")
-    step = InstallStep(good, good.sha256(), True, True, broken_shasum=True)
+    step = InstallStep(
+        good, good.sha256(), cache_hit=True, cached=True, broken_shasum=True
+    )
     err = step.run(tmp_path).result.stderr
     assert "FATAL: could not read or hash" in err
     assert "SHA-256 mismatch" not in err
@@ -230,7 +320,7 @@ def test_verify_shows_why_probcli_would_not_run(tmp_path: Path) -> None:
 
 
 def test_verify_names_a_missing_fuzz(tmp_path: Path) -> None:
-    assert shutil.which("fuzz", path=SYSTEM_PATH) is None, "host has a system fuzz"
+    # PATH is the stub directory alone: a host fuzz cannot satisfy the step.
     result = StepHarness.verify(f"echo {_VERSION}", fuzz=False).run(tmp_path).result
     assert result.returncode != 0
     assert "FATAL: fuzz is not on PATH" in result.stderr
