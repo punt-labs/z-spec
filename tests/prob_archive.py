@@ -49,6 +49,7 @@ class ProbArchive:
     system: str  # "Linux" (tar.gz) or "Darwin" (zip), as `uname -s` prints
     members: tuple[tuple[str, bytes], ...]
     damage: Damage = "none"
+    mode: int = 0o755  # every member's permission bits
 
     @classmethod
     def with_probcli(cls, system: str, version: str, *extra: str) -> Self:
@@ -75,6 +76,10 @@ class ProbArchive:
     def damaged(self, damage: Damage) -> ProbArchive:
         """Return this archive served with ``damage``."""
         return replace(self, damage=damage)
+
+    def not_executable(self) -> ProbArchive:
+        """Return this archive with no exec bit on any member (mode 0644)."""
+        return replace(self, mode=0o644)
 
     @property
     def name(self) -> str:
@@ -104,13 +109,13 @@ class ProbArchive:
             with zipfile.ZipFile(buffer, "w") as zf:
                 for name, payload in self.members:
                     zinfo = zipfile.ZipInfo(name)
-                    zinfo.external_attr = 0o755 << 16
+                    zinfo.external_attr = self.mode << 16
                     zf.writestr(zinfo, payload)
             return buffer.getvalue()
         with tarfile.open(fileobj=buffer, mode="w", format=tarfile.USTAR_FORMAT) as tf:
             for name, payload in self.members:
                 tinfo = tarfile.TarInfo(name)
-                tinfo.size, tinfo.mode, tinfo.mtime = len(payload), 0o755, 0
+                tinfo.size, tinfo.mode, tinfo.mtime = len(payload), self.mode, 0
                 tf.addfile(tinfo, io.BytesIO(payload))
         return gzip.compress(buffer.getvalue(), mtime=0)
 

@@ -29,6 +29,18 @@ from tests.install_probcli_runner import (
 from tests.prob_archive import Damage, ProbArchive
 
 
+def _earlier_install(tmp_path: Path) -> Path:
+    """Plant a file of an earlier ProB install, which a failed run must keep.
+
+    It sits in $PROB_HOME, under DEST either way: nothing install_probcli
+    can see tells its files from the archive's, so none may be removed.
+    """
+    earlier = tmp_path / "home" / "Applications" / "ProB" / "installed-before"
+    earlier.parent.mkdir(parents=True)
+    earlier.write_text("an earlier ProB install\n", encoding="utf-8")
+    return earlier
+
+
 @pytest.mark.parametrize("system", SYSTEMS)
 @pytest.mark.parametrize("member", ["../escaped", "ProB/../../escaped", "/escaped"])
 def test_pinned_archive_with_an_escaping_member_is_never_extracted(
@@ -51,6 +63,7 @@ def test_pinned_archive_with_an_escaping_member_is_never_extracted(
 
 
 def test_probcli_reporting_another_version_fails(tmp_path: Path) -> None:
+    earlier = _earlier_install(tmp_path)
     other = f"{VERSION}0"  # 1.15.10 must not pass as 1.15.1
     run = Scenario.pinned(ProbArchive.with_probcli(SYSTEM, other)).run(tmp_path)
 
@@ -58,9 +71,11 @@ def test_probcli_reporting_another_version_fails(tmp_path: Path) -> None:
     assert f"expected probcli {VERSION}, got: {other}" in run.result.stderr
     assert "✓ probcli" not in run.result.stdout
     assert not run.archive_left(), "the archive was left after a version mismatch"
+    assert earlier.exists(), "a version mismatch removed an earlier install"
 
 
 def test_probcli_that_will_not_run_fails_and_shows_why(tmp_path: Path) -> None:
+    earlier = _earlier_install(tmp_path)
     body = "echo 'error while loading shared libraries: libtcl8.6.so' >&2; exit 127"
     run = Scenario.pinned(ProbArchive.running(SYSTEM, body)).run(tmp_path)
 
@@ -69,6 +84,7 @@ def test_probcli_that_will_not_run_fails_and_shows_why(tmp_path: Path) -> None:
     assert "/ProB/probcli is installed but would not run:\n" in err
     assert "libtcl8.6.so" in err
     assert not run.archive_left(), "the archive was left after probcli failed"
+    assert earlier.exists(), "a probcli that would not run removed an earlier install"
 
 
 def test_probcli_printing_no_version_is_unreadable_and_shown(tmp_path: Path) -> None:
@@ -79,6 +95,7 @@ def test_probcli_printing_no_version_is_unreadable_and_shown(tmp_path: Path) -> 
     assert run.result.returncode != 0
     assert f"expected probcli {VERSION}, got: unreadable\n" in err
     assert "/probcli -version printed:\n      ProB command line, version" in err
+    assert not run.archive_left(), "the archive was left after an unreadable version"
 
 
 @pytest.mark.parametrize("system", SYSTEMS)
@@ -107,6 +124,7 @@ def test_pinned_archive_that_does_not_read_is_never_extracted(
 
 @pytest.mark.parametrize("system", SYSTEMS)
 def test_pinned_archive_without_probcli_fails(tmp_path: Path, system: str) -> None:
+    earlier = _earlier_install(tmp_path)
     served = ProbArchive.without_probcli(system)
     run = Scenario.pinned(served).run(tmp_path)
 
@@ -117,6 +135,27 @@ def test_pinned_archive_without_probcli_fails(tmp_path: Path, system: str) -> No
     assert "✓ probcli" not in run.result.stdout
     assert not run.installed()
     assert not run.archive_left(), "an archive with no probcli was left"
+    assert earlier.exists(), "an archive with no probcli removed an earlier install"
+
+
+@pytest.mark.parametrize("system", SYSTEMS)
+def test_probcli_that_cannot_be_made_executable_says_why(
+    tmp_path: Path, system: str
+) -> None:
+    # The archive's probcli has no exec bit and chmod is refused: the
+    # report must name chmod's own reason, not "no probcli".
+    served = ProbArchive.with_probcli(system, VERSION).not_executable()
+    run = replace(Scenario.pinned(served), refused=("chmod",)).run(tmp_path)
+
+    probcli = run.home / "Applications" / "ProB" / "probcli"
+    reason = f"chmod: +x {probcli}: Operation not permitted"
+    assert run.result.returncode != 0
+    assert run.calls("chmod") == [["+x", str(probcli)]]
+    assert (
+        f"  ! probcli is at {probcli} but could not be made\n    executable: {reason}\n"
+    ) in run.result.stderr, run.result.stderr
+    assert "no probcli at" not in run.result.stderr
+    assert not run.archive_left(), "the archive was left after chmod was refused"
 
 
 @pytest.mark.parametrize("system", SYSTEMS)
@@ -125,9 +164,7 @@ def test_failed_extraction_names_the_archive_and_its_destination(
 ) -> None:
     # The archive verifies and lists cleanly; only the extractor fails. The
     # destination already holds a ProB install, which must survive.
-    earlier = tmp_path / "home" / "Applications" / "ProB" / "installed-before"
-    earlier.parent.mkdir(parents=True)
-    earlier.write_text("an earlier ProB install\n", encoding="utf-8")
+    earlier = _earlier_install(tmp_path)
     served = ProbArchive.with_probcli(system, VERSION)
     run = replace(Scenario.pinned(served), extraction_fails=True).run(tmp_path)
 
