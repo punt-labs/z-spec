@@ -201,13 +201,13 @@ def test_cache_miss_logs_the_url_it_fetches(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("system", _SYSTEMS)
 @pytest.mark.parametrize("cache_hit", [True, False], ids=["hit", "miss"])
-@pytest.mark.parametrize("damage", ["not-an-archive", "bad-checksum"])
+@pytest.mark.parametrize("damage", ["not-an-archive", "corrupt"])
 def test_pinned_archive_that_does_not_read_is_named_as_such(
     tmp_path: Path, system: str, cache_hit: bool, damage: Damage
 ) -> None:
     # Pinned to its own hash, so only the archive integrity check stands
     # between it and the extractor: an error page, a zip whose listing reads
-    # but whose CRC test fails, a tarball whose gzip CRC fails.
+    # but whose CRC test fails, a tarball whose gzip stream ends early.
     served = _good(system).damaged(damage)
     run = InstallStep.pinned(served, cache_hit=cache_hit).run(tmp_path)
     err = run.result.stderr

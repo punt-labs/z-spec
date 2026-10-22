@@ -32,7 +32,7 @@ _PIN: Final[re.Pattern[str]] = re.compile(
 _SET_FLAGS: Final[re.Pattern[str]] = re.compile(
     r"^\s*set -- (-fL(?:[^\n]*\\\n)*[^\n]*)$", re.M
 )
-type Damage = Literal["none", "not-an-archive", "bad-checksum"]
+type Damage = Literal["none", "not-an-archive", "corrupt"]
 _ARCHIVE_NAMES: Final[dict[str, str]] = {
     "Darwin": "ProB.macos.zip",
     "Linux": "ProB.linux64.tar.gz",
@@ -155,10 +155,15 @@ class ProbArchive:
 
     ``damage`` serves what a broken or hostile host might, still under the
     archive's own name and pinnable by its own hash: ``"not-an-archive"`` is
-    an HTML error page, and ``"bad-checksum"`` is the archive with one byte
-    of its data flipped -- the zip's first member payload (its listing still
-    reads, only a CRC test or an extraction notices) or the gzip trailer's
-    CRC (the tar listing fails).
+    an HTML error page, and ``"corrupt"`` is the archive damaged where every
+    implementation of the reading tool notices. The zip has one byte of its
+    first member's payload flipped: its listing still reads, and only a CRC
+    test or an extraction notices -- Info-ZIP's unzip on Linux and macOS
+    alike. The tar.gz is cut to half its length, so the gzip stream ends
+    early and listing it fails under GNU tar ("unexpected end of file") and
+    bsdtar/libarchive, macOS's tar ("truncated gzip input"). A flipped gzip
+    CRC trailer is not used: libarchive does not check it, so bsdtar lists
+    such an archive cleanly.
     """
 
     system: str  # "Linux" (tar.gz) or "Darwin" (zip), as `uname -s` prints
@@ -194,8 +199,8 @@ class ProbArchive:
         match self.damage:
             case "not-an-archive":
                 return b"<html><body><h1>503 Service Unavailable</h1></body></html>\n"
-            case "bad-checksum":
-                return self._flipped(self._intact())
+            case "corrupt":
+                return self._corrupted(self._intact())
             case "none":
                 return self._intact()
 
@@ -224,13 +229,12 @@ class ProbArchive:
                 tf.addfile(tinfo, io.BytesIO(payload))
         return gzip.compress(buffer.getvalue(), mtime=0)
 
-    def _flipped(self, data: bytes) -> bytes:
-        # The gzip trailer is CRC-32 then ISIZE, 4 bytes each.
-        at = len(data) - 8
-        if self.system == "Darwin":
-            # Stored (uncompressed) members: the payload is in the zip as is.
-            payload = self.members[0][1]
-            if data.count(payload) != 1:
-                raise ValueError("zip payload is not uniquely locatable to damage")
-            at = data.index(payload)
+    def _corrupted(self, data: bytes) -> bytes:
+        if self.system != "Darwin":
+            return data[: len(data) // 2]
+        # Stored (uncompressed) members: the payload is in the zip as is.
+        payload = self.members[0][1]
+        if data.count(payload) != 1:
+            raise ValueError("zip payload is not uniquely locatable to damage")
+        at = data.index(payload)
         return data[:at] + bytes([data[at] ^ 0xFF]) + data[at + 1 :]

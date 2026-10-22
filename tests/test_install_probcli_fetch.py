@@ -276,7 +276,7 @@ def test_probcli_printing_no_version_is_unreadable_and_shown(tmp_path: Path) -> 
     assert "/probcli -version printed:\n      ProB command line, version" in err
 
 
-@pytest.mark.parametrize("damage", ["not-an-archive", "bad-checksum"])
+@pytest.mark.parametrize("damage", ["not-an-archive", "corrupt"])
 def test_pinned_archive_that_does_not_read_is_never_extracted(
     tmp_path: Path, damage: Damage
 ) -> None:
