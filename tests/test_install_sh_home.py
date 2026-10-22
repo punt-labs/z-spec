@@ -75,7 +75,7 @@ def test_an_absolute_home_is_not_refused(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("home", ["home", ""], ids=["relative", "empty"])
 def test_install_probcli_refuses_a_non_absolute_home(tmp_path: Path, home: str) -> None:
-    run = replace(Scenario.pinned(), home=home, absolute_home=False).run(tmp_path)
+    run = replace(Scenario.pinned(), home=home, home_mode="relative").run(tmp_path)
 
     assert run.result.returncode != 0
     assert f"HOME is not an absolute path (HOME='{home}')" in run.result.stderr
@@ -97,7 +97,7 @@ def test_install_probcli_never_runs_a_probcli_under_a_relative_home(
         encoding="utf-8",
     )
     planted.chmod(planted.stat().st_mode | stat.S_IXUSR)
-    run = replace(Scenario.pinned(), home="home", absolute_home=False).run(tmp_path)
+    run = replace(Scenario.pinned(), home="home", home_mode="relative").run(tmp_path)
 
     assert run.result.returncode != 0
     assert run.calls("planted-probcli") == [], "ran ./home/Applications/ProB/probcli"

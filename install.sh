@@ -254,6 +254,22 @@ PROB_HOME="$HOME/Applications/ProB"
 # LC_ALL=C makes tr work on bytes, whatever the user's locale.
 printable() { LC_ALL=C tr -d '\000-\010\013-\037\177'; }
 
+# Run the named function with set -e genuinely in force, leaving its exit
+# status in RUN_ERREXIT_RC. POSIX ignores -e for every command run, at any
+# depth, on the left of || or &&, after !, or in an if/while condition: as
+# `install_probcli || warn ...`, the `set -eu` inside install_probcli is
+# accepted and then not applied, so a failing command it does not handle
+# runs on and the install can still report success. Run here as a plain
+# command, with the caller's -e lifted for this one call so a failure is
+# captured rather than fatal to install.sh, it is applied. Call this as a
+# plain command too -- under ||, &&, !, or if, -e is ignored again.
+run_errexit() {
+  set +e
+  "$@"
+  RUN_ERREXIT_RC=$?
+  set -e
+}
+
 # Mirror src/punt_zspec/prob.py's resolve_probcli() exactly: $PROBCLI (if it
 # names a file) wins, then PATH, then the conventional path -- in that order.
 # Checking only the conventional path here would let install.sh report a
@@ -293,9 +309,12 @@ resolve_fuzz_path() {
 }
 
 install_probcli() (
-  # Subshell: a failure anywhere here returns nonzero without aborting the
-  # rest of install.sh under set -e, and every path below is explicit so a
-  # partial failure never gets reported as success.
+  # A subshell, so its set -eu and its variables stay inside it. Call it
+  # only through run_errexit: under || or && (or in an if) -e is ignored
+  # throughout this body. Every failure below is handled explicitly -- it
+  # says what failed and removes the downloaded archive -- and -e is only
+  # the backstop that turns a failure nothing here handles into a nonzero
+  # return instead of a reported success.
   set -eu
 
   # Every path below hangs off $HOME ($PROB_HOME, the archive, the cd into
@@ -538,8 +557,9 @@ install_probcli() (
   # The archive itself is not the install -- $PROB_HOME/probcli is. Leaving
   # a multi-hundred-MB .zip/.tar.gz in ~/Applications after a verified-good
   # extraction is pure clutter and invites confusion about which one is
-  # "installed"; it goes on success as on every failure above.
-  rm -f "$ARCHIVE"
+  # "installed"; it goes on success as on every failure above. Failing to
+  # remove it does not undo a verified install, so that is a warning.
+  rm -f "$ARCHIVE" || echo "  ! could not remove the downloaded $ARCHIVE -- delete it by hand" >&2
 
   echo "  ✓ probcli $PROB_HOME/probcli ($PROB_VERSION)"
 )
@@ -548,7 +568,8 @@ install_probcli() (
 # that mode wants fuzz only, and a caller who also needs probcli (this
 # repo's own CI specs job does) installs it separately, on its own terms.
 if [ "$FUZZ_ONLY_REQUESTED" = "0" ]; then
-  install_probcli || warn "probcli install failed -- see the error above"
+  run_errexit install_probcli
+  [ "$RUN_ERREXIT_RC" = 0 ] || warn "probcli install failed -- see the error above"
 fi
 
 FUZZ_REPO="https://github.com/Spivoxity/fuzz.git"
@@ -560,10 +581,10 @@ FUZZ_REF="2a202a0b6f7328e729b54ef352d3bb4c6dfeb2e5"
 FUZZ_HOME="$HOME/.local"
 
 install_fuzz() (
-  # Subshell, same discipline as install_probcli: a failure anywhere here
-  # returns nonzero without aborting the rest of install.sh under set -e,
-  # and every path below is explicit so a partial build/install never gets
-  # reported as success.
+  # Same discipline as install_probcli: a subshell, called only through
+  # run_errexit so set -e is in force; every failure below is handled
+  # explicitly, and -e is the backstop that keeps one nothing here handles
+  # from being reported as a successful build.
   set -eu
 
   # Already resolves ($FUZZ or PATH, same precedence as resolve_fuzz() in
@@ -849,7 +870,8 @@ if [ "$FUZZ_ONLY_REQUESTED" = "1" ]; then
 fi
 
 FUZZ_INSTALL_OK=1
-install_fuzz || { FUZZ_INSTALL_OK=0; warn "fuzz install failed -- see the error above"; }
+run_errexit install_fuzz
+[ "$RUN_ERREXIT_RC" = 0 ] || { FUZZ_INSTALL_OK=0; warn "fuzz install failed -- see the error above"; }
 
 # --fuzz-only wants a hard failure, not the soft warn above: the CLI and
 # probcli steps were skipped entirely for this mode, so a failed fuzz build
