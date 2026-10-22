@@ -219,6 +219,19 @@ if [ "$FUZZ_ONLY_REQUESTED" = "0" ]; then
 fi
 
 PROB_VERSION=1.15.1
+# SHA-256 of each per-OS ProB $PROB_VERSION archive, checked before the
+# archive is listed or extracted. HTTPS authenticates the connection, not the
+# file: a compromised or replaced archive on the host would otherwise be
+# installed and executed. Bump these in lockstep with PROB_VERSION, and with
+# PROB_SHA256_LINUX / PROB_SHA256_MACOS in .github/workflows/test.yml (a test
+# gates the parity).
+#
+# PLACEHOLDERS: the ProB host was unreachable when the pin was introduced, so
+# no hash could be taken from a real download, and none is guessed. Any value
+# that is not 64 hex digits makes install_probcli fail closed with a "no
+# verified pin" error -- it never skips verification.
+PROB_SHA256_LINUX="PLACEHOLDER-unverified-awaiting-download-from-prob-host"
+PROB_SHA256_MACOS="PLACEHOLDER-unverified-awaiting-download-from-prob-host"
 PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
 PROB_HOME="$HOME/Applications/ProB"
 
@@ -284,8 +297,8 @@ install_probcli() (
   fi
 
   case "$(uname -s)" in
-    Darwin) PROB_ARCHIVE_NAME="ProB.macos.zip" ;;
-    Linux)  PROB_ARCHIVE_NAME="ProB.linux64.tar.gz" ;;
+    Darwin) PROB_ARCHIVE_NAME="ProB.macos.zip";      PROB_SHA256="$PROB_SHA256_MACOS" ;;
+    Linux)  PROB_ARCHIVE_NAME="ProB.linux64.tar.gz"; PROB_SHA256="$PROB_SHA256_LINUX" ;;
     *)      echo "  ! unsupported OS for probcli: $(uname -s) -- install by hand" >&2; return 1 ;;
   esac
 
@@ -295,6 +308,16 @@ install_probcli() (
       return 1
     }
   done
+  # sha256sum is GNU coreutils (most Linux); shasum ships with macOS and with
+  # perl elsewhere. Either prints "<hash>  <file>".
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256_of() { sha256sum "$1" | cut -d' ' -f1; }
+  elif command -v shasum >/dev/null 2>&1; then
+    sha256_of() { shasum -a 256 "$1" | cut -d' ' -f1; }
+  else
+    echo "  ! neither sha256sum nor shasum found -- cannot verify probcli" >&2
+    return 1
+  fi
   case "$PROB_ARCHIVE_NAME" in
     *.zip) command -v unzip >/dev/null 2>&1 || { echo "  ! unzip not found -- cannot install probcli" >&2; return 1; } ;;
     *.tar.gz) command -v tar >/dev/null 2>&1 || { echo "  ! tar not found -- cannot install probcli" >&2; return 1; } ;;
@@ -318,20 +341,54 @@ install_probcli() (
   #   --speed-limit 1024 --speed-time 60
   #                          a transfer stalled under 1 KB/s for a minute is
   #                          aborted (and retried) instead of hanging forever
+  #   --proto '=https' --proto-redir '=https'
+  #                          neither the request nor any redirect may leave
+  #                          HTTPS
   #   --retry-all-errors     also retries DNS failures, TLS and mid-transfer
   #                          resets. It needs curl >= 7.71, so it is probed
   #                          rather than assumed: an older curl still
-  #                          installs, with --retry's narrower transient set,
-  #                          instead of failing on an unknown option.
-  set -- --connect-timeout 20 --retry 5 --retry-connrefused \
+  #                          installs, with --retry's narrower transient set
+  #                          and a warning, instead of failing on an unknown
+  #                          option.
+  # The unprobed flags set the real floor: --retry-connrefused needs curl
+  # >= 7.52 (December 2016); everything else here is older still.
+  set -- -fL --proto '=https' --proto-redir '=https' \
+    --connect-timeout 20 --retry 5 --retry-connrefused \
     --retry-max-time 300 --speed-limit 1024 --speed-time 60
   if curl --retry-all-errors --version >/dev/null 2>&1; then
     set -- "$@" --retry-all-errors
+  else
+    echo "  ! $(curl --version 2>/dev/null | head -n 1) predates --retry-all-errors;" >&2
+    echo "    downloading probcli with the narrower --retry set" >&2
   fi
-  curl -fL "$@" -o "$ARCHIVE" "$PROB_URL" || {
+  curl "$@" -o "$ARCHIVE" "$PROB_URL" || {
     echo "  ! download failed: $PROB_URL" >&2
     return 1
   }
+
+  # Verified before the archive is listed or extracted: nothing from an
+  # archive whose hash is not the pinned one is ever unpacked. A placeholder
+  # (not 64 hex digits) is "no verified pin" and fails the same way. The
+  # unverified file is removed so it cannot be unpacked by hand later.
+  ACTUAL_SHA256="$(sha256_of "$ARCHIVE")"
+  case "$PROB_SHA256" in
+    *[!0-9a-f]*|"")
+      echo "  ! no verified SHA-256 pin for $PROB_ARCHIVE_NAME (ProB $PROB_VERSION):" >&2
+      echo "    install.sh carries a placeholder ($PROB_SHA256)." >&2
+      echo "    actual:  $ACTUAL_SHA256" >&2
+      echo "    archive: $ARCHIVE (from $PROB_URL) -- removed, not extracted" >&2
+      rm -f "$ARCHIVE"
+      return 1
+      ;;
+  esac
+  if [ "${#PROB_SHA256}" -ne 64 ] || [ "$ACTUAL_SHA256" != "$PROB_SHA256" ]; then
+    echo "  ! SHA-256 mismatch for $PROB_ARCHIVE_NAME (ProB $PROB_VERSION):" >&2
+    echo "    expected: $PROB_SHA256" >&2
+    echo "    actual:   $ACTUAL_SHA256" >&2
+    echo "    archive:  $ARCHIVE (from $PROB_URL) -- removed, not extracted" >&2
+    rm -f "$ARCHIVE"
+    return 1
+  fi
 
   # An absolute path or a "../" segment in the listing could write outside
   # $DEST (zip-slip / tar-slip) -- checked before either extractor ever
