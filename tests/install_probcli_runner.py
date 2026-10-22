@@ -50,6 +50,7 @@ _TOOLS: Final[tuple[str, ...]] = (
     "head",
     "mkdir",
     "rm",
+    "tr",
     "uname",
 )
 _LOGGED: Final[tuple[str, ...]] = ("tar", "unzip")

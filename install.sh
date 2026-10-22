@@ -247,6 +247,13 @@ PROB_SHA256_MACOS="PLACEHOLDER-unverified-awaiting-download-from-prob-host"
 PROB_BASE="https://stups.hhu-hosting.de/downloads/prob/tcltk/releases"
 PROB_HOME="$HOME/Applications/ProB"
 
+# probcli's own output is shown to the reader when it fails or reports the
+# wrong version. It is shown as text, not replayed to the terminal: tab and
+# newline survive, every other control character and DEL is dropped, so an
+# escape sequence in it cannot rewrite the screen or the window title.
+# LC_ALL=C makes tr work on bytes, whatever the user's locale.
+printable() { LC_ALL=C tr -d '\000-\010\013-\037\177'; }
+
 # Mirror src/punt_zspec/prob.py's resolve_probcli() exactly: $PROBCLI (if it
 # names a file) wins, then PATH, then the conventional path -- in that order.
 # Checking only the conventional path here would let install.sh report a
@@ -508,7 +515,7 @@ install_probcli() (
 
   PROB_OUT="$("$PROB_HOME/probcli" -version 2>&1)" || {
     echo "  ! $PROB_HOME/probcli is installed but would not run:" >&2
-    printf '%s\n' "$PROB_OUT" >&2
+    printf '%s\n' "$PROB_OUT" | printable >&2
     rm -f "$ARCHIVE"
     return 1
   }
@@ -521,7 +528,7 @@ install_probcli() (
   test "$PROB_VER" = "$PROB_VERSION" || {
     echo "  ! expected probcli $PROB_VERSION, got: ${PROB_VER:-unreadable}" >&2
     echo "    $PROB_HOME/probcli -version printed:" >&2
-    printf '%s\n' "$PROB_OUT" | while IFS= read -r line; do
+    printf '%s\n' "$PROB_OUT" | printable | while IFS= read -r line; do
       printf '      %s\n' "$line"
     done >&2
     rm -f "$ARCHIVE"
@@ -923,7 +930,7 @@ else
   if ! RESOLVED_PROBCLI_OUT="$("$RESOLVED_PROBCLI" -version 2>&1)"; then
     PROBCLI_STATUS="wont-run"
     warn "probcli resolves to $RESOLVED_PROBCLI, but it would not run:"
-    printf '%s\n' "$RESOLVED_PROBCLI_OUT" | while IFS= read -r line; do warn "  $line"; done
+    printf '%s\n' "$RESOLVED_PROBCLI_OUT" | printable | while IFS= read -r line; do warn "  $line"; done
     warn "Missing Tcl/Tk libraries and macOS quarantine are the usual causes."
   elif RESOLVED_PROBCLI_VER="$(printf '%s\n' "$RESOLVED_PROBCLI_OUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)" && [ "$RESOLVED_PROBCLI_VER" = "$PROB_VERSION" ]; then
     HAVE_PROBCLI=1
