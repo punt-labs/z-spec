@@ -76,8 +76,14 @@ def test_a_tool_never_called_has_no_calls(tmp_path: Path, reader: Reader) -> Non
 @pytest.mark.parametrize("reader", _READERS.values(), ids=_READERS.keys())
 @pytest.mark.parametrize(
     "log",
-    [b"2\0a\0", b"1\0a", b"x\0a\0", b"1\0a\0\0"],
-    ids=["count-exceeds-arguments", "unterminated", "no-count", "stray-field"],
+    [b"2\0a\0", b"1\0a", b"0\0x", b"x\0a\0", b"1\0a\0\0"],
+    ids=[
+        "count-exceeds-arguments",
+        "unterminated",
+        "unterminated-after-a-record",
+        "no-count",
+        "stray-field",
+    ],
 )
 def test_a_partial_record_fails_loudly(
     tmp_path: Path, reader: Reader, log: bytes

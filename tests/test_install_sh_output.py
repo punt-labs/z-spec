@@ -18,11 +18,12 @@ from tests.install_probcli_runner import SYSTEM, VERSION, Scenario
 from tests.install_sh_runner import WholeInstall
 from tests.prob_archive import ProbArchive
 
-# ESC [ 2 J clears the screen; ESC ] 0 ; ... BEL sets the window title.
-_HOSTILE: Final[str] = r"printf 'probcli \033[2Jsays\033]0;owned\007 a\tb\n'"
+# ESC [ 2 J clears the screen; ESC ] 0 ; ... BEL sets the window title;
+# DEL is the one control character outside 0-31.
+_HOSTILE: Final[str] = r"printf 'probcli \033[2Jsays\033]0;owned\007 a\tb\177\n'"
 # What is left once every control character but tab and newline is gone.
 _SHOWN: Final[str] = "probcli [2Jsays]0;owned a\tb"
-_CONTROL: Final[tuple[str, ...]] = ("\x1b", "\x07")
+_CONTROL: Final[tuple[str, ...]] = ("\x1b", "\x07", "\x7f")
 
 
 def _no_control(text: str) -> bool:
