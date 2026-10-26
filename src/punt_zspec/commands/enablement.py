@@ -278,12 +278,13 @@ class RepoEnablement:
     def disable(self) -> tuple[str, ...]:
         """Reach the dormant state non-destructively (§2.9).
 
-        The import goes first, so the biconditional holds the moment the marker
-        does. The rest of ``.punt-labs/z-spec/`` is left exactly as found —
+        The settings rules go first: a refused settings file then aborts before
+        anything changed. The import goes next, so the biconditional holds the
+        moment the marker does. The rest of ``.punt-labs/z-spec/`` is left exactly as found —
         ``disable`` stops composition, it does not erase committed content.
         Returns the allow rules removed from ``.claude/settings.json``.
         """
-        self._import.prune()
         removed = self._settings.prune()
+        self._import.prune()
         self._marker.remove()
         return removed

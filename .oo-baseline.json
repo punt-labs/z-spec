@@ -77,6 +77,19 @@
     "public_attr_violations": 0.0,
     "future_annotations": 1.0
   },
+  "src/punt_zspec/claude_settings.py": {
+    "method_ratio": 1.0,
+    "encapsulation_ratio": 1.0,
+    "avg_params": 0.57,
+    "max_complexity": 9.0,
+    "avg_complexity": 3.43,
+    "module_size": 115.0,
+    "classes_per_module": 2.0,
+    "class_to_func_ratio": 1.0,
+    "init_violations": 0.0,
+    "public_attr_violations": 0.0,
+    "future_annotations": 1.0
+  },
   "src/punt_zspec/commands/__init__.py": {
     "method_ratio": 1.0,
     "encapsulation_ratio": 1.0,
