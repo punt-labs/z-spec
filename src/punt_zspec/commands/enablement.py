@@ -11,10 +11,9 @@ the canonical ``@.punt-labs/z-spec/CLAUDE.md`` import in the repo ``CLAUDE.md``
 (§2.4). Every transition preserves the §2.11 biconditional — the marker is
 present exactly when the import line is.
 
-There is no fourth fact: z-spec ships its one hook through the marketplace
-plugin, which is global, so ``enable`` computes an empty §2.8 entry set and
-touches no ``<repo>/.claude/settings.json``. An empty registration would be a
-no-op write on a file shared with every other tool.
+A fourth, independent fact is z-spec's allow rules in
+``<repo>/.claude/settings.json`` (§2.8): ``enable`` adds them, ``disable``
+removes exactly them, and every other entry in the file is kept.
 """
 
 from __future__ import annotations
@@ -25,6 +24,7 @@ from typing import Self, final
 
 from punt_zspec.atomic_file import AtomicFile
 from punt_zspec.claude_md import ClaudeMdImport
+from punt_zspec.claude_settings import SettingsRules
 from punt_zspec.commands.result import CommandError, CommandFailure, CommandResult
 from punt_zspec.types import EnablementAction, EnablementReport
 
@@ -132,15 +132,22 @@ class RepoEnablement:
     _guide: DepositedGuide
     _marker: EnabledMarker
     _import: ClaudeMdImport
-    __slots__ = ("_guide", "_import", "_marker")
+    _settings: SettingsRules
+    __slots__ = ("_guide", "_import", "_marker", "_settings")
 
     def __new__(
-        cls, *, guide: DepositedGuide, marker: EnabledMarker, claude_md: ClaudeMdImport
+        cls,
+        *,
+        guide: DepositedGuide,
+        marker: EnabledMarker,
+        claude_md: ClaudeMdImport,
+        settings: SettingsRules,
     ) -> Self:
         self = super().__new__(cls)
         self._guide = guide
         self._marker = marker
         self._import = claude_md
+        self._settings = settings
         return self
 
     @classmethod
@@ -151,6 +158,7 @@ class RepoEnablement:
             guide=DepositedGuide(subtree / "CLAUDE.md"),
             marker=EnabledMarker(subtree / "enabled"),
             claude_md=ClaudeMdImport(root / "CLAUDE.md", IMPORT_LINE),
+            settings=SettingsRules(root),
         )
 
     @classmethod
@@ -235,9 +243,9 @@ class RepoEnablement:
     def perform(self, action: EnablementAction) -> EnablementReport:
         """Reach the state *action* names, then report what is on disk."""
         if action is EnablementAction.enable:
-            self.enable()
+            permissions = self.enable()
         else:
-            self.disable()
+            permissions = self.disable()
         return EnablementReport(
             action=action,
             root=self.root,
@@ -245,30 +253,37 @@ class RepoEnablement:
             guide=self.guide_path,
             import_line=self.import_line,
             enabled=self.is_enabled(),
+            permissions=permissions,
         )
 
     def is_enabled(self) -> bool:
         """Return whether z-spec is enabled here (the marker is present)."""
         return self._marker.is_present()
 
-    def enable(self) -> None:
+    def enable(self) -> tuple[str, ...]:
         """Reach the enabled state from anywhere; idempotent, and the upgrade path.
 
         Order is crash-safety, not taste (§2.3): the guide first, so the import
         never points at a missing file; then the import line; the marker
         **last**, because the marker is what the MCP gate reads. If any earlier
         step raises, the repo is left observably off rather than half on.
+        Returns the allow rules added to ``.claude/settings.json``.
         """
         self._guide.deposit()
         self._import.register()
+        added = self._settings.register()
         self._marker.write()
+        return added
 
-    def disable(self) -> None:
+    def disable(self) -> tuple[str, ...]:
         """Reach the dormant state non-destructively (§2.9).
 
         The import goes first, so the biconditional holds the moment the marker
         does. The rest of ``.punt-labs/z-spec/`` is left exactly as found —
         ``disable`` stops composition, it does not erase committed content.
+        Returns the allow rules removed from ``.claude/settings.json``.
         """
         self._import.prune()
+        removed = self._settings.prune()
         self._marker.remove()
+        return removed
