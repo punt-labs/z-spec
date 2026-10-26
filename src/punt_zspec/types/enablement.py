@@ -33,6 +33,7 @@ class EnablementReport:
     guide: Path
     import_line: str
     enabled: bool
+    permissions: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:  # PY-TS-14: JSON wire boundary
         return {
@@ -43,6 +44,7 @@ class EnablementReport:
             "marker": str(self.marker),
             "guide": str(self.guide),
             "import_line": self.import_line,
+            "permissions": list(self.permissions),
         }
 
     def render(self) -> str:
@@ -58,8 +60,16 @@ class EnablementReport:
                 f"  marker: {self.marker}",
                 f"  guide:  {self.guide}",
                 f"  import: {self.import_line}",
+                *self._permission_lines(),
                 "Commit the marker so enablement travels with the repo."
                 if self.enabled
                 else "Commit its removal so the repo stays off for everyone.",
             )
         )
+
+    def _permission_lines(self) -> tuple[str, ...]:
+        if not self.permissions:
+            return ()
+        verb = "allowed in" if self.enabled else "removed from"
+        rules = ", ".join(self.permissions)
+        return (f"  permissions {verb} .claude/settings.json: {rules}",)

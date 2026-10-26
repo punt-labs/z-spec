@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **`z-spec enable` allows z-spec in the repo's `.claude/settings.json`.** It
+  adds `Bash(z-spec:*)`, `mcp__plugin_z-spec_zspec__*` and a
+  `Skill(z-spec:<command>)` rule per shipped command, keeps every other entry,
+  and prints the rules it added; `z-spec disable` removes exactly those. A
+  malformed, non-UTF-8 or symlinked settings file, a symlinked `.claude/`, and
+  the home directory are refused untouched. No `z-spec-dev` rule is granted and
+  `~/.claude/settings.json` is never edited
+  ([punt-kit#396](https://github.com/punt-labs/punt-kit/pull/396)).
+
 ### Added
 
 - **Per-tool rulesync projection: MCP registration and scoped rules for
