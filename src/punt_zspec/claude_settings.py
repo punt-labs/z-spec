@@ -126,11 +126,7 @@ class SettingsRules:
         if not isinstance(permissions, dict):
             msg = f"{self.path} has no editable permissions object"
             raise SettingsRefusedError(msg)
-        allow: object = (
-            cast("dict[str, Any]", permissions).get("allow", [])
-            if isinstance(permissions, dict)
-            else None
-        )
+        allow: object = cast("dict[str, Any]", permissions).get("allow", [])
         if not isinstance(allow, list):
             msg = f"{self.path} has no editable permissions.allow list"
             raise SettingsRefusedError(msg)
