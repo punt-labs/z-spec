@@ -123,3 +123,26 @@ def test_enable_then_disable_round_trips_the_rules(tmp_path: Path) -> None:
     assert _allow(tmp_path) == ["Read", *ZSPEC_RULES]
     assert enablement.disable() == ZSPEC_RULES
     assert _allow(tmp_path) == ["Read"]
+
+
+@pytest.mark.parametrize("permissions", [None, [], "x"])
+def test_a_non_object_permissions_value_is_refused(
+    tmp_path: Path, permissions: object
+) -> None:
+    _write(tmp_path, {"permissions": permissions})
+    before = _settings(tmp_path).read_bytes()
+    with pytest.raises(SettingsRefusedError):
+        SettingsRules(tmp_path).register()
+    assert _settings(tmp_path).read_bytes() == before
+
+
+def test_a_refused_disable_leaves_the_repo_enabled(tmp_path: Path) -> None:
+    (tmp_path / ".git").mkdir()
+    repo = RepoEnablement.for_repo(tmp_path)
+    repo.enable()
+    claude_md = (tmp_path / "CLAUDE.md").read_text()
+    _settings(tmp_path).write_text("{not json")
+    with pytest.raises(SettingsRefusedError):
+        repo.disable()
+    assert repo.is_enabled()
+    assert (tmp_path / "CLAUDE.md").read_text() == claude_md

@@ -123,6 +123,9 @@ class SettingsRules:
             raise SettingsRefusedError(msg)
         parsed = cast("dict[str, Any]", data)
         permissions: object = parsed.get("permissions", {})
+        if not isinstance(permissions, dict):
+            msg = f"{self.path} has no editable permissions object"
+            raise SettingsRefusedError(msg)
         allow: object = (
             cast("dict[str, Any]", permissions).get("allow", [])
             if isinstance(permissions, dict)
