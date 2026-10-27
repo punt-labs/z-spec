@@ -332,8 +332,9 @@ function pr_loop(unit):
 #                  fix, from any source, is reopened, unanswered, only if
 #                  that fix's change is no longer in the branch; new commit
 #                  ids alone do not reopen it. The leader unresolves a
-#                  reopened finding's review thread; a local finding with
-#                  no thread is recorded by a ledger line
+#                  reopened finding's review thread; a finding with no
+#                  review thread (a local or a Qodo summary finding) is
+#                  recorded by a ledger line
 #                  `reopened: <finding> <fix sha>`. A Qodo finding is
 #                  answered again by a ledger line naming its Qodo id and
 #                  a new fix sha, which is its recorded fix; any other by
