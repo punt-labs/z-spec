@@ -252,10 +252,8 @@ function pr_loop(unit):
     bd close the bead(s)
     push; create the PR (description carries the flight rows and their results)
     if the PR changes a file that is not demo_exempt:
-        comment "demo confirmed: <head sha>"   # once the flight passed on
-                                               #   that head, with the
-                                               #   operator's confirmation
-                                               #   only where a row requires it
+        comment "demo confirmed: <head sha>"   # once the operator confirmed
+                                               #   the flight on that head
         # Qodo reviews once, on open (.pr_agent.toml); Bugbot reviews once,
         #   on its own, at open (Cursor dashboard: once per PR) — no
         #   "bugbot run" comment for round 1
@@ -381,10 +379,8 @@ function pr_loop(unit):
 #                  minutes, with no recorded "proceed" ruling
 #   demoed_head  = the commit named in the leader's latest "demo confirmed:"
 #                  PR comment, newer than any "demo failed:" comment; the
-#                  leader posts it once the acceptance flight passes on that
-#                  commit, with the operator's confirmation only where a
-#                  flight row requires it (rendered output a human must
-#                  judge)
+#                  leader posts it once the operator confirms the acceptance
+#                  flight on that commit
 #   demo_exempt(f) = f is *.md, under docs/, tests/, or .github/, and is not
 #                  under plugin/ — commands, skills, agents, and hooks there
 #                  are behavior even when Markdown, because Claude Code
@@ -436,7 +432,8 @@ function poll_tick(pr):
                                            #   the run ends or the operator
                                            #   later rules "proceed" on it,
                                            #   which needs no new escalation
-    for each finding not answered(f) and not under an open escalation:
+    for each finding not answered(f) and not under an open escalation
+            nor in a diff whose block escalation is open:
         if N == 2 and f is a new High with no ruling:
             post an escalation comment; the operator rules
         else:
@@ -484,10 +481,9 @@ function poll_tick(pr):
                                            #   PRs included
     if not demo_ok(pr) and nothing was pushed this tick:
         run the acceptance flight on the head (make uat, reconnect the MCP
-            server, the applicable manual-tests rows); once it passes,
-            comment "demo confirmed: <sha>" naming the head exercised,
-            after the operator's confirmation only where a row requires
-            it; on a failure
+            server, the applicable manual-tests rows); once the operator
+            confirms it, comment "demo confirmed: <sha>" naming the head
+            exercised; on a failure
             comment "demo failed: <sha>" with what was observed, and the
             failure is a finding like any other
     if not pending(pr) and not bugbot_open and no finding is unanswered:
