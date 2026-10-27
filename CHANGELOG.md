@@ -15,6 +15,12 @@ All notable changes to this project will be documented in this file.
   `~/.claude/settings.json` is never edited
   ([punt-kit#396](https://github.com/punt-labs/punt-kit/pull/396)).
 
+- **PR review follows `punt-kit/standards/pr-review.md`.** Local review
+  (`qodo review`, `silent-failure-hunter`, `code-reviewer`) runs before the PR
+  opens, Qodo and Bugbot review once at open in at most two rounds, and
+  Copilot reviews only on request. `.pr_agent.toml` configures Qodo;
+  `docs/WORKFLOW.md` carries the new terms, poll loop, and merge gate.
+
 ### Added
 
 - **Per-tool rulesync projection: MCP registration and scoped rules for

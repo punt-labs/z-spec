@@ -1,0 +1,39 @@
+# Qodo v2 review config, from punt-kit's pr_agent.toml template. One review on open,
+# no per-push re-review, only High findings inline (they become blocking threads).
+# Only bot-authored PRs are skipped; no title or label lets an author opt out.
+[github_app]
+ignore_bot_pr = true
+pr_commands = ["/agentic_describe", "/agentic_review"]
+handle_push_trigger = false
+
+[review_agent]
+enable_incremental_review = true
+# comments_routing below is authoritative; the threshold restates it (High only inline).
+inline_comments_severity_threshold = 3
+issues_user_guidelines = """
+z-spec is a Python 3.13 package (CLI, MCP server, fuzz and probcli wrappers, lux applet) plus a Claude Code plugin of skill prompts, bash hooks, and install.sh, and a corpus of Z specifications in LaTeX (examples/*.tex).
+Targets: macOS and Ubuntu 24.04. Nothing else.
+Report every finding in this one pass; do not hold findings back for a later pass.
+Flag only defects reachable by a real caller of the changed code: logic errors, None paths, security, API contract breaks, concurrency, resource leaks.
+Do not flag hypothetical environments (exotic env vars such as CDPATH or GIT_TRACE, control bytes in paths, tests run as root).
+Do not flag what CI enforces: ruff format/lint, mypy and pyright strict, shellcheck, markdownlint, fuzz type-checking and probcli model-checking of every examples/*.tex spec, the generated-config check (make check-rulesync), the dev-command twin check, the OO ratchet (tools/oo_ratchet), coupling and suppression ratchets.
+Do not flag lines the PR did not change.
+Never suggest suppressions (# noqa, # type: ignore, xfail) or replacing __new__ with __init__; __new__ is the constructor by design.
+Never suggest modernizing Z notation in .tex specs: keep \\quad~ continuation lines, ZBOOL instead of a native Bool, two-letter lowercase free-type prefixes, flat schemas, and bounded integers; ProB and fuzz require them.
+"""
+compliance_user_guidelines = """
+Apply code rules only: correctness, typing, error handling, security, and the coding standards for the changed files.
+Do not grade PR titles, PR descriptions, commit messages, or CHANGELOG wording.
+Do not grade agent process rules from CLAUDE.md, AGENTS.md, or WORKFLOW.md (missions, beads, review cycles, delegation).
+"""
+smart_router_extra_instructions = """
+High risk: src/punt_zspec/prob.py and src/punt_zspec/fuzz.py (they spawn external binaries on user-supplied paths), src/punt_zspec/parser.py, src/punt_zspec/atomic_file.py,
+src/punt_zspec/claude_md.py and src/punt_zspec/commands/enable.py, disable.py, and enablement.py (they write into a user's repo and CLAUDE.md), src/punt_zspec/server.py (MCP tool surface),
+src/punt_zspec/lux/identity.py, plugin/hooks/*.sh, install.sh, and scripts/*.sh.
+Low risk: docs-only diffs (*.md, docs/, research/, prfaq.tex), the spec corpus and its teaching material (examples/, plugin/reference/, plugin/tutorials/, plugin/templates/), and test-only diffs (tests/).
+"""
+
+[review_agent.comments_routing]
+action_required = "both"
+remediation_recommended = "summary"
+informational = "drop"

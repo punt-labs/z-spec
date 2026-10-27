@@ -53,6 +53,8 @@ record for every user-facing surface is the feature running in the
 installed artifact, exercised by hand against a written-in-advance
 expectation, before the PR opens.
 
+PR review follows punt-kit/standards/pr-review.md: local review (qodo review + silent-failure-hunter + code-reviewer) before the PR, then Qodo and Bugbot once at open, at most two rounds, Copilot only on request.
+
 ## Where to look for more
 
 - [`docs/WORKFLOW.md`](docs/WORKFLOW.md) — the three-loop development
@@ -126,7 +128,7 @@ canonical implementation. `make check-oo` passes only if no metric regressed
 on touched files and at least one improved. Never edit `.oo-baseline.json` by
 hand except `--rebaseline` for structural refactors; never suppress the
 ratchet. Org standards (see `../punt-kit/standards/python.md` above) override
-review-tool suggestions (Copilot, Bugbot, Cursor) when the two disagree.
+review-tool suggestions (Qodo, Bugbot, Copilot) when the two disagree.
 
 No migration, backwards-compat, or shim code — ever; when a feature
 supersedes an old behavior, delete the old path in the same change.
