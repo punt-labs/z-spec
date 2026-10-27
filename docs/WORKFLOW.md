@@ -343,7 +343,8 @@ function pr_loop(unit):
 #                  new — it takes the normal fix path
 #   escalation   = the leader's "escalated:" comment on one new round-2
 #                  High, on a fix-ruled finding whose fix was blocked in
-#                  local_review, or on a stuck Bugbot run; closed by a
+#                  local_review, on a blocked local_review, or on a stuck
+#                  Bugbot run; closed by a
 #                  later ledger entry recording the operator's ruling. The
 #                  entry closes the escalation, not the finding (see
 #                  answered(f))
@@ -449,9 +450,11 @@ function poll_tick(pr):
         a "dismiss" ruling answers the finding (a Qodo id: `dismiss`)
     if fixes were made: delegate them to a bare agent; make check; commit
         if local_review(the fix diff) is blocked:
-            post an escalation comment on each fix-ruled finding in the
+            post an escalation comment naming the blocked fix commit and
+                what blocked it, and one on each fix-ruled finding in the
                 diff; every other finding in the diff stays unanswered
-                and is taken again next tick; stop
+                and is taken again after the operator rules on the block;
+                stop
         push once                          # every fix reaches the PR head
     answer each finding fixed this tick, or fix-ruled, whose fix commit is
         now on the PR head and passed local_review — a Qodo id by
