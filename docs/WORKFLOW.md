@@ -252,7 +252,10 @@ function pr_loop(unit):
     bd close the bead(s)
     push; create the PR (description carries the flight rows and their results)
     if the PR changes a file that is not demo_exempt:
-        comment "demo confirmed: <head sha>"   # the operator confirmed the flight
+        comment "demo confirmed: <head sha>"   # once the flight passed on
+                                               #   that head, with the
+                                               #   operator's confirmation
+                                               #   only where a row requires it
         # Qodo reviews once, on open (.pr_agent.toml); Bugbot reviews once,
         #   on its own, at open (Cursor dashboard: once per PR) — no
         #   "bugbot run" comment for round 1
@@ -285,9 +288,8 @@ function pr_loop(unit):
 #                  undo a completed run. A clean run posts no review, so
 #                  read the check run. Or: 30 minutes have passed since
 #                  trigger(N) (or since the re-run comment below, if
-#                  later) and no Bugbot run on the PR is queued or in
-#                  progress — the timeout covers an outage, never a live
-#                  run.
+#                  later) and bugbot_open is false — the timeout covers an
+#                  outage, never a live run.
 #   copilot_in   = no Copilot review was requested on the PR, or one was and
 #                  (a review by copilot-pull-request-reviewer exists or 30
 #                  minutes have passed since the request)
@@ -324,16 +326,20 @@ function pr_loop(unit):
 #                  fallback, or the local delta review below; a skipped
 #                  (bot-authored) PR has none until the local delta review
 #                  has covered its whole diff
+#   delta_head   = the newest commit a local delta review has completed on
 #   bugbot_open  = a Cursor Bugbot check run on any commit of the PR, not
 #                  only the head, whose status is not completed (queued or
-#                  in progress), whatever its age; only the run ending
-#                  clears it
+#                  in progress), whatever its age, and that has no recorded
+#                  "proceed" ruling; only the run ending or a "proceed"
+#                  ruling clears it
 #   bugbot_stuck = a Bugbot run queued or in progress for more than 60
-#                  minutes
+#                  minutes, with no recorded "proceed" ruling
 #   demoed_head  = the commit named in the leader's latest "demo confirmed:"
 #                  PR comment, newer than any "demo failed:" comment; the
-#                  leader posts it when the operator confirms the
-#                  acceptance flight on that commit
+#                  leader posts it once the acceptance flight passes on that
+#                  commit, with the operator's confirmation only where a
+#                  flight row requires it (rendered output a human must
+#                  judge)
 #   demo_exempt(f) = f is *.md, under docs/, tests/, or .github/, and is not
 #                  under plugin/ — commands, skills, agents, and hooks there
 #                  are behavior even when Markdown, because Claude Code
@@ -359,7 +365,8 @@ function poll_tick(pr):
                                                    # outage fallback
     if a Bugbot run for round N completed without a finished review
             (failure, timeout, or cancelled — a fix push cancels an
-            in-progress run) and no re-run was requested for round N:
+            in-progress run) and no re-run was requested for round N
+            and bugbot_in(N) is still false:
         comment "bugbot run"               # once; if the re-run fails too or
                                            #   none starts, the 30-minute
                                            #   fallback in bugbot_in applies
@@ -368,9 +375,10 @@ function poll_tick(pr):
     if a run is still bugbot_stuck 30 minutes after that comment and no
             escalation has been posted for this run:
         post an escalation comment         # once, ever, per run; the operator
-                                           #   rules: "cancel" — the leader
-                                           #   cancels the run, it ends, and
-                                           #   bugbot_open clears; "wait" —
+                                           #   rules: "proceed" — the run is
+                                           #   abandoned, the ledger entry
+                                           #   names its check-run id, and
+                                           #   bugbot_open ignores it; "wait" —
                                            #   bugbot_open stays true until
                                            #   the run ends, and the operator
                                            #   may rule again later
@@ -401,20 +409,21 @@ function poll_tick(pr):
             and a High was fixed since trigger(1):
         comment "/agentic_review"; comment "bugbot run"   # opens round 2,
                                                           #   the last
-    if not pending(pr) and (reviewed_head is unset
-            or the PR head is newer than reviewed_head):
+    if not pending(pr) and (the PR head is newer than both reviewed_head
+            and delta_head, or skipped(pr) and neither is set):
         run code_reviewer locally on the PR's merge-base..head diff when
             reviewed_head is unset (a bot-authored PR), else on the
             reviewed_head..head delta; its findings are findings like any
-            other; set reviewed_head to the head only once the review has
-            completed and every finding it raised is answered(f)
-                                           # bounded rounds, but no
+            other; set delta_head to the head once the review has completed
+    if every finding of the delta review at delta_head is answered(f):
+        set reviewed_head to delta_head    # bounded rounds, but no
                                            #   unreviewed merge
     if not demo_ok(pr) and nothing was pushed this tick:
         run the acceptance flight on the head (make uat, reconnect the MCP
-            server, the applicable manual-tests rows) and ask the operator
-            to confirm; after the operator confirms, comment "demo
-            confirmed: <sha>" naming the head exercised; on a failure
+            server, the applicable manual-tests rows); once it passes,
+            comment "demo confirmed: <sha>" naming the head exercised,
+            after the operator's confirmation only where a row requires
+            it; on a failure
             comment "demo failed: <sha>" with what was observed, and the
             failure is a finding like any other
     if not pending(pr) and not bugbot_open and no finding is unanswered:
@@ -431,7 +440,8 @@ function merge_gate(state) -> bool:
     return CI green on the latest commit
        and not pending(pr)                 # no requested review outstanding
        and not bugbot_open                 # any queued or in-progress run on
-                                           #   any commit: its findings land
+                                           #   any commit, unless ruled
+                                           #   "proceed": its findings land
                                            #   before the merge, until it
                                            #   ends
        and reviewed_head is the PR head    # a bot-authored PR is covered by
