@@ -317,12 +317,13 @@ function pr_loop(unit):
 #                  PR comment, newer than any "demo failed:" comment; the
 #                  leader posts it when the operator confirms the
 #                  acceptance flight on that commit
-#   demo_ok(pr)  = the PR is docs-only, or demoed_head exists, is the head
-#                  or an ancestor of it, and nothing outside *.md, docs/,
-#                  tests/, and .github/ landed since. Anything under
-#                  plugin/ (commands, skills, agents, hooks) is behavior,
-#                  not docs, even when it is Markdown: Claude Code
-#                  executes it.
+#   demo_exempt(f) = f is *.md, under docs/, tests/, or .github/, and is not
+#                  under plugin/ — commands, skills, agents, and hooks there
+#                  are behavior even when Markdown, because Claude Code
+#                  executes them
+#   demo_ok(pr)  = every file the PR changes is demo_exempt, or demoed_head
+#                  exists, is the head or an ancestor of it, and every file
+#                  changed since it is demo_exempt
 # A "ledger comment" is a PR comment that records one finding, its reason,
 # and the code reference. "Pre-existing", "intentional", "expected", and
 # "by design" are not reasons.
@@ -353,10 +354,11 @@ function poll_tick(pr):
             stop; the operator rules
         push once                          # every fix reaches the PR head
     close each escalated finding the operator ruled on, by its answered(f)
-        path, only once its fix commit is on the PR head and passed
-        local_review — a finding with a Qodo id through the Qodo CLI
-        (mark-implemented; or dismiss if the ruling was dismiss), because
-        a ledger line does not close it
+        path — a finding with a Qodo id through the Qodo CLI, because a
+        ledger line does not close it: a dismiss ruling closes it (dismiss)
+        as soon as the ruling is recorded; a fix ruling closes it
+        (mark-implemented) only once its fix commit is on the PR head and
+        passed local_review
     resolve each thread that is answered, one by one, never in bulk — the
         leader resolves, not the agent
     if not skipped(pr) and not pending(pr) and N == 1
