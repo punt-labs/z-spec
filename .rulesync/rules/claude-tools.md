@@ -62,7 +62,7 @@ is the leader, never the evaluator.
 
 Use the `formal` pipeline for any spec change (fuzz + probcli + report),
 `standard` for Python/skill-prompt changes, `quick` only for typo fixes that
-never touch a schema. Review-cycle fix rounds (Copilot/Bugbot findings) use a
+never touch a schema. Review-cycle fix rounds (Qodo/Bugbot findings) use a
 bare `Agent()`, not a mission.
 
 ## Z reference materials (Quarry)
