@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: DavidAnson/markdownlint-cli2-action@f76d7302a21cbcbf767d5f2ef333ff5ce91371ab # v22
+      - uses: DavidAnson/markdownlint-cli2-action@b4f136db4a9d2ffff88d04cf1328773cb4a1c7ab # v22
         with:
           globs: "**/*.md"
 
