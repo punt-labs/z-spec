@@ -47,6 +47,11 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **The fuzz source build no longer fails on compilers that default to
+  C23.** `fuzz.h` declares `typedef int bool;`, a hard error under
+  `-std=c23` (gcc 15, GitHub's `ubuntu-latest`). `install.sh` now passes
+  `CFLAGS="${CFLAGS:-} -std=gnu17"` to `./configure`, keeping any caller
+  CFLAGS; Apple clang accepts the flag too.
 - **A failed plugin uninstall now aborts the installer loudly instead of
   silently leaving the old version pinned.** `install.sh` follows the org
   standard's hardened pattern (beadle's reference implementation): detect
