@@ -45,7 +45,10 @@ def test_the_scratch_clone_is_removed_after_a_failed_build(
     assert Path(clones[0][-1]).is_absolute(), clones[0]
     # pwd -P: the physical directory, whatever symlink TMPDIR went through.
     assert Path(clones[0][-1]).parent == scratch.resolve()
-    assert run.calls("make") == [[], ["install"]], "the build never ran"
+    makes = run.calls("make")
+    assert len(makes) == 2, "the build never ran"
+    assert makes[0][-1].endswith(" -std=gnu17"), makes[0]
+    assert makes[1] == ["install"], makes[1]
     assert list(scratch.iterdir()) == [], "the scratch clone was left behind"
 
 
@@ -71,3 +74,30 @@ def test_a_cdpath_entry_does_not_double_the_scratch_path(tmp_path: Path) -> None
     assert Path(dest).is_absolute(), dest
     assert Path(dest).parent == scratch.resolve()
     assert list(scratch.iterdir()) == [], "the scratch dir was left behind"
+
+
+@pytest.mark.parametrize(
+    ("caller_cflags", "expected"),
+    [
+        ("", " -std=gnu17"),
+        ("-O2 -g", "-O2 -g -std=gnu17"),
+    ],
+    ids=["no-caller-cflags", "caller-cflags-kept"],
+)
+def test_make_pins_a_pre_c23_dialect(
+    tmp_path: Path, caller_cflags: str, expected: str
+) -> None:
+    # fuzz.h typedefs bool, a keyword from -std=c23 (gcc 15's default), so
+    # make must get -std=gnu17 appended to any CFLAGS the caller set. (It is
+    # make, not configure: fuzz's Makefile.in never substitutes CFLAGS.)
+    install = WholeInstall(
+        str(tmp_path / "home"),
+        args=("--fuzz-only",),
+        fuzz="exit 1",
+        build=True,
+        env=(("CFLAGS", caller_cflags),),
+    )
+    run = install.run(tmp_path)
+
+    builds = run.calls("make")[0]
+    assert builds == [f"CFLAGS={expected}"], builds

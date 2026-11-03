@@ -312,10 +312,14 @@ htmlcov/
 # HTTPS URL would fix the auth and still push 1 MB of internal identity data
 # (247 files: identities, personalities, writing styles) onto their disk.
 # Identity resolves from the global ~/.punt-labs/ethos/ instead, with the
-# repo-local pointer in .punt-labs/ethos.yaml, which stays tracked. The
-# trailing slash matters: it ignores the directory an `ethos` run may recreate
-# here without ignoring that file. Do NOT re-add the submodule.
-.punt-labs/ethos/
+# repo-local pointer in .punt-labs/ethos.yaml, which stays tracked. The contents
+# are ignored (not the directory) so the enabled marker and deposited guides can
+# be negated and tracked; missions/ and sessions/ stay local. Do NOT re-add the submodule.
+.punt-labs/ethos/*
+!.punt-labs/ethos/enabled
+!.punt-labs/ethos/CLAUDE.md
+!.punt-labs/ethos/ETHOS-SETUP.md
+!.punt-labs/ethos/.vendored-manifest
 
 # Quarry's per-session working files. Machine state: regenerated each session,
 # rewritten whenever the local index updates, and read by no one. Nothing here
@@ -329,3 +333,6 @@ htmlcov/
 .*.lock
 
 uv.toml
+
+# ethos runtime (never track) — DES-058 live zone + mission locks
+.punt-labs/**/*.ethos-tmp*

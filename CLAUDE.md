@@ -130,3 +130,5 @@ supersedes an old behavior, delete the old path in the same change.
 
 Beads (`bd`). Escalate to a punt-kit bead if an issue spans repos or needs a
 standards change.
+
+@.punt-labs/ethos/CLAUDE.md

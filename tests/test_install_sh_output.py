@@ -129,6 +129,9 @@ def test_probe_of_a_just_built_fuzz_strips_control_characters(
     err = run.result.stderr
     fuzz = home / ".local" / "bin" / "fuzz"
     assert run.result.returncode == 1
-    assert run.calls("make") == [[], ["install"]], "the build never ran"
+    makes = run.calls("make")
+    assert len(makes) == 2, "the build never ran"
+    assert makes[0][-1].endswith(" -std=gnu17"), makes[0]
+    assert makes[1] == ["install"], makes[1]
     assert f"  ! {fuzz} is installed but would not run:\n    {_SHOWN}\n" in err, err
     assert _no_control(err), repr(err)

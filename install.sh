@@ -731,7 +731,13 @@ install_fuzz() (
     echo "  ! ./configure --prefix=$FUZZ_HOME failed -- see the output above" >&2
     return 1
   }
-  make || {
+  # CFLAGS gets -std=gnu17 appended (a caller's CFLAGS survive in front):
+  # fuzz.h does `typedef int bool;`, which is a hard error once the compiler
+  # defaults to -std=c23, where bool is a keyword (gcc 15, GitHub's
+  # ubuntu-latest). gnu17 is accepted by gcc >= 8 and by Apple clang. It is
+  # passed to make, not configure: fuzz's Makefile.in hardcodes CC=gcc and
+  # never substitutes CFLAGS, so configure would silently drop it.
+  make CFLAGS="${CFLAGS:-} -std=gnu17" || {
     echo "  ! make failed -- see the build output above" >&2
     return 1
   }
