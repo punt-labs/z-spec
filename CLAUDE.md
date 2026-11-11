@@ -128,8 +128,9 @@ supersedes an old behavior, delete the old path in the same change.
 
 ## Issue tracking
 
-Beads (`bd`). Escalate to a punt-kit bead if an issue spans repos or needs a
-standards change.
+Read `.punt-labs/punt/CLAUDE.md` before planning or writing to the issue tracker. Linear is the tracker of record where this repo is migrated. Beads is a local mirror there and the tracker of record elsewhere.
+Escalate to punt-kit's tracker if an issue spans repos or needs a standards
+change.
 
 @.punt-labs/ethos/CLAUDE.md
 @.punt-labs/punt/CLAUDE.md
