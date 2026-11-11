@@ -132,3 +132,4 @@ Beads (`bd`). Escalate to a punt-kit bead if an issue spans repos or needs a
 standards change.
 
 @.punt-labs/ethos/CLAUDE.md
+@.punt-labs/punt/CLAUDE.md

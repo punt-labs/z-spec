@@ -201,3 +201,7 @@ rulesync would additionally register this rule a second time (root
 both — a real double-load, not just an unscoped one. Getting the guidance
 into AGENTS.md via `codexcli`/`pi` already covers opencode's users; excluding
 it from `targets` avoids the duplicate registration without losing coverage.
+
+## Issue tracking
+
+Read `.punt-labs/punt/CLAUDE.md` before planning or writing to the issue tracker. Linear is the tracker of record where this repo is migrated. Beads is a local mirror there and the tracker of record elsewhere.
