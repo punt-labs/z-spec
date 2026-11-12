@@ -33,6 +33,10 @@ bd.db
 sync_base.jsonl
 redirect
 
+# bd linear sync runtime (lock, bd prime auto-pull clock)
+.linear-sync.lock
+last_pull
+
 # Merge artifacts
 beads.base.jsonl
 beads.base.meta.json

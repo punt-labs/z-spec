@@ -6,6 +6,17 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **Linear is the tracker of record for z-spec; beads is a scoped local
+  mirror.** The 51 active beads are pushed to Linear (`PL-730`–`PL-780`,
+  team Punt Labs) each carrying the `repo:z-spec` label and a type label;
+  the correctness-sweep epic is Linear project `z-spec correctness sweep`.
+  `.beads/config.yaml` sets `issue-prefix: z-spec` and
+  `linear.pull_label: repo:z-spec` with the prefix-precedence and
+  by-id-pull notes, and `.beads/.gitignore` ignores the Linear sync lock
+  and the pull clock. The deposited tracker guide
+  (`.punt-labs/punt/CLAUDE.md`) and the `CLAUDE.md` Issue-tracking section
+  already point at Linear.
+
 - **PR review follows `punt-kit/standards/pr-review.md`.** Local review
   (`qodo review`, `silent-failure-hunter`, `code-reviewer`) runs before the PR
   opens, Qodo and Bugbot review once at open in at most two rounds, and
