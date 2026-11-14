@@ -74,20 +74,29 @@ class SettingsRules:
         with host.locked():
             data = self._parse(host.read())
             permissions = data.setdefault("permissions", {})
-            changed: tuple[str, ...] = ()
-            for tier, owned in self._rules.items():
-                if grant:
-                    have = permissions.setdefault(tier, [])
-                    added = tuple(rule for rule in owned if rule not in have)
-                    have.extend(added)
-                    changed += added
-                else:
-                    have = permissions.get(tier, [])
-                    changed += tuple(rule for rule in owned if rule in have)
-                    have[:] = [rule for rule in have if rule not in owned]
+            changed = tuple(
+                rule
+                for tier, owned in self._rules.items()
+                for rule in self._edit(
+                    permissions.setdefault(tier, []), owned, grant=grant
+                )
+            )
             if changed:
                 host.write(json.dumps(data, indent=2) + "\n")
             return changed
+
+    @staticmethod
+    def _edit(
+        have: list[str], owned: tuple[str, ...], *, grant: bool
+    ) -> tuple[str, ...]:
+        """Add the missing *owned* rules to *have*, or remove them; return those."""
+        if grant:
+            added = tuple(rule for rule in owned if rule not in have)
+            have.extend(added)
+            return added
+        removed = tuple(rule for rule in owned if rule in have)
+        have[:] = [rule for rule in have if rule not in owned]
+        return removed
 
     def _refuse_unsafe(self) -> None:
         if self._root.resolve() == Path.home().resolve():
