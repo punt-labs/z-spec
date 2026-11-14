@@ -263,15 +263,16 @@ class RepoEnablement:
     def enable(self) -> tuple[str, ...]:
         """Reach the enabled state from anywhere; idempotent, and the upgrade path.
 
-        Order is crash-safety, not taste (§2.3): the guide first, so the import
-        never points at a missing file; then the import line; the marker
-        **last**, because the marker is what the MCP gate reads. If any earlier
-        step raises, the repo is left observably off rather than half on.
-        Returns the allow rules added to ``.claude/settings.json``.
+        Order is crash-safety, not taste (§2.3): the settings rules first, so a
+        refused settings file aborts before anything changed; the guide next,
+        so the import never points at a missing file; then the import line; the
+        marker **last**, because the marker is what the MCP gate reads. If any
+        earlier step raises, the repo is left observably off rather than half
+        on. Returns the allow rules added to ``.claude/settings.json``.
         """
+        added = self._settings.register()
         self._guide.deposit()
         self._import.register()
-        added = self._settings.register()
         self._marker.write()
         return added
 

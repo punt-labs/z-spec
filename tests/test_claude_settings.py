@@ -151,3 +151,26 @@ def test_a_refused_disable_leaves_the_repo_enabled(tmp_path: Path) -> None:
         repo.disable()
     assert repo.is_enabled()
     assert (tmp_path / "CLAUDE.md").read_text() == claude_md
+
+
+def test_a_refused_enable_leaves_the_repo_untouched(tmp_path: Path) -> None:
+    (tmp_path / ".git").mkdir()
+    _settings(tmp_path).parent.mkdir()
+    _settings(tmp_path).write_text("{not json")
+    repo = RepoEnablement.for_repo(tmp_path)
+
+    with pytest.raises(SettingsRefusedError):
+        repo.enable()
+    assert not repo.is_enabled()
+    assert not (tmp_path / "CLAUDE.md").exists()
+
+
+def test_a_symlinked_lock_is_not_followed(tmp_path: Path) -> None:
+    victim = tmp_path / "victim"
+    victim.write_text("keep me")
+    _settings(tmp_path).parent.mkdir()
+    (tmp_path / ".claude" / ".settings.json.punt-import.lock").symlink_to(victim)
+
+    with pytest.raises(OSError):
+        SettingsRules(tmp_path).register()
+    assert victim.read_text() == "keep me"
