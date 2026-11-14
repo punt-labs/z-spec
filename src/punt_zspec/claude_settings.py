@@ -20,12 +20,14 @@ __all__ = ["ZSPEC_RULES", "SettingsRefusedError", "SettingsRules"]
 # allow, so the carve-outs prompt while new safe commands work unprompted. The
 # carve-outs change enablement or permissions (enable, disable, the enablement
 # MCP tool and its skills) or install software (``z-spec mcp``, /z-spec:setup,
-# whose allowed-tools run brew, curl, make). No ``z-spec-dev`` rule: the dev
-# plugin only exists in a maintainer's checkout. Disable removes these exact
-# values from both lists.
+# whose allowed-tools run brew, curl, make). ``Bash(z-spec -*)`` asks for a
+# global option before the verb, which the verb rules would not match. No
+# ``z-spec-dev`` rule: the dev plugin only exists in a maintainer's checkout.
+# Disable removes these exact values from both lists.
 ZSPEC_RULES: Final[dict[str, tuple[str, ...]]] = {
     "allow": ("Bash(z-spec:*)", "mcp__plugin_z-spec_zspec__*", "Skill(z-spec:*)"),
     "ask": (
+        "Bash(z-spec -*)",
         *(f"Bash(z-spec {verb}:*)" for verb in ("enable", "disable", "mcp")),
         "mcp__plugin_z-spec_zspec__enablement",
         *(f"Skill(z-spec:{cmd})" for cmd in ("enable", "disable", "setup")),

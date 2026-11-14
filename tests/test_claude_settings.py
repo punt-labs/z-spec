@@ -46,6 +46,7 @@ def test_each_surface_is_allowed_broadly_with_exact_ask_carve_outs() -> None:
     )
     assert "mcp__plugin_z-spec_zspec__enablement" in _ASK
     cli = {f"Bash(z-spec {verb}:*)" for verb in ("enable", "disable", "mcp")}
+    cli.add("Bash(z-spec -*)")
     assert cli <= set(_ASK)
     skills = {rule for rule in _ASK if rule.startswith("Skill(")}
     assert skills == {f"Skill(z-spec:{cmd})" for cmd in gated}
