@@ -69,7 +69,10 @@ class AtomicFile:
         second would clobber the first. This serializes them.
         """
         self._lock_path.parent.mkdir(parents=True, exist_ok=True)
-        with self._lock_path.open("w", encoding="utf-8") as lock:
+        # O_NOFOLLOW and no O_TRUNC: a lock planted as a symlink in a checkout
+        # must not redirect the open, let alone truncate the target.
+        fd = os.open(self._lock_path, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o644)
+        with os.fdopen(fd, "w", encoding="utf-8") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             try:
                 yield
