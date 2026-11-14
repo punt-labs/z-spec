@@ -16,6 +16,23 @@ from punt_zspec.atomic_file import AtomicFile
 
 __all__ = ["ZSPEC_RULES", "SettingsRefusedError", "SettingsRules"]
 
+# Least privilege (permissions.md §§ 3, 6): the CLI data plane by name, so
+# enable/disable/mcp keep prompting, and skills by scoped name. /z-spec:setup is
+# left out: its allowed-tools (brew, curl, make, chmod ...) install software and
+# would run unprompted once the skill is allowed.
+_CLI_SUBCOMMANDS: Final = (
+    "animate",
+    "audit",
+    "browse",
+    "check",
+    "doctor",
+    "model-check",
+    "partition",
+    "pick",
+    "report",
+    "show",
+    "test",
+)
 _COMMANDS: Final = (
     "audit",
     "b-animate",
@@ -36,7 +53,6 @@ _COMMANDS: Final = (
     "partition",
     "prove",
     "refine",
-    "setup",
     "test",
 )
 
@@ -45,8 +61,8 @@ _COMMANDS: Final = (
 # set until no enabled repo can still carry it. No ``z-spec-dev`` rule: the dev
 # plugin only exists in a maintainer's checkout.
 ZSPEC_RULES: Final = (
-    "Bash(z-spec:*)",
     "mcp__plugin_z-spec_zspec__*",
+    *(f"Bash(z-spec {name}:*)" for name in _CLI_SUBCOMMANDS),
     *(f"Skill(z-spec:{name})" for name in _COMMANDS),
 )
 

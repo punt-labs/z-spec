@@ -31,10 +31,15 @@ def test_rules_cover_cli_mcp_and_every_shipped_command() -> None:
     shipped = {
         f"Skill(z-spec:{path.stem})"
         for path in _COMMANDS_DIR.glob("*.md")
-        if not path.stem.endswith("-dev")
+        if not path.stem.endswith("-dev") and path.stem != "setup"
     }
-    assert ZSPEC_RULES[:2] == ("Bash(z-spec:*)", "mcp__plugin_z-spec_zspec__*")
-    assert set(ZSPEC_RULES[2:]) == shipped
+    skills = {rule for rule in ZSPEC_RULES if rule.startswith("Skill(")}
+    cli = {rule for rule in ZSPEC_RULES if rule.startswith("Bash(")}
+    assert ZSPEC_RULES[0] == "mcp__plugin_z-spec_zspec__*"
+    assert skills == shipped
+    assert "Bash(z-spec:*)" not in cli
+    assert not cli & {f"Bash(z-spec {verb}:*)" for verb in ("enable", "disable", "mcp")}
+    assert len(ZSPEC_RULES) == len(set(ZSPEC_RULES))
     assert not any("-dev" in rule for rule in ZSPEC_RULES)
 
 

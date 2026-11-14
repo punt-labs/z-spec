@@ -24,8 +24,10 @@ All notable changes to this project will be documented in this file.
   `docs/WORKFLOW.md` carries the new terms, poll loop, and merge gate.
 
 - **`z-spec enable` allows z-spec in the repo's `.claude/settings.json`.** It
-  adds `Bash(z-spec:*)`, `mcp__plugin_z-spec_zspec__*` and a
-  `Skill(z-spec:<command>)` rule per shipped command, keeps every other entry,
+  adds `mcp__plugin_z-spec_zspec__*`, a `Bash(z-spec <subcommand>:*)` rule per
+  data-plane subcommand (`enable`, `disable` and `mcp` keep prompting) and a
+  `Skill(z-spec:<command>)` rule per shipped command except `setup`, whose
+  `allowed-tools` install software, keeps every other entry,
   and prints the rules it added; `z-spec disable` removes exactly those. A
   malformed, non-UTF-8 or symlinked settings file, a symlinked `.claude/`, and
   the home directory are refused untouched. No `z-spec-dev` rule is granted and
