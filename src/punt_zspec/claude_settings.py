@@ -78,7 +78,11 @@ class SettingsRules:
                 rule
                 for tier, owned in self._rules.items()
                 for rule in self._edit(
-                    permissions.setdefault(tier, []), owned, grant=grant
+                    permissions.setdefault(tier, [])
+                    if grant
+                    else permissions.get(tier, []),
+                    owned,
+                    grant=grant,
                 )
             )
             if changed:

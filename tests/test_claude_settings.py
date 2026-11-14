@@ -88,6 +88,15 @@ def test_prune_removes_exactly_the_owned_rules(tmp_path: Path) -> None:
     assert _tier(tmp_path, "ask") == ["Z"]
 
 
+def test_prune_adds_no_tier_the_file_lacks(tmp_path: Path) -> None:
+    _write(tmp_path, {"permissions": {"allow": ["Read", *_ALLOW]}})
+
+    assert SettingsRules(tmp_path).prune() == _ALLOW
+    assert json.loads(_settings(tmp_path).read_text()) == {
+        "permissions": {"allow": ["Read"]}
+    }
+
+
 def test_prune_without_a_settings_file_creates_nothing(tmp_path: Path) -> None:
     assert SettingsRules(tmp_path).prune() == ()
     assert not (tmp_path / ".claude").exists()
