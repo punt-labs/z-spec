@@ -245,7 +245,7 @@ z-spec doctor                               # Check tool availability
 ```
 
 ```bash
-z-spec enable                               # Turn z-spec on in this repo (writes the marker)
+z-spec enable                               # Turn z-spec on in this repo (writes the marker; allows z-spec in .claude/settings.json)
 ```
 
 ```bash
