@@ -40,6 +40,7 @@ def test_to_dict_carries_the_verb_and_the_resulting_state() -> None:
         "marker": str(Path("/repo/.punt-labs/z-spec/enabled")),
         "guide": str(Path("/repo/.punt-labs/z-spec/CLAUDE.md")),
         "import_line": "@.punt-labs/z-spec/CLAUDE.md",
+        "permissions": [],
     }
 
 
@@ -70,3 +71,19 @@ def test_render_asks_for_the_removal_to_be_committed_when_off() -> None:
 
     assert text.startswith("z-spec disabled in")
     assert text.endswith("Commit its removal so the repo stays off for everyone.")
+
+
+def test_render_lists_the_permission_rules_changed() -> None:
+    report = EnablementReport(
+        action=EnablementAction.enable,
+        root=Path("/repo"),
+        marker=Path("/repo/m"),
+        guide=Path("/repo/g"),
+        import_line="@.punt-labs/z-spec/CLAUDE.md",
+        enabled=True,
+        permissions=("Bash(z-spec:*)",),
+    )
+
+    assert "permissions allowed in .claude/settings.json: Bash(z-spec:*)" in (
+        report.render()
+    )
