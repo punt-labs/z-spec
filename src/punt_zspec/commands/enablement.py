@@ -11,7 +11,7 @@ the canonical ``@.punt-labs/z-spec/CLAUDE.md`` import in the repo ``CLAUDE.md``
 (§2.4). Every transition preserves the §2.11 biconditional — the marker is
 present exactly when the import line is.
 
-A fourth, independent fact is z-spec's allow rules in
+A fourth, independent fact is z-spec's permission rules in
 ``<repo>/.claude/settings.json`` (§2.8): ``enable`` adds them, ``disable``
 removes exactly them, and every other entry in the file is kept.
 """
@@ -268,7 +268,7 @@ class RepoEnablement:
         so the import never points at a missing file; then the import line; the
         marker **last**, because the marker is what the MCP gate reads. If any
         earlier step raises, the repo is left observably off rather than half
-        on. Returns the allow rules added to ``.claude/settings.json``.
+        on. Returns the allow and ask rules added to ``.claude/settings.json``.
         """
         added = self._settings.register()
         self._guide.deposit()
@@ -284,7 +284,7 @@ class RepoEnablement:
         moment the marker does. The rest of ``.punt-labs/z-spec/`` is left
         exactly as found — ``disable`` stops composition, it does not erase
         committed content.
-        Returns the allow rules removed from ``.claude/settings.json``.
+        Returns the allow and ask rules removed from ``.claude/settings.json``.
         """
         removed = self._settings.prune()
         self._import.prune()

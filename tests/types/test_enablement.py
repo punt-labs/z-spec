@@ -84,6 +84,6 @@ def test_render_lists_the_permission_rules_changed() -> None:
         permissions=("Bash(z-spec:*)",),
     )
 
-    assert "permissions allowed in .claude/settings.json: Bash(z-spec:*)" in (
+    assert "permission rules added to .claude/settings.json: Bash(z-spec:*)" in (
         report.render()
     )

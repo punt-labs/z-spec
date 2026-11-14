@@ -70,6 +70,6 @@ class EnablementReport:
     def _permission_lines(self) -> tuple[str, ...]:
         if not self.permissions:
             return ()
-        verb = "allowed in" if self.enabled else "removed from"
+        verb = "added to" if self.enabled else "removed from"
         rules = ", ".join(self.permissions)
-        return (f"  permissions {verb} .claude/settings.json: {rules}",)
+        return (f"  permission rules {verb} .claude/settings.json: {rules}",)

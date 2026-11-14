@@ -1,7 +1,7 @@
-"""z-spec's allow rules in the repo's ``.claude/settings.json``.
+"""z-spec's permission rules in the repo's ``.claude/settings.json``.
 
 ``z-spec enable`` is the user's consent to let Claude run z-spec without a
-prompt in this repo, so it adds the CLI, MCP and command rules below; ``z-spec
+prompt in this repo, so it adds the allow and ask rules below; ``z-spec
 disable`` removes these exact values. Nothing here touches the user-global
 ``~/.claude/settings.json`` (punt-kit ``permissions.md`` §6).
 """
@@ -16,55 +16,21 @@ from punt_zspec.atomic_file import AtomicFile
 
 __all__ = ["ZSPEC_RULES", "SettingsRefusedError", "SettingsRules"]
 
-# Least privilege (permissions.md §§ 3, 6): the CLI data plane by name, so
-# enable/disable/mcp keep prompting, and skills by scoped name. /z-spec:setup is
-# left out: its allowed-tools (brew, curl, make, chmod ...) install software and
-# would run unprompted once the skill is allowed.
-_CLI_SUBCOMMANDS: Final = (
-    "animate",
-    "audit",
-    "browse",
-    "check",
-    "doctor",
-    "model-check",
-    "partition",
-    "pick",
-    "report",
-    "show",
-    "test",
-)
-_COMMANDS: Final = (
-    "audit",
-    "b-animate",
-    "b-check",
-    "b-create",
-    "b-refine",
-    "check",
-    "cleanup",
-    "code2model",
-    "contracts",
-    "disable",
-    "doctor",
-    "elaborate",
-    "enable",
-    "help",
-    "model2code",
-    "oracle",
-    "partition",
-    "prove",
-    "refine",
-    "test",
-)
-
-# The deterministic rule set: enable adds every missing member, disable removes
-# these exact values. A rule retired here strands on disable, so it stays in the
-# set until no enabled repo can still carry it. No ``z-spec-dev`` rule: the dev
-# plugin only exists in a maintainer's checkout.
-ZSPEC_RULES: Final = (
-    "mcp__plugin_z-spec_zspec__*",
-    *(f"Bash(z-spec {name}:*)" for name in _CLI_SUBCOMMANDS),
-    *(f"Skill(z-spec:{name})" for name in _COMMANDS),
-)
+# Broad allow per surface, exact ask carve-outs (permissions.md § 6): ask beats
+# allow, so the carve-outs prompt while new safe commands work unprompted. The
+# carve-outs change enablement or permissions (enable, disable, the enablement
+# MCP tool and its skills) or install software (``z-spec mcp``, /z-spec:setup,
+# whose allowed-tools run brew, curl, make). No ``z-spec-dev`` rule: the dev
+# plugin only exists in a maintainer's checkout. Disable removes these exact
+# values from both lists.
+ZSPEC_RULES: Final[dict[str, tuple[str, ...]]] = {
+    "allow": ("Bash(z-spec:*)", "mcp__plugin_z-spec_zspec__*", "Skill(z-spec:*)"),
+    "ask": (
+        *(f"Bash(z-spec {verb}:*)" for verb in ("enable", "disable", "mcp")),
+        "mcp__plugin_z-spec_zspec__enablement",
+        *(f"Skill(z-spec:{cmd})" for cmd in ("enable", "disable", "setup")),
+    ),
+}
 
 
 class SettingsRefusedError(OSError):
@@ -73,13 +39,15 @@ class SettingsRefusedError(OSError):
 
 @final
 class SettingsRules:
-    """Owns a fixed set of ``permissions.allow`` entries in one settings file."""
+    """Owns fixed ``permissions.allow`` and ``permissions.ask`` entries in one file."""
 
     _root: Path
-    _rules: tuple[str, ...]
+    _rules: dict[str, tuple[str, ...]]
     __slots__ = ("_root", "_rules")
 
-    def __new__(cls, root: Path, rules: tuple[str, ...] = ZSPEC_RULES) -> Self:
+    def __new__(
+        cls, root: Path, rules: dict[str, tuple[str, ...]] = ZSPEC_RULES
+    ) -> Self:
         self = super().__new__(cls)
         self._root = root
         self._rules = rules
@@ -105,13 +73,18 @@ class SettingsRules:
         host = AtomicFile(self.path)
         with host.locked():
             data = self._parse(host.read())
-            allow = data.setdefault("permissions", {}).setdefault("allow", [])
-            if grant:
-                changed = tuple(rule for rule in self._rules if rule not in allow)
-                allow.extend(changed)
-            else:
-                changed = tuple(rule for rule in self._rules if rule in allow)
-                allow[:] = [rule for rule in allow if rule not in self._rules]
+            permissions = data.setdefault("permissions", {})
+            changed: tuple[str, ...] = ()
+            for tier, owned in self._rules.items():
+                if grant:
+                    have = permissions.setdefault(tier, [])
+                    added = tuple(rule for rule in owned if rule not in have)
+                    have.extend(added)
+                    changed += added
+                else:
+                    have = permissions.get(tier, [])
+                    changed += tuple(rule for rule in owned if rule in have)
+                    have[:] = [rule for rule in have if rule not in owned]
             if changed:
                 host.write(json.dumps(data, indent=2) + "\n")
             return changed
@@ -142,8 +115,9 @@ class SettingsRules:
         if not isinstance(permissions, dict):
             msg = f"{self.path} has no editable permissions object"
             raise SettingsRefusedError(msg)
-        allow: object = cast("dict[str, Any]", permissions).get("allow", [])
-        if not isinstance(allow, list):
-            msg = f"{self.path} has no editable permissions.allow list"
-            raise SettingsRefusedError(msg)
+        for tier in self._rules:
+            rules: object = cast("dict[str, Any]", permissions).get(tier, [])
+            if not isinstance(rules, list):
+                msg = f"{self.path} has no editable permissions.{tier} list"
+                raise SettingsRefusedError(msg)
         return parsed

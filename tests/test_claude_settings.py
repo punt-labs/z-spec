@@ -1,4 +1,4 @@
-"""z-spec's allow rules in the repo's ``.claude/settings.json``."""
+"""z-spec's allow and ask rules in the repo's ``.claude/settings.json``."""
 
 from __future__ import annotations
 
@@ -27,29 +27,44 @@ def _allow(root: Path) -> list[str]:
     return list(data["permissions"]["allow"])
 
 
-def test_rules_cover_cli_mcp_and_every_shipped_command() -> None:
-    shipped = {
-        f"Skill(z-spec:{path.stem})"
-        for path in _COMMANDS_DIR.glob("*.md")
-        if not path.stem.endswith("-dev") and path.stem != "setup"
-    }
-    skills = {rule for rule in ZSPEC_RULES if rule.startswith("Skill(")}
-    cli = {rule for rule in ZSPEC_RULES if rule.startswith("Bash(")}
-    assert ZSPEC_RULES[0] == "mcp__plugin_z-spec_zspec__*"
-    assert skills == shipped
-    assert "Bash(z-spec:*)" not in cli
-    assert not cli & {f"Bash(z-spec {verb}:*)" for verb in ("enable", "disable", "mcp")}
-    assert len(ZSPEC_RULES) == len(set(ZSPEC_RULES))
-    assert not any("-dev" in rule for rule in ZSPEC_RULES)
+_ALLOW = ZSPEC_RULES["allow"]
+_ASK = ZSPEC_RULES["ask"]
+_ALL = (*_ALLOW, *_ASK)
+
+
+def _tier(root: Path, tier: str) -> list[str]:
+    data = json.loads(_settings(root).read_text())
+    return list(data["permissions"].get(tier, []))
+
+
+def test_each_surface_is_allowed_broadly_with_exact_ask_carve_outs() -> None:
+    gated = ("enable", "disable", "setup")
+    assert _ALLOW == (
+        "Bash(z-spec:*)",
+        "mcp__plugin_z-spec_zspec__*",
+        "Skill(z-spec:*)",
+    )
+    assert "mcp__plugin_z-spec_zspec__enablement" in _ASK
+    cli = {f"Bash(z-spec {verb}:*)" for verb in ("enable", "disable", "mcp")}
+    assert cli <= set(_ASK)
+    skills = {rule for rule in _ASK if rule.startswith("Skill(")}
+    assert skills == {f"Skill(z-spec:{cmd})" for cmd in gated}
+    assert all((_COMMANDS_DIR / f"{cmd}.md").is_file() for cmd in gated)
+    assert len(_ALL) == len(set(_ALL))
+    assert not any("-dev" in rule for rule in _ALL)
 
 
 def test_register_creates_the_file_with_every_rule(tmp_path: Path) -> None:
-    assert SettingsRules(tmp_path).register() == ZSPEC_RULES
-    assert _allow(tmp_path) == list(ZSPEC_RULES)
+    assert SettingsRules(tmp_path).register() == _ALL
+    assert _allow(tmp_path) == list(_ALLOW)
+    assert _tier(tmp_path, "ask") == list(_ASK)
 
 
 def test_register_keeps_other_settings_and_is_idempotent(tmp_path: Path) -> None:
-    _write(tmp_path, {"model": "x", "permissions": {"allow": ["Read"], "deny": ["Y"]}})
+    _write(
+        tmp_path,
+        {"model": "x", "permissions": {"allow": ["Read"], "ask": ["Z"], "deny": ["Y"]}},
+    )
     rules = SettingsRules(tmp_path)
 
     rules.register()
@@ -58,14 +73,19 @@ def test_register_keeps_other_settings_and_is_idempotent(tmp_path: Path) -> None
     data = json.loads(_settings(tmp_path).read_text())
     assert data["model"] == "x"
     assert data["permissions"]["deny"] == ["Y"]
-    assert data["permissions"]["allow"] == ["Read", *ZSPEC_RULES]
+    assert data["permissions"]["allow"] == ["Read", *_ALLOW]
+    assert data["permissions"]["ask"] == ["Z", *_ASK]
 
 
 def test_prune_removes_exactly_the_owned_rules(tmp_path: Path) -> None:
-    _write(tmp_path, {"permissions": {"allow": ["Read", *ZSPEC_RULES, "Bash(x)"]}})
+    _write(
+        tmp_path,
+        {"permissions": {"allow": ["Read", *_ALLOW, "Bash(x)"], "ask": [*_ASK, "Z"]}},
+    )
 
-    assert SettingsRules(tmp_path).prune() == ZSPEC_RULES
+    assert SettingsRules(tmp_path).prune() == _ALL
     assert _allow(tmp_path) == ["Read", "Bash(x)"]
+    assert _tier(tmp_path, "ask") == ["Z"]
 
 
 def test_prune_without_a_settings_file_creates_nothing(tmp_path: Path) -> None:
@@ -75,7 +95,12 @@ def test_prune_without_a_settings_file_creates_nothing(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "content",
-    [b"{not json", b'{"permissions": {"allow": "Read"}}', b'{"a": "\xff"}'],
+    [
+        b"{not json",
+        b'{"permissions": {"allow": "Read"}}',
+        b'{"permissions": {"ask": null}}',
+        b'{"a": "\xff"}',
+    ],
 )
 def test_an_unparseable_file_is_refused_untouched(
     tmp_path: Path, content: bytes
@@ -124,10 +149,11 @@ def test_enable_then_disable_round_trips_the_rules(tmp_path: Path) -> None:
     _write(tmp_path, {"permissions": {"allow": ["Read"]}})
     enablement = RepoEnablement.for_repo(tmp_path)
 
-    assert enablement.enable() == ZSPEC_RULES
-    assert _allow(tmp_path) == ["Read", *ZSPEC_RULES]
-    assert enablement.disable() == ZSPEC_RULES
+    assert enablement.enable() == _ALL
+    assert _allow(tmp_path) == ["Read", *_ALLOW]
+    assert enablement.disable() == _ALL
     assert _allow(tmp_path) == ["Read"]
+    assert _tier(tmp_path, "ask") == []
 
 
 @pytest.mark.parametrize("permissions", [None, [], "x"])
