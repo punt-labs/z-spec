@@ -5,7 +5,7 @@ against the working tree, how a release swaps between dev and prod plugin
 names, and how the plugin directory is laid out. Most of this only matters if
 you are editing z-spec itself.
 
-For quality-gate commands, see the [Development section of the README](../README.md#development).
+For quality-gate commands, see [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Dev/prod namespace isolation
 
