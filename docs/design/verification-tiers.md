@@ -293,7 +293,7 @@ non-deterministic; the file on disk is not.
 
 The post's first strategy is "push behaviour down the spectrum" (blog:223–225).
 Every capability sitting in a prompt that could be deterministic code is a
-verification problem that need not exist. Beads `z-spec-uq7`, `z-spec-l05` and
+verification problem that need not exist. Tracker items `z-spec-uq7`, `z-spec-l05` and
 `z-spec-oj3` already ask this of the corpus.
 
 ### 5.1 Push the *oracle* down before you push the *behaviour* down
@@ -363,7 +363,7 @@ Ordered by ratio of verifiability bought to work required.
 
 1. `partition` (2,800 words) and `audit` (1,344 words) do all TTF decomposition
    and constraint extraction in the model; the Python layer only validates and
-   persists the JSON (`src/punt_zspec/commands/partition.py:57-81`). Beads
+   persists the JSON (`src/punt_zspec/commands/partition.py:57-81`). Tracker items
    `z-spec-l05` and `z-spec-oj3` propose moving the extraction into code. The
    blocker is real and I will not understate it: `parse_spec`
    (`src/punt_zspec/parser.py:192`) yields `ZBlock.predicates` as a raw string

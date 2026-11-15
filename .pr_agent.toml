@@ -24,7 +24,7 @@ Never suggest modernizing Z notation in .tex specs: keep \\quad~ continuation li
 compliance_user_guidelines = """
 Apply code rules only: correctness, typing, error handling, security, and the coding standards for the changed files.
 Do not grade PR titles, PR descriptions, commit messages, or CHANGELOG wording.
-Do not grade agent process rules from CLAUDE.md, AGENTS.md, or WORKFLOW.md (missions, beads, review cycles, delegation).
+Do not grade agent process rules from CLAUDE.md, AGENTS.md, or WORKFLOW.md (missions, issue tracking, review cycles, delegation).
 """
 smart_router_extra_instructions = """
 High risk: src/punt_zspec/prob.py and src/punt_zspec/fuzz.py (they spawn external binaries on user-supplied paths), src/punt_zspec/parser.py, src/punt_zspec/atomic_file.py,

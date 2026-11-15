@@ -270,9 +270,9 @@ Per the L1/L4 boundary (blog post):
 
 ---
 
-## Relationship to Other Beads
+## Relationship to Other Work Items
 
-| Bead | Relationship |
+| Item | Relationship |
 |------|-------------|
 | `lux-t1p` (display mode toggle) | Prerequisite for all phases |
 | `claude-z-spec-plugin-uq7` (L1 tooling) | Convention checker and coverage auditor could feed Phase 1 dashboard |
