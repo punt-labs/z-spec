@@ -64,6 +64,14 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **An unclosed code fence in `CLAUDE.md` runs to the end of the file
+  (PL-1087).** Claude Code's Markdown lexer treats a fence that never closes
+  as code through EOF, so an `@`-import after it never loads. `z-spec enable`
+  now refuses, before writing any settings rule, the guide, or the marker,
+  instead of appending an inert import; an import before the open fence is
+  unaffected, and `disable` leaves an inert copy alone. A triple-backtick
+  inline span such as ```` ```x``` ```` is not a fence.
+
 - **The fuzz source build no longer fails on compilers that default to
   C23.** `fuzz.h` declares `typedef int bool;`, a hard error under
   `-std=c23` (gcc 15, GitHub's `ubuntu-latest`). `install.sh` now passes

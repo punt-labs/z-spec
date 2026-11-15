@@ -8,10 +8,9 @@ the write contract; this module owns that single line and nothing else.
 
 Claude Code resolves ``@``-imports only at top level, so a line inside a fenced
 or indented code block is inert and must be ignored by both the presence scan
-and the removal. Fence semantics follow §2.4's balanced-pair definition — an
-unterminated opener delimits nothing, or one stray fence in the user's prose
-would flip the classification of the tool's own line and make ``enable``
-duplicate it and ``disable`` unable to remove it.
+and the removal; :class:`~punt_zspec.markdown_fence.CodeBlockMap` classifies
+the lines. A fence that never closes runs to the end of the file, so an import
+appended below it would never load: ``register`` refuses instead.
 """
 
 from __future__ import annotations
@@ -19,15 +18,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Self, final
 
 from punt_zspec.atomic_file import AtomicFile
+from punt_zspec.markdown_fence import CodeBlockMap, UnclosedFenceError
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 __all__ = ["ClaudeMdImport", "MarkdownLines"]
-
-_FENCE_CHARS = "`~"
-_MIN_FENCE = 3
-_INDENT_CODE = 4
 
 
 @final
@@ -38,14 +34,14 @@ class MarkdownLines:
     after a line is dropped.
     """
 
+    _blocks: CodeBlockMap
     _lines: tuple[str, ...]
-    _top_level: tuple[bool, ...]
-    __slots__ = ("_lines", "_top_level")
+    __slots__ = ("_blocks", "_lines")
 
     def __new__(cls, text: str) -> Self:
         self = super().__new__(cls)
         self._lines = tuple(text.splitlines(keepends=True))
-        self._top_level = cls._classify(self._lines)
+        self._blocks = CodeBlockMap(self._lines)
         return self
 
     def contains(self, target: str) -> bool:
@@ -60,7 +56,7 @@ class MarkdownLines:
         """
         return "".join(
             line
-            for line, top in zip(self._lines, self._top_level, strict=True)
+            for line, top in zip(self._lines, self._blocks.top_level, strict=True)
             if not (top and self._matches(line, target))
         )
 
@@ -69,12 +65,21 @@ class MarkdownLines:
 
         Ensures a separating newline first, so the import is never glued to the
         user's last line, and uses the document's own EOL convention for both.
+        Raises :class:`UnclosedFenceError` when the document ends inside a
+        fence that never closes, where the appended line would be inert.
         """
+        self.check_appendable()
         text = "".join(self._lines)
         eol = self.eol()
         if text and not text.endswith(("\n", "\r")):
             text += eol
         return f"{text}{target}{eol}"
+
+    def check_appendable(self) -> None:
+        """Raise :class:`UnclosedFenceError` if a line appended here would be code."""
+        if self._blocks.open_at_eof:
+            msg = "CLAUDE.md ends inside an unclosed code fence; close it first"
+            raise UnclosedFenceError(msg)
 
     def eol(self) -> str:
         """Return the document's EOL convention, defaulting to ``\\n``."""
@@ -89,75 +94,15 @@ class MarkdownLines:
 
     def _top_level_lines(self) -> tuple[str, ...]:
         return tuple(
-            line for line, top in zip(self._lines, self._top_level, strict=True) if top
+            line
+            for line, top in zip(self._lines, self._blocks.top_level, strict=True)
+            if top
         )
 
     @staticmethod
     def _matches(line: str, target: str) -> bool:
         """Match a physical line against *target*, net of its terminator."""
         return line.rstrip("\r\n") == target
-
-    @classmethod
-    def _classify(cls, lines: tuple[str, ...]) -> tuple[bool, ...]:
-        """Flag each line ``True`` when it is top level (not in a code block).
-
-        Content and the closing delimiter of a matched fenced block are inside;
-        the opening delimiter is not. An indented line — a tab or four or more
-        leading spaces — is an indented-code line and never top level.
-        """
-        inside: set[int] = set()
-        for open_idx, close_idx in cls._fenced_ranges(lines):
-            inside.update(range(open_idx + 1, close_idx + 1))
-        return tuple(
-            i not in inside and not cls._indented(line) for i, line in enumerate(lines)
-        )
-
-    @classmethod
-    def _fenced_ranges(cls, lines: tuple[str, ...]) -> list[tuple[int, int]]:
-        """Return the ``(open, close)`` index pairs of matched fenced blocks.
-
-        A block opened by a run of *N* of a marker closes only on a later
-        same-marker delimiter of length ``>= N``; a mismatched marker or a
-        shorter run is content, not a close. An unterminated opener is dropped,
-        so a dangling fence never swallows the rest of the file.
-        """
-        ranges: list[tuple[int, int]] = []
-        opened_at: int | None = None  # None = no block open (PY-TS-14: a state)
-        marker, length = "", 0
-        for i, line in enumerate(lines):
-            fence = cls._parse_fence(line)
-            if opened_at is None:
-                if fence is not None:
-                    opened_at, (marker, length) = i, fence
-            elif fence is not None and fence[0] == marker and fence[1] >= length:
-                ranges.append((opened_at, i))
-                opened_at = None
-        return ranges
-
-    @staticmethod
-    def _parse_fence(line: str) -> tuple[str, int] | None:
-        """Return ``(marker, run length)`` when *line* is a fence delimiter.
-
-        ``None`` (PY-TS-14) means "not a delimiter" — the documented contract,
-        not a failure. An indented line is inert and never a delimiter, even
-        when it opens with backticks: treating it as one would toggle the block
-        state and flip the classification of every following line.
-        """
-        bare = line.rstrip("\r\n")
-        stripped = bare.lstrip(" ")
-        if bare.startswith("\t") or len(bare) - len(stripped) >= _INDENT_CODE:
-            return None
-        if not stripped or stripped[0] not in _FENCE_CHARS:
-            return None
-        marker = stripped[0]
-        run = len(stripped) - len(stripped.lstrip(marker))
-        return (marker, run) if run >= _MIN_FENCE else None
-
-    @staticmethod
-    def _indented(line: str) -> bool:
-        return (
-            line.startswith("\t") or len(line) - len(line.lstrip(" ")) >= _INDENT_CODE
-        )
 
 
 @final
@@ -193,7 +138,9 @@ class ClaudeMdImport:
         """Append the import line if absent. Return whether the file changed.
 
         Idempotent: a line already present (net of its terminator, top level
-        only) is a no-op, so re-running ``enable`` never duplicates it.
+        only) is a no-op, so re-running ``enable`` never duplicates it. Raises
+        :class:`UnclosedFenceError` rather than append an import that would sit
+        inside a fence that never closes.
         """
         with self._host.locked():
             doc = MarkdownLines(self._host.read())
@@ -201,6 +148,16 @@ class ClaudeMdImport:
                 return False
             self._host.write(doc.with_appended(self._line))
             return True
+
+    def check_registrable(self) -> None:
+        """Raise :class:`UnclosedFenceError` if :meth:`register` would refuse.
+
+        Lets ``enable`` refuse before it writes any settings rule; ``register``
+        repeats the check under the lock.
+        """
+        doc = MarkdownLines(self._host.read())
+        if not doc.contains(self._line):
+            doc.check_appendable()
 
     def prune(self) -> bool:
         """Remove every top-level occurrence. Return whether the file changed."""

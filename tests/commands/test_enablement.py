@@ -12,6 +12,7 @@ from punt_zspec.commands.enablement import (
     RepoEnablement,
 )
 from punt_zspec.commands.result import CommandFailure
+from punt_zspec.markdown_fence import UnclosedFenceError
 from punt_zspec.types import EnablementAction
 
 
@@ -80,6 +81,34 @@ def test_a_failed_redeposit_leaves_the_existing_guide_whole(tmp_path: Path) -> N
         guide.parent.chmod(0o700)
 
     assert guide.read_text(encoding="utf-8") == deposited
+
+
+def test_enable_refuses_a_claude_md_ending_in_an_open_fence(tmp_path: Path) -> None:
+    # The appended import would be inert, so enable refuses before it writes
+    # any settings rule, the guide, or the marker.
+    root = _repo(tmp_path)
+    text = "# Project\n\n```text\nnever closed\n"
+    (root / "CLAUDE.md").write_text(text)
+    enablement = RepoEnablement.for_repo(root)
+
+    with pytest.raises(UnclosedFenceError):
+        enablement.enable()
+
+    assert not enablement.is_enabled()
+    assert not (root / ".claude").exists()
+    assert not (root / ".punt-labs").exists()
+    assert (root / "CLAUDE.md").read_text() == text
+
+
+def test_perform_reports_an_open_fence_as_a_failure(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    (root / "CLAUDE.md").write_text("```\nnever closed\n")
+
+    result = RepoEnablement.apply(EnablementAction.enable, root)
+
+    assert result.error is not None
+    assert result.error.kind is CommandFailure.enablement_failed
+    assert "unclosed code fence" in result.error.message
 
 
 def test_enable_leaves_the_user_s_prose_untouched(tmp_path: Path) -> None:

@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from punt_zspec.claude_md import ClaudeMdImport, MarkdownLines
+from punt_zspec.markdown_fence import UnclosedFenceError
 
 LINE = "@.punt-labs/z-spec/CLAUDE.md"
 
@@ -125,15 +126,51 @@ def test_an_indented_copy_is_inert(tmp_path: Path) -> None:
     assert not ClaudeMdImport(host, LINE).is_registered()
 
 
-def test_a_dangling_fence_does_not_swallow_the_import(tmp_path: Path) -> None:
-    # An unterminated opener delimits nothing: the naive odd-count rule would
-    # misread the trailing line as fenced, duplicate it, and never prune it.
-    host = _host(tmp_path, f"```\nstray opener\n\n{LINE}\n")
+def test_an_import_after_a_dangling_fence_is_inert(tmp_path: Path) -> None:
+    # Claude Code's lexer runs an unclosed fence to EOF, so the import below it
+    # never loads: it is not registered, and prune leaves the inert copy alone.
+    text = f"```\nstray opener\n\n{LINE}\n"
+    host = _host(tmp_path, text)
+    imp = ClaudeMdImport(host, LINE)
+
+    assert not imp.is_registered()
+    assert not imp.prune()
+    assert host.read_text() == text
+
+
+def test_register_refuses_to_append_into_a_dangling_fence(tmp_path: Path) -> None:
+    text = "# Project\n\n~~~text\nnever closed\n"
+    host = _host(tmp_path, text)
+    imp = ClaudeMdImport(host, LINE)
+
+    with pytest.raises(UnclosedFenceError):
+        imp.check_registrable()
+    with pytest.raises(UnclosedFenceError):
+        imp.register()
+    assert host.read_text() == text
+
+
+def test_an_import_above_a_dangling_fence_stays_active(tmp_path: Path) -> None:
+    host = _host(tmp_path, f"{LINE}\n```text\nnever closed\n")
     imp = ClaudeMdImport(host, LINE)
 
     assert imp.is_registered()
+    imp.check_registrable()
     assert not imp.register()
     assert imp.prune()
+    assert host.read_text() == "```text\nnever closed\n"
+
+
+def test_an_inline_triple_backtick_span_is_not_a_fence(tmp_path: Path) -> None:
+    host = _host(tmp_path, f"```x``` is inline code\n\n{LINE}\n")
+
+    assert ClaudeMdImport(host, LINE).is_registered()
+
+
+def test_a_tilde_fence_info_string_may_hold_a_backtick(tmp_path: Path) -> None:
+    host = _host(tmp_path, f"~~~ `lang`\n{LINE}\n~~~\n")
+
+    assert not ClaudeMdImport(host, LINE).is_registered()
 
 
 def test_a_shorter_inner_run_does_not_close_a_block(tmp_path: Path) -> None:
