@@ -249,6 +249,18 @@ def test_the_host_directory_is_created_on_demand(tmp_path: Path) -> None:
     assert os.path.isdir(tmp_path / "nested")
 
 
+@pytest.mark.parametrize("tail", ["\t", "\u00a0"])
+def test_only_spaces_may_follow_a_closing_run(tmp_path: Path, tail: str) -> None:
+    # Claude Code's lexer closes a block on trailing spaces only, so a tab or a
+    # non-breaking space after the run leaves the block open through EOF.
+    imp = ClaudeMdImport(_host(tmp_path, f"~~~\n~~~{tail}\n{LINE}\n"), LINE)
+    assert not imp.is_registered()
+    with pytest.raises(UnclosedFenceError):
+        imp.check_registrable()
+    spaced = _host(tmp_path, f"~~~\n~~~  \n{LINE}\n")
+    assert ClaudeMdImport(spaced, LINE).is_registered()
+
+
 def test_an_info_tagged_fence_line_does_not_close_a_block(tmp_path: Path) -> None:
     # An info string is valid on an opener only, so ```python inside a block is
     # content; the bare ``` below closes it and nothing is left open.

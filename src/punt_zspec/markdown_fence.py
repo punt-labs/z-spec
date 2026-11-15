@@ -56,7 +56,7 @@ class Fence:
         run = len(stripped) - len(stripped.lstrip(marker))
         if run < _MIN_RUN or (marker == "`" and "`" in stripped[run:]):
             return None
-        return cls(marker, run, bare=not stripped[run:].strip())
+        return cls(marker, run, bare=not stripped[run:].strip(" "))
 
     def closes(self, opener: Fence) -> bool:
         """Return whether this delimiter closes a block *opener* started.
