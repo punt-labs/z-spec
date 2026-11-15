@@ -14,9 +14,8 @@ from typing import Self, final
 
 __all__ = ["CodeBlockMap", "Fence", "UnclosedFenceError"]
 
-_MARKERS = "`~"
-_MIN_RUN = 3
-_INDENT = 4
+_MARKERS = ("`", "~")
+_MIN_RUN, _INDENT = 3, 4
 
 
 class UnclosedFenceError(OSError):
@@ -30,10 +29,7 @@ class UnclosedFenceError(OSError):
 @final
 @dataclass(frozen=True, slots=True)
 class Fence:
-    """A fence delimiter: a run of *run* copies of *marker* (a backtick or tilde).
-
-    *bare* is set when nothing but whitespace follows the run.
-    """
+    """A fence delimiter: *run* copies of *marker*, *bare* when nothing follows."""
 
     marker: str
     run: int
@@ -54,7 +50,7 @@ class Fence:
         if CodeBlockMap.is_indented(bare):
             return None
         stripped = bare.lstrip(" ")
-        if not stripped or stripped[0] not in _MARKERS:
+        if stripped[:1] not in _MARKERS:
             return None
         marker = stripped[0]
         run = len(stripped) - len(stripped.lstrip(marker))
@@ -65,10 +61,8 @@ class Fence:
     def closes(self, opener: Fence) -> bool:
         """Return whether this delimiter closes a block *opener* started.
 
-        Only a bare run of the same marker, at least as long as the opener's,
-        closes it (CommonMark: an info string is valid on an opener only); a
-        shorter, mismatched or info-tagged delimiter is content, and blocks
-        never nest.
+        Only a bare same-marker run at least the opener's closes it (an info
+        string is opener-only); anything else is content; blocks never nest.
         """
         return self.bare and self.marker == opener.marker and self.run >= opener.run
 

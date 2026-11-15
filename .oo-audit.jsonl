@@ -125,3 +125,4 @@
 {"ts":"2026-11-15T07:08:31Z","commit":"19b628c","source":null,"files_scored":59,"files_improved":0,"files_regressed":1,"verdict":"fail","reason":null,"deltas":{}}
 {"ts":"2026-11-15T07:08:57Z","commit":"19b628c","source":null,"files_scored":59,"files_improved":0,"files_regressed":1,"verdict":"fail","reason":null,"deltas":{}}
 {"ts":"2026-11-15T07:09:10Z","commit":"19b628c","source":null,"files_scored":59,"files_improved":0,"files_regressed":1,"verdict":"relaxed","reason":"PL-1087 review: Fence.bare so an info-tagged run never closes a block (CommonMark); this PR's own new module, still 97 lines","deltas":{"src/punt_zspec/markdown_fence.py":{"avg_complexity":[3.5,3.67],"module_size":[92.0,97.0]}}}
+{"ts":"2026-11-15T07:12:04Z","commit":"5458d4d","source":null,"files_scored":59,"files_improved":0,"files_regressed":0,"verdict":"pass","reason":null,"deltas":{}}
