@@ -15,7 +15,7 @@ package; skills call its MCP tools instead of raw bash.
 
 Part of [Punt Labs](https://github.com/punt-labs). Must be checked out
 inside the `punt-labs/` workspace meta-repo so org-wide configuration
-(git identity, beads DB, API keys) loads from `../CLAUDE.md` and `../.envrc`.
+(git identity, API keys) loads from `../CLAUDE.md` and `../.envrc`.
 
 - **Package**: `punt-z-spec` (PyPI)
 - **CLI**: `z-spec`
@@ -135,7 +135,7 @@ supersedes an old behavior, delete the old path in the same change.
 
 ## Issue tracking
 
-Read `.punt-labs/punt/CLAUDE.md` before planning or writing to the issue tracker. Linear is the tracker of record where this repo is migrated. Beads is a local mirror there and the tracker of record elsewhere.
+Read `.punt-labs/punt/CLAUDE.md` before planning or writing to the issue tracker. Linear is the tracker of record.
 Escalate to punt-kit's tracker if an issue spans repos or needs a standards
 change.
 

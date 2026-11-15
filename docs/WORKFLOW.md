@@ -6,7 +6,7 @@ one pull request: a single shippable, revertible change. The innermost loop
 owns one mission: a single delegated piece of work inside that change.
 
 ```text
-Level 1 — Backlog loop   one iteration = one work batch     (beads)
+Level 1 — Backlog loop   one iteration = one work batch     (Linear)
   Level 2 — PR loop      one iteration = one pull request
     Level 3 — Mission    one iteration = one delegated mission
                          (design, code, test — a do-while)
@@ -26,10 +26,10 @@ is stated in Z. The state those schemas observe:
 ```text
 LoopState
   signals       : ℙ SIGNAL  -- issues, alerts, messages not yet triaged
-  open          : ℙ BEAD    -- open beads: the single work funnel
-  validated     : ℙ BEAD    -- re-proven against current main
-  claimed       : ℙ BEAD    -- the current batch
-  closed        : ℙ BEAD    -- beads completed by a merged PR
+  open          : ℙ ISSUE   -- open Linear issues: the single work funnel
+  validated     : ℙ ISSUE   -- re-proven against current main
+  claimed       : ℙ ISSUE   -- the current batch
+  closed        : ℙ ISSUE   -- issues completed by a merged PR
   activeWorkers : ℙ WORKER  -- sub-agents editing the shared worktree
   testCount     : ℕ         -- tests collected by the suite
   ------------------------------------------------------------------
@@ -54,9 +54,9 @@ waits on it.
 
 ## Level 1 — The backlog loop
 
-The backlog loop keeps the bead tracker true and decides what to work on
-next. Beads are the single funnel: every piece of work, whatever its origin,
-is a bead before it is anything else. One iteration selects and completes one
+The backlog loop keeps the Linear tracker true and decides what to work on
+next. Linear is the single funnel: every piece of work, whatever its origin,
+is a Linear issue before it is anything else. One iteration selects and completes one
 batch of work. The loop runs at session start and again whenever the current
 batch is done.
 
@@ -103,7 +103,7 @@ function backlog_loop():
     close GitHub issues resolved by the merged PRs, linking each PR
     send the batch recap via beadle-email  # to jim@punt-labs.com; covers what
                                            # the per-merge recaps do not: intake
-                                           # dispositions, beads closed at
+                                           # dispositions, issues closed at
                                            # validation, order changes
     return to intake — new signals have accrued while working
 ```
@@ -151,11 +151,11 @@ messages from sibling repos — lux and vox both consume z-spec — surface too.
 
 ### Validation
 
-The codebase moves; beads rot. Before a bead is workable, confirm it is still
+The codebase moves; issues rot. Before an issue is workable, confirm it is still
 real: reproduce the bug or re-check the premise against current main, confirm
 no merged PR or design decision has superseded it, confirm it describes one
 rollback-coherent unit of work, and confirm its dependency links are correct.
-A stale bead is closed with the reason. A bloated bead is split. Validation
+A stale issue is closed with the reason. A bloated issue is split. Validation
 covers the candidates for the coming batch, not the whole backlog every time.
 
 ### Assessment
@@ -171,7 +171,7 @@ Ordering is automatic in the steady state. The sort is:
    done. Interleaving epics is how a backlog churns without shipping.
 4. **Debt that blocks throughput.** Decomposition, ratchet paydown, and test
    infrastructure that makes the next ten changes cheaper.
-5. **Features.** v1 scope before v2; beads labeled `v2` wait.
+5. **Features.** v1 scope before v2; issues labeled `v2` wait.
 
 The operator is asked for a focus ruling only when the ordering hits a genuine
 fork the rules above cannot resolve: two epics competing to be the active one, a
@@ -198,9 +198,9 @@ size of a PR is an economic decision, not a hygiene one:
   past a certain diff size their quality drops: local review agents lose focus
   across a sprawling diff, and the remote reviewers degrade outright on very
   large ones. A PR too large buys throughput at the cost of review quality.
-- **The typical right size** is several small beads batched together, or one
-  coherent slice of a larger bead. A bead too large to slice into one PR is
-  mis-filed: decompose it into an epic whose child beads fit the band.
+- **The typical right size** is several small issues batched together, or one
+  coherent slice of a larger issue. An issue too large to slice into one PR is
+  mis-filed: decompose it into a Linear project whose child issues fit the band.
 - **Rollback coherence still binds.** Whatever merges must revert together
   sensibly. That is the one structural constraint. "Purity," "one concern per
   PR," and "keep the diff small" are not criteria — a docs fix, a ratchet
@@ -249,7 +249,7 @@ function pr_loop(unit):
         the labels, the interaction — the part no introspection API attests
 
     # D. SHIP
-    bd close the bead(s)
+    close the Linear issue(s)
     push; create the PR (description carries the flight rows and their results)
     if the PR changes a file that is not demo_exempt:
         comment "demo confirmed: <head sha>"   # once the operator confirmed
@@ -447,7 +447,7 @@ function poll_tick(pr):
             fix it now (answered after the push, below), or answer it by
                 its source's path (answered(f))
             # never re-litigated; Qodo Lows are dropped by comments_routing;
-            # no deferral beads; the latest ruling governs
+            # no deferral issues; the latest ruling governs
     for each escalation the operator has ruled on:
         record the ruling in a ledger comment   # closes the escalation,
                                                 #   not the finding
@@ -578,7 +578,7 @@ function local_review(diff):
         diff = this round's fix diff     # every change is reviewed,
                                          #   Low fixes included
     # at most four fix rounds, plus a fifth review that only verifies the
-    # fourth round's fixes. No deferral beads. Every caller acts only on
+    # fourth round's fixes. No deferral issues. Every caller acts only on
     # clean: on blocked, nothing opens and nothing is pushed until the
     # operator rules and local_review then returns clean.
 ```
@@ -614,7 +614,7 @@ ExitPR ≙ [ Δ LoopState; pr : PR |
   ∧ round(pr) ≤ 2                         -- round 2 only after a High fix
   ∧ unresolvedThreads(pr) = ∅
   ∧ openEscalations(pr) = ∅               -- each closed by a recorded ruling
-  ∧ beadsOf(pr) ⊆ closed′
+  ∧ issuesOf(pr) ⊆ closed′
   ∧ mergeRecapSent(pr) ]
 ```
 
@@ -845,7 +845,7 @@ mechanical fix to a bare `Agent()`, then pushes and resolves the thread itself.
 
 ## Invariants
 
-1. **Beads are the single funnel.** Every piece of work is a bead before it is
+1. **Linear is the single funnel.** Every piece of work is a Linear issue before it is
    anything else; external queues (issues, alerts) drain into it at intake.
 2. **The feature is run before the PR opens.** `make check` is necessary and
    never sufficient. The acceptance flight against the installed artifact is
@@ -854,7 +854,7 @@ mechanical fix to a bare `Agent()`, then pushes and resolves the thread itself.
    merge, and nothing waits once it passes. Merge is always explicit — never
    `--auto`, never `--admin`.
 4. **Do or do not.** A finding is fixed in this PR or dismissed with a
-   reason, the moment it arrives. It is never deferred to a bead or a
+   reason, the moment it arrives. It is never deferred to an issue or a
    follow-up PR. A thread is resolved only once it is answered per
    `answered(f)`, one by one, never in bulk.
 5. **A push restarts CI, not review.** Local rounds run until clean (at most
@@ -862,7 +862,7 @@ mechanical fix to a bare `Agent()`, then pushes and resolves the thread itself.
    every fix push. PR rounds are at most two, and the second only after a
    High fix.
 6. **Defects flow inward, scope flows outward.** A defect found while a PR is
-   open is fixed in that PR. Only genuinely new lines of work become beads.
+   open is fixed in that PR. Only genuinely new lines of work become Linear issues.
 7. **One branch, one PR.** Design is a commit inside the PR that implements it,
    never a separate branch, doc-PR, and review cycle.
 8. **The operator gates the acceptance flight and direction, never diffs or
