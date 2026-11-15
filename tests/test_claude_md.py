@@ -247,3 +247,13 @@ def test_the_host_directory_is_created_on_demand(tmp_path: Path) -> None:
 
     assert host.read_text() == f"{LINE}\n"
     assert os.path.isdir(tmp_path / "nested")
+
+
+def test_an_info_tagged_fence_line_does_not_close_a_block(tmp_path: Path) -> None:
+    # An info string is valid on an opener only, so ```python inside a block is
+    # content; the bare ``` below closes it and nothing is left open.
+    host = _host(tmp_path, f"```\n```python\n{LINE}\n```\n")
+    imp = ClaudeMdImport(host, LINE)
+
+    assert not imp.is_registered()
+    imp.check_registrable()

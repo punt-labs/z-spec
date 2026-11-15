@@ -30,10 +30,14 @@ class UnclosedFenceError(OSError):
 @final
 @dataclass(frozen=True, slots=True)
 class Fence:
-    """A fence delimiter: a run of *run* copies of *marker* (a backtick or tilde)."""
+    """A fence delimiter: a run of *run* copies of *marker* (a backtick or tilde).
+
+    *bare* is set when nothing but whitespace follows the run.
+    """
 
     marker: str
     run: int
+    bare: bool
 
     @classmethod
     def parse(cls, line: str) -> Fence | None:
@@ -56,15 +60,17 @@ class Fence:
         run = len(stripped) - len(stripped.lstrip(marker))
         if run < _MIN_RUN or (marker == "`" and "`" in stripped[run:]):
             return None
-        return cls(marker, run)
+        return cls(marker, run, bare=not stripped[run:].strip())
 
     def closes(self, opener: Fence) -> bool:
         """Return whether this delimiter closes a block *opener* started.
 
-        Only the same marker with a run at least the opener's closes it; a
-        shorter or mismatched delimiter is content, and blocks never nest.
+        Only a bare run of the same marker, at least as long as the opener's,
+        closes it (CommonMark: an info string is valid on an opener only); a
+        shorter, mismatched or info-tagged delimiter is content, and blocks
+        never nest.
         """
-        return self.marker == opener.marker and self.run >= opener.run
+        return self.bare and self.marker == opener.marker and self.run >= opener.run
 
 
 @final
