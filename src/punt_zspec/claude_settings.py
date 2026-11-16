@@ -20,19 +20,22 @@ __all__ = ["ZSPEC_RULES", "SettingsRefusedError", "SettingsRules"]
 # allow, so the carve-outs prompt while new safe commands work unprompted. The
 # carve-outs change enablement or permissions (enable, disable, the enablement
 # MCP tool and its skills) or install software (``z-spec mcp``, /z-spec:setup,
-# whose allowed-tools run brew, curl, make). ``Bash(z-spec -*)`` asks for a
-# global option before the verb, which the verb rules would not match. No
-# ``z-spec-dev`` rule: the dev plugin only exists in a maintainer's checkout.
+# whose allowed-tools run brew, curl, make). A global option before the verb
+# runs under the broad allow: the ask tier is a safety net, not a boundary
+# (punt-kit DES-039). No ``z-spec-dev`` rule: the dev plugin only exists in a
+# maintainer's checkout.
 # Disable removes these exact values from both lists.
 ZSPEC_RULES: Final[dict[str, tuple[str, ...]]] = {
     "allow": ("Bash(z-spec:*)", "mcp__plugin_z-spec_zspec__*", "Skill(z-spec:*)"),
     "ask": (
-        "Bash(z-spec -*)",
         *(f"Bash(z-spec {verb}:*)" for verb in ("enable", "disable", "mcp")),
         "mcp__plugin_z-spec_zspec__enablement",
         *(f"Skill(z-spec:{cmd})" for cmd in ("enable", "disable", "setup")),
     ),
 }
+# Rules an earlier z-spec granted and no longer does; register and prune both
+# strip them. ``Bash(z-spec -*)`` made ``z-spec --version`` prompt.
+_LEGACY_RULES: Final[dict[str, tuple[str, ...]]] = {"ask": ("Bash(z-spec -*)",)}
 
 
 class SettingsRefusedError(OSError):
@@ -87,9 +90,21 @@ class SettingsRules:
                     grant=grant,
                 )
             )
-            if changed:
+            retired = self._strip_legacy(permissions)
+            if changed or retired:
                 host.write(json.dumps(data, indent=2) + "\n")
             return changed
+
+    @staticmethod
+    def _strip_legacy(permissions: dict[str, Any]) -> bool:
+        """Remove every legacy rule from *permissions*; return whether any was."""
+        removed = False
+        for tier, legacy in _LEGACY_RULES.items():
+            have = permissions.get(tier, [])
+            kept = [rule for rule in have if rule not in legacy]
+            removed = removed or len(kept) != len(have)
+            have[:] = kept
+        return removed
 
     @staticmethod
     def _edit(
@@ -126,7 +141,11 @@ class SettingsRules:
             msg = f"{self.path} is not a JSON object"
             raise SettingsRefusedError(msg)
         parsed = cast("dict[str, Any]", data)
-        permissions: object = parsed.get("permissions", {})
+        self._check_permissions(parsed.get("permissions", {}))
+        return parsed
+
+    def _check_permissions(self, permissions: object) -> None:
+        """Refuse a ``permissions`` value or owned tier that is not editable."""
         if not isinstance(permissions, dict):
             msg = f"{self.path} has no editable permissions object"
             raise SettingsRefusedError(msg)
@@ -135,4 +154,3 @@ class SettingsRules:
             if not isinstance(rules, list):
                 msg = f"{self.path} has no editable permissions.{tier} list"
                 raise SettingsRefusedError(msg)
-        return parsed
