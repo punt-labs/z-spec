@@ -65,15 +65,17 @@ class SettingsRules:
 
     def register(self) -> tuple[str, ...]:
         """Append each missing rule, creating the file if absent; return those added."""
-        return self._update(grant=True)
+        return self._update(grant=True)[0]
 
     def prune(self) -> tuple[str, ...]:
         """Remove every owned rule; return those removed."""
         if not self.path.is_file() and not self.path.is_symlink():
             return ()
-        return self._update(grant=False)
+        changed, retired = self._update(grant=False)
+        return (*changed, *retired)
 
-    def _update(self, *, grant: bool) -> tuple[str, ...]:
+    def _update(self, *, grant: bool) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Apply the edit; return the owned rules changed and legacy rules removed."""
         self._refuse_unsafe()
         host = AtomicFile(self.path)
         with host.locked():
@@ -93,17 +95,16 @@ class SettingsRules:
             retired = self._strip_legacy(permissions)
             if changed or retired:
                 host.write(json.dumps(data, indent=2) + "\n")
-            return changed
+            return changed, retired
 
     @staticmethod
-    def _strip_legacy(permissions: dict[str, Any]) -> bool:
-        """Remove every legacy rule from *permissions*; return whether any was."""
-        removed = False
+    def _strip_legacy(permissions: dict[str, Any]) -> tuple[str, ...]:
+        """Remove every legacy rule from *permissions*; return those removed."""
+        removed: tuple[str, ...] = ()
         for tier, legacy in _LEGACY_RULES.items():
             have = permissions.get(tier, [])
-            kept = [rule for rule in have if rule not in legacy]
-            removed = removed or len(kept) != len(have)
-            have[:] = kept
+            removed = (*removed, *(rule for rule in have if rule in legacy))
+            have[:] = [rule for rule in have if rule not in legacy]
         return removed
 
     @staticmethod

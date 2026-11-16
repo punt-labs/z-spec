@@ -58,7 +58,8 @@ def test_each_surface_is_allowed_broadly_with_exact_ask_carve_outs() -> None:
 @pytest.mark.parametrize("verb", ["register", "prune"])
 def test_both_verbs_strip_the_legacy_flag_rule(tmp_path: Path, verb: str) -> None:
     _write(tmp_path, {"permissions": {"ask": ["Bash(ls:*)", "Bash(z-spec -*)"]}})
-    getattr(SettingsRules(tmp_path), verb)()
+    changed = getattr(SettingsRules(tmp_path), verb)()
+    assert ("Bash(z-spec -*)" in changed) == (verb == "prune")
     assert "Bash(z-spec -*)" not in _tier(tmp_path, "ask")
     assert "Bash(ls:*)" in _tier(tmp_path, "ask")
 
