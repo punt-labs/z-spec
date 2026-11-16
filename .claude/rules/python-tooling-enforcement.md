@@ -3,7 +3,7 @@ paths:
   - "**/*.py"
 ---
 
-# Pass 3: Tooling Enforcement Matrix
+# Tooling Enforcement Matrix
 
 Every standard must be checkable. This file maps each rule to the tool(s) that
 can deterministically judge compliance. Rules without deterministic tooling are
@@ -28,6 +28,7 @@ An agent MUST run these before reporting compliance.
 | PY-OP-5 | ruff | `ruff check --select SIM,C1901` | exit 0 |
 
 **Composite check command** (prefer `make check` over individual invocations):
+
 ```bash
 make check
 ```
@@ -47,11 +48,12 @@ analysis. No external dependencies. Exits 1 if any metric fails.
 | module_size | <= 300 | God modules |
 | classes_per_module | <= 3 | Unfocused modules |
 | class_to_func_ratio | >= 0.5 | Procedural code disguised as a module |
-| init_violations | == 0 | __init__ used instead of __new__ |
+| init_violations | == 0 | **init** used instead of **new** |
 | public_attr_violations | == 0 | self.name without underscore |
-| future_annotations | == 1 | Missing from __future__ import annotations |
+| future_annotations | == 1 | Missing from **future** import annotations |
 
 **Usage**:
+
 ```bash
 python tools/oo_score.py path/to/module.py           # human-readable
 python tools/oo_score.py path/to/package/ --json      # machine-readable
@@ -65,6 +67,7 @@ python tools/oo_score.py path/to/package/ --threshold  # per-file breakdown
 These complement `oo_score.py` with metrics it cannot compute.
 
 **Install** (all work on Python 3.13):
+
 ```bash
 uv tool install radon ruff cohesion vulture
 ```
@@ -78,6 +81,7 @@ radon cc path/ -j -n C          # only show functions graded C or worse
 ```
 
 Key thresholds:
+
 - CC per function: A (1-5) good, B (6-10) moderate, C+ = flag for refactoring
 - MI per file: >= 20 maintainable, < 10 unmaintainable
 
@@ -104,8 +108,14 @@ a class. Each finding is a sign of fake OO (procedural code in a class wrapper).
   doesn't use `self` but the concrete implementations will.
 
 **Agent rule**: When PLR6301 fires, check whether the method is in a Null Object
-class, a singledispatch base, or an abstract method. If yes, suppress with
-`# noqa: PLR6301`. If no, the method genuinely doesn't belong on the class.
+class, a singledispatch base, or an abstract method. These three patterns are
+legitimate and must not be "fixed" by removing `self`. Handle them at the **repo
+level**, not with a per-line `# noqa`: PLR6301 is preview-only, so either leave
+it unselected in `[tool.ruff.lint]`, or scope it off interface files with
+`[tool.ruff.lint.per-file-ignores]`. A per-line `# noqa: PLR6301` is counted by
+the suppression ratchet (`make check-suppressions`) and fails the gate, so it is
+not the sanctioned path even for these patterns. If no pattern applies, the
+method genuinely doesn't belong on the class.
 
 ### pylint design category — Structural Smells
 
@@ -114,6 +124,7 @@ pylint --disable=all --enable=design --output-format=json2 path/
 ```
 
 Key checks:
+
 - R0903 too-few-public-methods (< 2 = data holder, not a real class)
 - R0902 too-many-instance-attributes (> 7 = god class)
 - R0913 too-many-arguments (> 5 = should be an object)
@@ -125,9 +136,13 @@ Exit code 8 when design violations found.
 
 - **ABC/Protocol with 1 abstract method**: Strategy, Observer, Visitor, and
   callable interfaces legitimately define a single method. This is correct OO,
-  not a data holder. Suppress with `# pylint: disable=too-few-public-methods`.
+  not a data holder. Set `min-public-methods=1` in the repo's pylint config so
+  this class never trips R0903 — do not add a per-class
+  `# pylint: disable=too-few-public-methods`, which the suppression ratchet
+  (`make check-suppressions`) counts and fails on.
 - **How to tell a real R0903 from a false positive**:
-  - Class inherits from `ABC` or `Protocol` with 1+ `@abstractmethod` → suppress
+  - Class inherits from `ABC` or `Protocol` with 1+ `@abstractmethod` →
+    legitimate, covered by `min-public-methods=1`
   - Concrete class with 1 method + stored data → real smell, refactor
   - Class with 0 public methods (not a mixin) → always a real problem
 
@@ -138,6 +153,7 @@ cohesion -d path/ -b 50          # show classes with cohesion <= 50%
 ```
 
 No JSON output. Measures what % of instance variables each method accesses.
+
 - 0% = methods touch disjoint data (split the class)
 - 30-70% = healthy range for real classes
 - 100% = every method uses every variable (trivial class)
@@ -148,13 +164,18 @@ All tools are unified in the project Makefile. Agents must use Make, not
 individual tool invocations.
 
 ```bash
-make check SRC=path/to/module/              # fail-fast gate (exits 0 or 1)
-make report SRC=path/to/module/             # full diagnostics, no fail-fast
-make check SRC=game/ VENV_BIN=env/bin/      # virtualenv project
+make check SRC=src/<package>/               # fail-fast gate (exits 0 or 1)
+make report SRC=src/<package>/              # full diagnostics, no fail-fast
 ```
 
-`make check` runs: OO score → mypy → ruff format → ruff check → radon CC → pylint design.
-`make report` adds: radon MI, cohesion LCOM, vulture dead code.
+`make check` runs the full quality gate — lint, type checking, tests, and the
+OO ratchet (`make check-oo`) — per PL-TC-5.
+`make report` adds the diagnostics: radon CC/MI, pylint design, cohesion LCOM,
+vulture dead code.
+
+These rules define the required Makefile interface for Punt Labs Python
+repos; a repo that has not yet adopted the ratchet acquires it per
+`python-oo-adoption.md`.
 
 See `make help` for all available targets.
 
@@ -165,7 +186,7 @@ An agent SHOULD run these or implement them as pre-commit hooks.
 
 | Rule | Check | Command |
 |------|-------|---------|
-| PY-TS-1 | `from __future__ import annotations` present | `grep -rL "from __future__ import annotations" --include="*.py" lib/` |
+| PY-TS-1 | `from __future__ import annotations` present | `ruff check --select FA100` (exit 0) |
 | PY-CC-1 | No `__init__` in non-dataclass classes | `grep -rn "def __init__" --include="*.py"` (zero hits) |
 | PY-EN-1 | No public attributes | `grep -Pn "self\.[a-z][a-zA-Z_0-9]*\s*=" --include="*.py"` (zero hits) |
 | PY-IC-4 | `__slots__` is a tuple | `grep -A1 "__slots__" --include="*.py"` → verify `(` not `[` |
@@ -174,22 +195,34 @@ An agent SHOULD run these or implement them as pre-commit hooks.
 | PY-OP-1 | Binary ops return `NotImplemented` | `grep -n "NotImplementedError" --include="*.py"` in operator methods (zero hits) |
 | PY-OP-2 | `__eq__` paired with `__hash__` | AST: count per class, verify match |
 
-**Composite grep check** (all should return zero results):
+PY-TS-1 needs only an existence check: placement is interpreter-enforced — a
+`__future__` import anywhere but the top of the file is a `SyntaxError`.
+
+**Composite grep check**:
+
 ```bash
-grep -rn "def __init__" --include="*.py" src/ | grep -v "@dataclass" | grep -v "# noqa"
+grep -rn "def __init__" --include="*.py" src/
 grep -Pn "self\.[a-z][a-zA-Z_0-9]*\s*=" --include="*.py" src/
 grep -rn "raise Exception\b" --include="*.py" src/
 grep -rn "NotImplementedError" --include="*.py" src/
 ```
+
+- The `self.` assignment and `raise Exception` greps must return zero results.
+- `def __init__` hits require manual audit for the `@dataclass` exception
+  (PY-CC-1): the decorator sits on the class line, not the `def __init__`
+  line, so no line filter can express it. The Tier 3 `check_no_init()` AST
+  check automates the exception.
+- `NotImplementedError` hits are legitimate only in abstract method stubs,
+  never in binary operator methods, per PY-OP-1.
 
 ## Tier 3: Custom AST Analysis Script
 
 For rules needing deeper analysis, write a Python script using `ast` module.
 Each check is a function returning pass/fail with file:line details.
 
-**Checks to implement in `check_standards.py`**:
+**Checks to implement in a custom AST script** (e.g., `tools/check_standards.py`):
 
-```
+```text
 check_future_annotations()    # PY-TS-1: first import is __future__
 check_no_init()               # PY-CC-1: no __init__ (exclude dataclasses)
 check_no_public_attrs()       # PY-EN-1: all self.X assignments use _prefix
@@ -236,7 +269,7 @@ An agent must reason about the code to check these.
 | PY-IC-6 | Single Responsibility: each component has one job |
 | PY-IC-7 | Open-Closed: new subclass doesn't modify parent |
 | PY-OP-3 | Coercion pattern used (not duplicated logic per type) |
-| PY-OP-4 | __str__ is human-readable, __repr__ is developer-readable |
+| PY-OP-4 | **str** is human-readable, **repr** is developer-readable |
 | PY-OP-6 | Properties are lightweight, methods are computational |
 | PY-DP-1..9 | Correct pattern selected for the problem at hand |
 | PY-EH-1 | Validation at boundary, trust internally |

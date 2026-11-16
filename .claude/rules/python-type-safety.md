@@ -13,10 +13,12 @@ paths:
 and avoiding circular import issues at runtime. Required until PEP 649 lands in 3.14.
 
 **Criterion**:
+
 - Pass: first non-comment import is `from __future__ import annotations`
 - Fail: missing or placed after other imports
 
 **Tooling**:
+
 - Primary: `ruff check --select I001,FA100` (isort + future-annotations)
 - AST check: `ast.parse` → verify first `ImportFrom` node is `__future__.annotations`
 - mypy: catches some symptoms but not the import itself
@@ -27,10 +29,12 @@ and avoiding circular import issues at runtime. Required until PEP 649 lands in 
 and the return type. Class-level instance attributes must be annotated.
 
 **Criterion**:
+
 - Pass: `mypy --strict` reports zero "missing annotation" errors
 - Fail: any `error: Function is missing a type annotation` or similar
 
 **Tooling**:
+
 - Primary: `mypy --strict` (configured via `pyproject.toml` with `strict = true`)
 - Alternative: `pyright --pythonversion 3.13` in strict mode
 
@@ -40,10 +44,12 @@ and the return type. Class-level instance attributes must be annotated.
 Fluent methods that return the instance must also return `-> Self`.
 
 **Criterion**:
+
 - Pass: all `__new__` signatures end with `-> Self`
 - Fail: `__new__` returns `-> "ClassName"` or untyped
 
 **Tooling**:
+
 - Primary: `mypy --strict` (Self is enforced under strict)
 - AST check: grep `def __new__` lines for `-> Self`
 
@@ -53,10 +59,12 @@ Fluent methods that return the instance must also return `-> Self`.
 `Mapping`, `Sequence`, `Callable`) from `collections.abc`, not from `typing`.
 
 **Criterion**:
+
 - Pass: no `from typing import Hashable/Iterable/Iterator/Mapping/Sequence`
 - Fail: abstract collection types imported from `typing`
 
 **Tooling**:
+
 - Primary: `ruff check --select UP035` (deprecated-typing-imports)
 - Grep: `grep -n "from typing import.*\(Hashable\|Iterable\|Iterator\|Mapping\|Sequence\)"`
 
@@ -66,10 +74,12 @@ Fluent methods that return the instance must also return `-> Self`.
 `TypeVar` + `Generic[T]` when targeting Python 3.12+.
 
 **Criterion**:
+
 - Pass: generic classes use bracket syntax; no `TypeVar` for class-level generics
 - Fail: `T = TypeVar("T"); class Foo(Generic[T])`
 
 **Tooling**:
+
 - Primary: `ruff check --select UP040` (non-pep695-generic)
 - mypy: requires `enable_incomplete_feature = ["NewGenericSyntax"]` in config
 
@@ -79,10 +89,12 @@ Fluent methods that return the instance must also return `-> Self`.
 implementation. Use `ABC` when the base class shares implementation code.
 
 **Criterion**:
+
 - Pass: interface-only types inherit from `Protocol`; classes sharing code inherit from `ABC`
 - Fail: `ABC` used for pure interfaces; `Protocol` used with concrete method implementations
 
 **Tooling**:
+
 - Primary: LLM review (semantic distinction)
 - Heuristic AST check: Protocol subclass with non-abstract method bodies > 1 line → warning
 
@@ -93,10 +105,12 @@ and it would cause a circular import at runtime, import under
 `if TYPE_CHECKING:` guard.
 
 **Criterion**:
+
 - Pass: circular import resolved via TYPE_CHECKING; no runtime ImportError
 - Fail: runtime circular import error
 
 **Tooling**:
+
 - Primary: `mypy --strict` (catches missing types)
 - Runtime: `python -c "import module"` succeeds without ImportError
 - Grep: `grep -rn "if TYPE_CHECKING"` to audit existing guards
@@ -107,23 +121,33 @@ and it would cause a circular import at runtime, import under
 `Union[X, Y]`. Use `Literal[...]` for constrained string/int values.
 
 **Criterion**:
+
 - Pass: no `Optional[X]` or `Union[X, Y]` in annotations
 - Fail: old-style union syntax present
 
 **Tooling**:
+
 - Primary: `ruff check --select UP007` (non-pep604-annotation)
 
 ## PY-TS-9: No Any Without Documented Reason
 
 **Statement**: Never use `Any` unless interfacing with an untyped third-party
-library. Every `Any` must have an inline `# type: ignore[...]` or comment
-explaining why it is unavoidable.
+library. Every `Any` must carry a plain-language comment explaining why it is
+unavoidable. Do **not** reach for `# type: ignore` as that justification — a
+correctly-annotated `Any` type-checks without one, and `# type: ignore` is
+counted by the suppression ratchet (`make check-suppressions`), so adding it to
+"justify" an `Any` fails the gate. Reserve `# type: ignore[code]` for an actual
+checker error you cannot otherwise resolve (an untyped import, a known false
+positive), where it goes through the ratchet like any other suppression.
 
 **Criterion**:
-- Pass: zero `Any` in annotations, or each has a justifying comment
-- Fail: bare `Any` without explanation
+
+- Pass: zero `Any` in annotations, or each has a justifying plain comment
+- Fail: bare `Any` without explanation; or a `# type: ignore` used only to
+  excuse an `Any` that would type-check without it
 
 **Tooling**:
+
 - Grep: `grep -Pn "\bAny\b" --include="*.py"` and verify each has comment
 - ruff: `ANN401` (dynamically-typed-expression) flags `Any` in signatures
 - `ruff check --select ANN401`
@@ -138,10 +162,12 @@ typing via type annotations.
 requirements. Protocols make the required interface explicit and checkable.
 
 **Criterion**:
+
 - Pass: zero `hasattr()` calls in source code
 - Fail: `hasattr(obj, "method")` used for type dispatch
 
 **Tooling**:
+
 - Grep: `grep -rn "hasattr(" --include="*.py"` — should return zero hits
 - AST check: no `ast.Call` with `func.id == "hasattr"`
 
@@ -151,10 +177,12 @@ requirements. Protocols make the required interface explicit and checkable.
 decisions about types. Use explicit protocol inheritance and `isinstance()`.
 
 **Criterion**:
+
 - Pass: type dispatch uses `isinstance()` against known classes/protocols
 - Fail: `if type(x).__name__ == "Foo"` or `inspect.getmembers()` for dispatch
 
 **Tooling**:
+
 - Grep: `grep -Pn "type\(\w+\)\.__" --include="*.py"` — flag hits
 - LLM review: any use of `inspect` module for type decisions
 
@@ -165,10 +193,12 @@ decisions about types. Use explicit protocol inheritance and `isinstance()`.
 type at runtime when it's only needed for the cast.
 
 **Criterion**:
+
 - Pass: all `cast()` calls use string form for the type argument
 - Fail: `cast(SomeClass, value)` with a direct type reference
 
 **Tooling**:
+
 - Primary: `ruff check --select TC006`
 
 ## PY-TS-13: py.typed Marker in Every Package
@@ -178,10 +208,12 @@ type at runtime when it's only needed for the cast.
 supports typed consumption.
 
 **Criterion**:
+
 - Pass: `src/<package>/py.typed` exists (empty file)
 - Fail: typed package without `py.typed`
 
 **Tooling**:
+
 - Check: `test -f src/<package>/py.typed`
 - mypy: warns when consuming a package without `py.typed`
 
@@ -204,7 +236,7 @@ data, and bugs surface far from their cause.
 
 **Rationale**: the three patterns interact. A `dict[str, Any]` parameter forces
 the implementation to use `dict.get(key, None)` (an Optional), and the only
-honest annotation for `dict.get`'s return is `Any | None`. Banning one without
+accurate annotation for `dict.get`'s return is `Any | None`. Banning one without
 banning the others lets the same anti-pattern hop across symptoms.
 
 **The justification gate**: every `| None` field, every `Any` annotation, every
@@ -218,6 +250,7 @@ tooltip: str | None = None
 # OK — third-party library has no type stubs (see PY-TS-9).
 config: Any  # type: ignore[no-any-unimported]  # untyped_lib.Config
 
+
 # OK — wire boundary; JSON deserialization yields object until narrowed.
 def decode(self, raw: dict[str, object]) -> ScenePayload: ...
 ```
@@ -229,44 +262,52 @@ don't have to reverse-engineer the intent.
 **Examples — bad**:
 
 ```python
-def parse(text: str) -> Config | None:        # PY-EH-8 + PY-TS-14: raise or return Config
+def parse(text: str) -> Config | None:  # PY-EH-8 + PY-TS-14: raise or return Config
     ...
 
-def merge(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:   # PY-OO-4 + PY-TS-14
+
+def merge(
+    left: dict[str, Any], right: dict[str, Any]
+) -> dict[str, Any]:  # PY-OO-4 + PY-TS-14
     ...
+
 
 class Element:
-    color: str | None = None                  # is None a state or a default?
-    style: dict[str, Any] | None = None       # what shape? unknown to types.
-    metadata: Any = None                      # the type system gave up entirely.
+    color: str | None = None  # is None a state or a default?
+    style: dict[str, Any] | None = None  # what shape? unknown to types.
+    metadata: Any = None  # the type system gave up entirely.
 ```
 
 **Examples — good**:
 
 ```python
-def parse(text: str) -> Config:               # raises on bad input (PY-EH-8)
+def parse(text: str) -> Config:  # raises on bad input (PY-EH-8)
     ...
 
+
 @dataclass(frozen=True, slots=True)
-class MergeArgs:                              # the shape that was implicit becomes a class
+class MergeArgs:  # the shape that was implicit becomes a class
     left: Config
     right: Config
 
-def merge(args: MergeArgs) -> Config:
-    ...
+
+def merge(args: MergeArgs) -> Config: ...
+
 
 class Element:
-    color: str = "#FFFFFF"                    # default is total, not absent
+    color: str = "#FFFFFF"  # default is total, not absent
     style: Literal["body", "heading"] = "body"  # constrained, not Any
     # metadata: extracted into its own typed class — see [[MetadataBlock]]
 ```
 
 **Criterion**:
+
 - Pass: every `| None`, `Any`, `dict[str, Any]`, and `list[Any]` annotation has
   an inline justification comment on the same logical line or the line above.
 - Fail: any of these patterns appears without justification.
 
 **Tooling**:
+
 - Grep audit recipes:
 
 ```bash
@@ -294,6 +335,7 @@ Each hit must have a justification comment. Bare hits fail the rule.
   type needs to be made precise.
 
 **Relation to other rules**:
+
 - PY-TS-8 governs the *spelling* (`X | None`, not `Optional[X]`). PY-TS-14
   governs the *use*.
 - PY-TS-9 already gates `Any`. PY-TS-14 extends the same gate to `| None` and

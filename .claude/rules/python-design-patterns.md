@@ -5,8 +5,9 @@ paths:
 
 # Design Pattern Standards
 
-These patterns are explicitly taught and named in the course. Apply the correct
-pattern when the situation matches. Do not invent patterns not listed here.
+These are the named patterns in the Punt Labs pattern vocabulary. Apply the
+correct pattern when the situation matches. Do not invent patterns not listed
+here.
 
 ## PY-DP-1: Flyweight (Object Caching)
 
@@ -17,6 +18,7 @@ cache before creating a new instance. Always pair with `@final`.
 causes memory leaks by holding strong references).
 
 **Tooling**:
+
 - Grep: `WeakValueDictionary` usage paired with `@final`
 - AST: classes with `__instances` must use `WeakValueDictionary`, not `dict`
 
@@ -27,6 +29,7 @@ causes memory leaks by holding strong references).
 direct construction via guard check (see PY-CC-3, PY-CC-4).
 
 **Tooling**:
+
 - Test: direct construction raises `TypeError`
 - LLM review: classes with UID/ID allocation use factory pattern
 
@@ -39,6 +42,7 @@ state. Transition methods validate current state, update it, fire events, and
 delete stale attributes. Use `cast()` to narrow the return type after transition.
 
 **Tooling**:
+
 - mypy: Protocol satisfaction verified statically
 - Test: attempt invalid transitions, verify `ValueError`
 - AST: state transition methods must check `self.__state` before modifying it
@@ -50,6 +54,7 @@ delete stale attributes. Use `cast()` to narrow the return type after transition
 (`-> Self`) for chaining. Validation on transition (not on each set).
 
 **Tooling**:
+
 - mypy: return type `Self` on setter methods
 - LLM review: draft objects allow partial construction
 
@@ -60,6 +65,7 @@ delete stale attributes. Use `cast()` to narrow the return type after transition
 dict). `restore()` accepts a snapshot and replaces current state.
 
 **Tooling**:
+
 - Test: snapshot → modify → restore → verify original values
 
 ## PY-DP-6: Prototype Pattern
@@ -69,6 +75,7 @@ dict). `restore()` accepts a snapshot and replaces current state.
 restores a memento from the original.
 
 **Tooling**:
+
 - Test: clone produces a distinct object with same data but different ID
 
 ## PY-DP-7: Singleton Pattern
@@ -78,6 +85,7 @@ restores a memento from the original.
 instance.
 
 **Tooling**:
+
 - Test: `ClassName() is ClassName()` must be `True`
 
 ## PY-DP-8: PubSub (Publish-Subscribe) Pattern
@@ -91,6 +99,7 @@ methods, and private trigger methods (`__trigger_event()`). Callbacks stored in
 Trigger: `__trigger_<event>()`. Notification handler: `_notify_<event>()`.
 
 **Tooling**:
+
 - LLM review: verify callbacks are registered and unregistered correctly
 - Test: register callback, trigger event, verify callback invoked
 
@@ -104,22 +113,30 @@ Override every method with a no-op, empty return, or error raise. Methods will
 not access `self` — this is correct and expected.
 
 **Known tooling false positive**: `ruff PLR6301` flags every method in a Null
-Object because none use `self`. Suppress with `# noqa: PLR6301` on the class
-or exclude Null Object classes in ruff config. An agent must not "fix" these
-by removing `self` or converting to static methods — that would break the
-interface contract.
+Object because none use `self`. Resolve this at the **repo level**, not with an
+inline suppression: PLR6301 is a preview-only rule, so a repo that does not
+select it never fires it, and a repo that does should scope it off the files
+where Null Objects and interface stubs live with
+`[tool.ruff.lint.per-file-ignores]` rather than per-line `# noqa`. Inline
+`# noqa` comments are counted by the suppression ratchet
+(`make check-suppressions`), so an agent that "follows the rule" by adding one
+fails the gate. An agent must not "fix" these by removing `self` or converting
+to static methods — that would break the interface contract.
 
 **Tooling**:
+
 - LLM review: Null Object classes must implement the full parent interface
-- ruff PLR6301: suppress findings on Null Object classes (known false positive)
+- ruff PLR6301: handle at repo config (don't select it, or `per-file-ignores`
+  for interface files) — never a per-line `# noqa`, which the ratchet penalizes
 
 ## PY-DP-10: Facade Pattern
 
 **When**: A library/subsystem needs a single entry point.
-**Implementation**: One class (`Marketplace`) that delegates to internal classes.
-`__init__.py` re-exports only the facade via `__all__`.
+**Implementation**: One class (e.g., an `Engine` facade) that delegates to
+internal classes. `__init__.py` re-exports only the facade via `__all__`.
 
 **Tooling**:
+
 - Check `__init__.py` has `__all__` listing only the facade class
 - Test: `from package import Facade` is the primary API
 
@@ -134,15 +151,22 @@ legitimate design, not a "data holder missing methods."
 any class with fewer than 2 public methods. Single-method ABCs and Protocols
 are correct by design — the interface IS one method.
 
-**Suppress**: Add `# pylint: disable=too-few-public-methods` on the class, or
-configure pylint with `min-public-methods=1` for the project.
+**Resolve at repo config, not inline**: configure pylint with
+`min-public-methods=1` in the project's pylint config so single-method
+interfaces never trip R0903 at all. Do not add a per-class
+`# pylint: disable=too-few-public-methods` — the suppression ratchet
+(`make check-suppressions`) counts it and fails the gate.
 
 **How to distinguish from a real R0903 problem**:
-- Class is an ABC/Protocol with 1 abstract method → **legitimate**, suppress
+
+- Class is an ABC/Protocol with 1 abstract method → **legitimate**, covered by
+  `min-public-methods=1`
 - Class is a concrete class with 1 method and stored data → **data holder**,
   consider replacing with a function or dataclass
 - Class has 0 public methods → **always a problem** unless it's a mixin
 
 **Tooling**:
-- pylint R0903: suppress on ABC/Protocol classes with exactly 1 abstract method
+
+- pylint R0903: set `min-public-methods=1` at repo level; never a per-class
+  `# pylint: disable`, which the ratchet penalizes
 - LLM review: concrete classes with < 2 methods still need scrutiny
