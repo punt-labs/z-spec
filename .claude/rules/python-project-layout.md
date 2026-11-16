@@ -12,6 +12,7 @@ paths:
 Tests live in `tests/` at the project root, mirroring source structure.
 
 **Layout**:
+
 ```text
 <project>/
   pyproject.toml
@@ -36,10 +37,12 @@ Tests live in `tests/` at the project root, mirroring source structure.
 ```
 
 **Criterion**:
+
 - Pass: code under `src/<package>/`; tests under `tests/`
 - Fail: flat layout (package at repo root); tests mixed with source
 
 **Tooling**:
+
 - Check: `test -d src/` and `test -d tests/`
 
 ## PL-PL-2: pyproject.toml Required Sections
@@ -55,13 +58,15 @@ short name. Python import uses underscores.
 |------|------|-----|--------|
 | quarry | `punt-quarry` | `quarry` | `quarry` |
 | biff | `punt-biff` | `biff` | `biff` |
-| vox | `punt-vox` | `vox` | `punt_vox` |
+| langlearn-tts | `punt-langlearn-tts` | `langlearn-tts` | `langlearn_tts` |
 
 **Criterion**:
+
 - Pass: all required sections present; punt- prefix on PyPI name
 - Fail: missing version, description, or URLs; no punt- prefix
 
 **Tooling**:
+
 - `punt audit` checks pyproject.toml compliance
 
 ## PL-PL-3: Test Structure
@@ -71,9 +76,11 @@ short name. Python import uses underscores.
 module must have a corresponding test file.
 
 **Criterion**:
+
 - Pass: every `src/**/*.py` has a `tests/test_*.py` counterpart
 - Fail: source module with no test file
 
 **Tooling**:
+
 - Shell: for each `src/**/*.py`, verify `tests/test_*.py` exists
 - `uv run pytest --co -q` — zero collected = fail

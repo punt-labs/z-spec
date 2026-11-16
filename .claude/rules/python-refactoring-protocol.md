@@ -13,7 +13,7 @@ a measurable score. No big-bang rewrites.
 
 Every refactoring session follows this loop. No exceptions.
 
-```
+```text
 1. MEASURE  → run `make report SRC=<module>` → record baseline scores
 2. IDENTIFY → pick the single worst-scoring metric
 3. PLAN     → choose exactly one transformation (see PY-RF-3 catalog)
@@ -27,9 +27,11 @@ Every refactoring session follows this loop. No exceptions.
 ```
 
 **Hard rules**:
+
 - Never combine two transformations in one step.
-- Never skip the test step (even if there are no formal tests — run the demo
-  scripts; if they produce the same output, behavior is preserved).
+- Never skip the test step (if a module somehow lacks formal tests, create and
+  run a behavioral snapshot per PY-RF-2; identical output means behavior is
+  preserved).
 - If a score worsens, revert the change entirely. Do not "fix forward."
 - If no single transformation improves any score, stop and report.
 - Every extraction deletes the old code and wires all callers in the same
@@ -39,7 +41,8 @@ Every refactoring session follows this loop. No exceptions.
 
 A transformation is behavior-preserving if and only if:
 
-1. All existing tests/demo scripts produce identical output (diff the output).
+1. All existing tests and behavioral snapshots produce identical output (diff
+   the output).
 2. The public API of every module remains unchanged (same function/class names,
    same parameter signatures, same return types).
 3. `mypy --strict` passes before and after.
@@ -56,6 +59,7 @@ improvement and wastes the extraction work. The new code exists because the old
 structure was wrong. The old structure is what gets deleted.
 
 How to tell the difference between dead code and an unwired extraction:
+
 - **Truly dead**: function/class that serves no purpose, was never part of a
   planned refactoring, has no design rationale → delete it
 - **Unwired extraction**: new class created to replace old functions, but callers
@@ -65,23 +69,26 @@ How to tell the difference between dead code and an unwired extraction:
   genuinely dead — delete it.
 
 **How to verify**:
+
 ```bash
 # Before the change:
-python test_script.py > .tmp/before.txt 2>&1
+uv run <entry-point> > .tmp/before.txt 2>&1
 # After the change:
-python test_script.py > .tmp/after.txt 2>&1
+uv run <entry-point> > .tmp/after.txt 2>&1
 # Compare:
 diff .tmp/before.txt .tmp/after.txt  # must produce no output
 ```
 
-If there are no test scripts, the agent must create a behavioral snapshot first
-(run all entry points, capture output) before starting any refactoring.
+If there are no tests covering the code, the agent must create a behavioral
+snapshot first (run all entry points, capture output) before starting any
+refactoring.
 
 ## PY-RF-3: Transformation Catalog
 
 Each transformation is one atomic step. Apply one at a time.
 
 ### Extract Class (procedural → OO)
+
 **Trigger**: 3+ top-level functions share a parameter (operate on same data).
 **Action**: Create a class. Move the shared parameter to `__new__`. Convert
 functions to methods. Update all call sites. Delete the old functions.
@@ -89,42 +96,50 @@ functions to methods. Update all call sites. Delete the old functions.
 **Metric improved**: method_ratio (% of functions that are methods)
 
 ### Extract Method
+
 **Trigger**: Function > 30 lines with identifiable sub-responsibilities.
 **Action**: Extract a block into a new private method on the same class.
 **Metric improved**: avg_complexity (radon CC)
 
 ### Introduce Property
+
 **Trigger**: Public attribute accessed directly from outside the class.
 **Action**: Prefix attribute with `_`, add `@property` getter.
 **Metric improved**: encapsulation_ratio
 
 ### Push Down State
+
 **Trigger**: Function takes 5+ parameters.
 **Action**: Group related parameters into a class or dataclass.
 **Metric improved**: avg_params
 
 ### Replace Dict with Class
+
 **Trigger**: A `dict` or `TypedDict` is passed through 3+ functions and
 accessed by string keys.
 **Action**: Convert to a class with typed attributes and methods.
 **Metric improved**: method_ratio, encapsulation_ratio
 
 ### Seal Leaf Class
+
 **Trigger**: Concrete class at bottom of hierarchy without `@final`.
 **Action**: Add `@final` decorator.
 **Metric improved**: (compliance score, not a radon metric)
 
 ### Introduce Factory
+
 **Trigger**: Constructor requires data owned by another class.
 **Action**: Add factory method on the owning class; guard the constructor.
 **Metric improved**: (compliance score)
 
 ### Split Module
+
 **Trigger**: Module > 300 lines or > 3 classes.
 **Action**: Extract one class and its helpers into a new module. Update imports.
 **Metric improved**: module_size, classes_per_module
 
 ### Internalize Attribute
+
 **Trigger**: Public attribute (`self.name`) without underscore.
 **Action**: Rename to `self._name`, add property if external read needed.
 **Metric improved**: encapsulation_ratio
@@ -145,7 +160,7 @@ When multiple metrics are bad, fix in this order (each unlocks the next):
 
 After each refactoring step, the agent must report:
 
-```
+```text
 STEP: <transformation name>
 FILE: <file changed>
 METRIC: <which score improved>
@@ -156,7 +171,7 @@ TESTS: PASS | FAIL (reverted)
 
 After a refactoring session (multiple steps), summarize:
 
-```
+```text
 TOTAL STEPS: N
 SCORES BEFORE: { method_ratio: X, encapsulation: Y, complexity: Z, ... }
 SCORES AFTER:  { method_ratio: X, encapsulation: Y, complexity: Z, ... }
@@ -188,6 +203,7 @@ was already identified as needing change.
 ## PY-RF-7: When to Stop
 
 Stop refactoring when any of these hold:
+
 - All OO scores are above their thresholds (see oo_score.py)
 - No single transformation improves any score
 - The only remaining fix would break the public API, change invocation

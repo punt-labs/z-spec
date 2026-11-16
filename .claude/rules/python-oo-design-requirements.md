@@ -17,15 +17,18 @@ same data structure are a code smell — that data and those functions belong in
 a class together.
 
 **Symptoms of violation**:
+
 - A `dict` or `TypedDict` passed through 3+ functions as the first argument
 - A module with 5+ functions that all take the same parameter type
 - Data created in one function and mutated in another via return values
 
 **Criterion**:
-- Pass: domain concepts (User, Listing, Bid, etc.) are classes with encapsulated state
+
+- Pass: domain concepts (User, Order, Invoice, etc.) are classes with encapsulated state
 - Fail: domain logic lives in top-level functions operating on raw data structures
 
 **Tooling**:
+
 - Heuristic: `grep -c "^def " module.py` vs `grep -c "class " module.py` —
   ratio > 5:1 in a domain module is a red flag
 - AST check: functions with 4+ parameters of the same TypedDict type → flag
@@ -44,6 +47,7 @@ directly and the module has no external consumers. The threshold targets library
 modules where SRP and importability matter, not self-contained programs.
 
 **Criterion**:
+
 - Pass: each module has 1-3 classes; module < 300 lines; all classes in the
   module collaborate directly
 - Pass (exception): standalone script > 300 lines with `__main__` guard, ≤ 3
@@ -52,6 +56,7 @@ modules where SRP and importability matter, not self-contained programs.
   module don't reference each other
 
 **Tooling**:
+
 - `wc -l module.py` — flag if > 300
 - AST check: count `ClassDef` nodes per module — flag if > 3
 - Grep: classes in module that don't reference each other → split candidates
@@ -68,10 +73,12 @@ an object. Use a class, dataclass, or TypedDict to bundle related parameters.
 pattern setters.
 
 **Criterion**:
+
 - Pass: methods have <= 4 positional parameters
 - Fail: method signature has 5+ positional parameters
 
 **Tooling**:
+
 - AST check: count `ast.arg` nodes in function signatures (exclude self/cls)
 - ruff: `PLR0913` (too-many-arguments) — set max-args = 4
 - `ruff check --select PLR0913`
@@ -89,11 +96,13 @@ for serialization boundaries.
 have methods, validation, and invariants.
 
 **Criterion**:
+
 - Pass: domain entities are classes; TypedDicts used only for data transfer
 - Fail: `TypedDict` with 5+ fields passed through multiple functions that
   mutate it
 
 **Tooling**:
+
 - LLM review: TypedDicts that appear in 3+ function signatures → should be a class
 - AST check: TypedDict usage outside of `TYPE_CHECKING` blocks and internal state
 
@@ -107,16 +116,19 @@ This is the fundamental OO design heuristic: data and the operations on that
 data belong together.
 
 **Symptoms requiring refactoring to a class**:
-- `def activate(listing: dict) -> dict` — this should be `listing.activate()`
+
+- `def activate(order: dict) -> dict` — this should be `order.activate()`
 - `def total_price(items: list[dict]) -> Decimal` — this should be on a
   collection class
 - Multiple functions importing and operating on the same TypedDict
 
 **Criterion**:
+
 - Pass: operations on data are methods of the class owning that data
 - Fail: functions reach into other objects' data to perform logic
 
 **Tooling**:
+
 - LLM review: "Does this function access another object's internal state?"
 - Heuristic: function body with 3+ accesses to fields of its first parameter →
   candidate for method extraction
@@ -142,10 +154,12 @@ must actively identify these conditions:
 | Interface with exactly one abstract method | Single-Method Interface (PY-DP-11) |
 
 **Criterion**:
+
 - Pass: trigger condition met → pattern applied
 - Fail: trigger condition present but pattern not recognized or applied
 
 **Tooling**:
+
 - LLM review with explicit checklist: "For each class, does any trigger apply?"
 - This cannot be automated — it requires domain understanding
 
@@ -226,6 +240,7 @@ They should be methods.
 @dataclass(frozen=True, slots=True)
 class WireContext:
     _prefix: str
+
     @classmethod
     def for_indexed(cls, kind: str, index: int) -> Self: ...
     def require_number(self, raw: object, field: str) -> float: ...
@@ -234,16 +249,19 @@ class WireContext:
     def require_field(self, d: Mapping[str, object], field: str) -> object: ...
     def field_error(self, field: str, expected: str, value: object) -> ValueError: ...
 
+
 # Zero free functions in the module. Every operation lives on the class.
 ```
 
 **Criterion**:
+
 - Pass: every module that defines a class has zero free functions OR every
   free function passes the "legitimate exception" test above.
 - Fail: a module has a class + ≥ 2 free functions that share parameters or
   return types with the class.
 
 **Tooling**:
+
 - Primary numeric: `oo_score.py` — `method_ratio >= 0.8` and
   `class_to_func_ratio >= 0.5` per file.
 - AST recipe: in any module where `count(ClassDef) >= 1`, list every
@@ -256,6 +274,7 @@ class WireContext:
   on the class's fields, the answer is yes.
 
 **Relation to other rules**:
+
 - PY-OO-1 ("Domain entities must be classes") forbids representing a domain
   entity as a dict + functions. PY-OO-7 forbids the next-level mistake: a
   class + functions, where the functions should be the class's methods.

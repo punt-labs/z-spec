@@ -19,10 +19,12 @@ four tiers. Default `pytest` runs tiers 1-2. Higher tiers are opt-in.
 | 4. SDK | End-to-end with Claude (costs money) | ~30s | No |
 
 **Criterion**:
+
 - Pass: tiers 1-2 run in `make test`; tiers 3-4 behind pytest markers
 - Fail: no tier separation; all tests are slow; or no tests at all
 
 **Tooling**:
+
 - `uv run pytest` — tiers 1-2
 - `uv run pytest -m integration` — tier 2 only
 - `uv run pytest -m e2e` — tier 3
@@ -35,10 +37,12 @@ you add a function, it gets tests. When you fix a bug, the fix includes a
 regression test.
 
 **Criterion**:
+
 - Pass: new code has corresponding tests; bug fixes include reproduction test
 - Fail: new function without test; bug fix without regression test
 
 **Tooling**:
+
 - LLM review: diff includes test changes proportional to source changes
 - `uv run pytest --co -q` before and after — test count should not decrease
 
@@ -49,10 +53,12 @@ regression test.
 happy paths are incomplete.
 
 **Criterion**:
+
 - Pass: error paths, edge cases, and boundary conditions are tested
 - Fail: only happy-path tests; error handling untested
 
 **Tooling**:
+
 - LLM review: for each public function, are error cases tested?
 
 ## PL-TT-4: Test Infrastructure Is First-Class
@@ -62,10 +68,12 @@ that deserves the same quality as production code. Flaky tests are bugs. Slow
 tests are performance issues.
 
 **Criterion**:
+
 - Pass: shared fixtures in conftest.py; no copy-paste between test files
 - Fail: duplicated setup code across tests; flaky tests ignored
 
 **Tooling**:
+
 - Grep: duplicate setup patterns across test files
 - CI: flaky test = immediate fix, not retry
 
@@ -77,10 +85,12 @@ in-memory protocol implementation, call the command function directly, assert on
 result fields.
 
 **Criterion**:
+
 - Pass: command tests run in milliseconds; no subprocess spawning
 - Fail: command tests require a running server or subprocess
 
 **Tooling**:
+
 - Test runtime: command tests should complete in < 100ms each
 - Reference: biff commands tests with `LocalRelay(tmp_path)`
 
@@ -91,8 +101,10 @@ result fields.
 a reason and a bead ID for the fix.
 
 **Criterion**:
+
 - Pass: zero `@pytest.mark.skip` without a tracked issue
 - Fail: skipped tests without justification; xfail used permanently
 
 **Tooling**:
+
 - Grep: `grep -rn "pytest.mark.skip\|pytest.mark.xfail" tests/`

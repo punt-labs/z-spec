@@ -11,15 +11,17 @@ paths:
 Internal methods may assume invariants established by the constructor and
 validated setters.
 
-**Example**: `Amount.__new__` validates non-negativity. `Bid` dataclass trusts
-the already-validated `Amount` — comment: "guaranteed to be validated => no need
-to validate in Bid."
+**Example**: an `Amount.__new__` validates non-negativity. An `Order` dataclass
+holding an `Amount` trusts it — the value is guaranteed valid by its own
+constructor, so `Order` does not re-validate it.
 
 **Criterion**:
+
 - Pass: public constructors and setters validate; private methods trust invariants
 - Fail: redundant validation deep in call chains; or missing validation at entry
 
 **Tooling**:
+
 - LLM review: audit public API entry points for validation
 - Test: pass invalid inputs to constructors, verify errors
 
@@ -35,10 +37,12 @@ to validate in Bid."
 | Key not found (expected) | `KeyError` (let propagate) |
 
 **Criterion**:
+
 - Pass: error type matches the table above
 - Fail: generic `Exception` or `RuntimeError` for specific situations
 
 **Tooling**:
+
 - AST check: `raise` statements use specific exception types, never bare `Exception`
 - Grep: `grep -n "raise Exception\b"` should return zero hits
 
@@ -49,11 +53,13 @@ when running with `-O`. Use explicit `if/raise` for all validation that should
 survive optimization.
 
 **Criterion**:
+
 - Pass: `assert` only in internal consistency checks; public validation uses `if/raise`
 - Fail: `assert isinstance(x, int)` in public API; `assert state == "draft"` in
   public method
 
 **Tooling**:
+
 - AST check: `assert` not in public methods (methods without leading `_`)
 - ruff: `S101` (use of assert detected) — configure to allow in private methods
 - Grep: `grep -n "assert " --include="*.py"` and verify each is internal-only
@@ -64,15 +70,18 @@ survive optimization.
 of raising an exception. Reserve exceptions for genuine error conditions.
 
 **Examples**:
-- `WithdrawableStack.push()` returns `False` if item already present
-- `BidStack.bid()` returns `False` if bid doesn't beat the top
-- `WithdrawableStack.remove()` returns `False` if item not found
+
+- A deduplicating stack's `push()` returns `False` if the item is already present
+- A ranked stack's `place()` returns `False` if the new entry doesn't beat the top
+- A container's `remove()` returns `False` if the item is not found
 
 **Criterion**:
+
 - Pass: expected "no-op" scenarios return `False`; unexpected states raise
 - Fail: exception for a predictable, non-erroneous condition
 
 **Tooling**:
+
 - LLM review: methods that can "fail normally" should return bool, not raise
 - mypy: return type annotation includes `bool` for failable operations
 
@@ -82,10 +91,12 @@ of raising an exception. Reserve exceptions for genuine error conditions.
 code so that invariants prevent errors rather than catching them.
 
 **Criterion**:
+
 - Pass: no try/except in internal methods; errors prevented by validation
 - Fail: try/except wrapping internal calls that should never fail
 
 **Tooling**:
+
 - Grep: `grep -c "try:" --include="*.py"` — minimize occurrences
 - LLM review: each try/except must have justification (e.g., external I/O)
 
@@ -96,10 +107,12 @@ code so that invariants prevent errors rather than catching them.
 exceptions masks bugs and violates fail-fast.
 
 **Criterion**:
+
 - Pass: every `except Exception` either re-raises or is at the outermost boundary
 - Fail: `except Exception: pass` or `except Exception as e: log(e)` in library code
 
 **Tooling**:
+
 - ruff: `BLE001` (blind-except) catches bare `except:` and `except Exception:`
 - `ruff check --select BLE001`
 - Grep: `grep -n "except Exception" --include="*.py"` — audit each hit
@@ -110,10 +123,12 @@ exceptions masks bugs and violates fail-fast.
 `@pytest.mark.filterwarnings` to suppress warnings. Fix the root cause.
 
 **Criterion**:
+
 - Pass: zero warning suppression in source or test code
 - Fail: `warnings.filterwarnings("ignore")` or `simplefilter("ignore")`
 
 **Tooling**:
+
 - Grep: `grep -rn "filterwarnings\|simplefilter" --include="*.py"` — zero hits
 
 ## PY-EH-8: Raise, Don't Return None, on Unrepresentable Values
@@ -131,8 +146,8 @@ case may never be observed in testing.
 
 **The PY-EH-4 distinction**: PY-EH-4 allows `bool` returns for operations
 whose success/failure is normal and the caller's next action depends on
-which happened (`push() -> False` when item already present, caller may
-keep trying). PY-EH-8 forbids `-> T | None` for *value-producing*
+which happened (`push()` returning `False` when the item is already
+present; the caller may keep trying). PY-EH-8 forbids `-> T | None` for *value-producing*
 functions whose job is to yield a `T`. A parser that can't parse, a
 lookup that can't find, a conversion that can't convert — these raise.
 
@@ -155,10 +170,12 @@ def coerce_number(raw: object) -> float | None:
         return None
     return float(raw)
 
+
 def object_sequence(raw: object) -> tuple[object, ...] | None:
     if not isinstance(raw, list | tuple):
         return None
     return tuple(raw)
+
 
 # Every caller is forced into the same pattern:
 n = coerce_number(raw)
@@ -174,6 +191,7 @@ def require_number(self, raw: object, field: str) -> float:
     if isinstance(raw, bool) or not isinstance(raw, int | float):
         raise self.field_error(field, "a number", raw)
     return float(raw)
+
 
 def require_sequence(self, raw: object, field: str) -> tuple[object, ...]:
     if not isinstance(raw, list | tuple):
@@ -200,12 +218,14 @@ checking. The function decides; the caller trusts.
 Everything else: raise.
 
 **Criterion**:
+
 - Pass: zero `-> T | None` return types on parser/converter/lookup
   functions whose contract is "produce a `T`".
 - Fail: any `def foo(...) -> T | None` where `None` means "could not
   produce a `T`".
 
 **Tooling**:
+
 - Grep: `grep -rn "-> .* | None\|-> Optional\[" --include="*.py" src/`
   — audit each hit. For each, ask: is `None` the documented contract
   for absence (good), or is it "I gave up trying to produce a value"

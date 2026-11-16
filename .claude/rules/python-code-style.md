@@ -9,21 +9,23 @@ paths:
 
 | Entity | Convention | Example |
 |--------|-----------|---------|
-| Class | PascalCase | `BidStack`, `WithdrawableStack` |
-| Method/Function | snake_case | `draft_listing`, `count_money` |
+| Class | PascalCase | `OrderStack`, `SearchResult` |
+| Method/Function | snake_case | `draft_order`, `count_money` |
 | Protected attribute | `_name` | `_num`, `_den`, `_username` |
-| Private attribute | `__name` | `__items`, `__state`, `__bids` |
-| Type alias | PascalCase | `Scalar`, `ListingState` |
+| Private attribute | `__name` | `__items`, `__state`, `__cache` |
+| Type alias | PascalCase | `Scalar`, `OrderState` |
 | Constants / Compiled regex | UPPER_SNAKE | `VARNAME_PATTERN` |
 | TypeVar (legacy) | Single uppercase | `T`, `S`, `ItemT` |
 
 **Tooling**:
+
 - Primary: `ruff check --select N` (pep8-naming)
 - Supplemental: `pylint --enable=C0103`
 
 ## PY-CS-2: Import Organization
 
 **Order** (each group separated by blank line):
+
 1. `from __future__ import annotations`
 2. Standard library (`abc`, `collections.abc`, `math`, `re`, `typing`, `weakref`)
 3. Third-party packages
@@ -33,6 +35,7 @@ paths:
 is acceptable for small modules).
 
 **Tooling**:
+
 - Primary: `ruff check --select I` (isort rules)
 - Alternative: `isort --check-only --diff`
 
@@ -41,9 +44,10 @@ is acceptable for small modules).
 **Statement**: Use ruff for formatting. Default line length 88 characters.
 
 **Tooling**:
+
 - Primary: `ruff format --check .`
 
-## PY-CS-4: __slots__ for Memory-Critical Classes
+## PY-CS-4: **slots** for Memory-Critical Classes
 
 **Statement**: Use `__slots__` on classes that will have many instances, to avoid
 the 296-byte `__dict__` overhead per instance. Always declare as tuple.
@@ -52,10 +56,12 @@ the 296-byte `__dict__` overhead per instance. Always declare as tuple.
 **When to skip**: Classes with dynamic attributes or small instance counts.
 
 **Criterion**:
+
 - Pass: `__slots__` defined as tuple; no `__dict__` access attempted
 - Fail: `__slots__` defined as list or dict
 
 **Tooling**:
+
 - AST check: `__slots__` RHS is `ast.Tuple`
 - `sys.getsizeof()` comparison in tests for critical paths
 
@@ -65,6 +71,7 @@ the 296-byte `__dict__` overhead per instance. Always declare as tuple.
 Use `!s` for str representation, `!r` for repr.
 
 **Tooling**:
+
 - LLM review: print statements in tests use `=` specifier
 
 ## PY-CS-6: Module Structure
@@ -74,19 +81,22 @@ Classes, then module-level code. No executable code at module level in
 library modules (only in test/demo scripts).
 
 **Tooling**:
+
 - Grep: `grep -L '"""' *.py` to find modules missing docstrings
 - AST check: module body starts with `ast.Expr(value=ast.Constant(kind=str))`
 
-## PY-CS-7: __all__ in Package __init__.py
+## PY-CS-7: **all** in Package **init**.py
 
 **Statement**: Every `__init__.py` must define `__all__` listing explicitly
 re-exported names. Use relative imports.
 
 **Criterion**:
-- Pass: `__all__ = ["Marketplace"]` present; relative imports used
+
+- Pass: `__all__ = ["Engine"]` present; relative imports used
 - Fail: no `__all__`; absolute imports within the package
 
 **Tooling**:
+
 - Grep: `grep -L "__all__" */__init__.py`
 - mypy: reports "not explicitly exported" warnings when `__all__` is missing
 
@@ -97,6 +107,7 @@ string keys with specific value types. Use `total=False` when keys are optional
 by default; annotate individual keys with `Required`/`NotRequired` as needed.
 
 **Tooling**:
+
 - mypy: enforces TypedDict key/value types
 - LLM review: plain `dict[str, Any]` that could be a TypedDict → flag
 
@@ -106,6 +117,7 @@ by default; annotate individual keys with `Required`/`NotRequired` as needed.
 enforced by ruff configuration.
 
 **Tooling**:
+
 - Primary: `ruff format --check .`
 
 ## PY-CS-10: All Imports at Top of File
@@ -117,10 +129,12 @@ enforced by ruff configuration.
 optional heavy dependencies at system boundaries.
 
 **Criterion**:
+
 - Pass: all `import` and `from ... import` statements in the header block
 - Fail: `import X` inside a function body (unless guarded lazy import)
 
 **Tooling**:
+
 - ruff: `E402` (module-level-import-not-at-top-of-file)
 - `ruff check --select E402`
 
@@ -131,10 +145,12 @@ optional heavy dependencies at system boundaries.
 in the entry point (CLI main, server main), never in library modules.
 
 **Criterion**:
+
 - Pass: `getLogger(__name__)` used; no `basicConfig()` in library code
 - Fail: `print()` used for operational output; `basicConfig()` in a library module
 
 **Tooling**:
+
 - Grep: `grep -rn "basicConfig" --include="*.py" src/` — only in entry points
 - Grep: `grep -rn "print(" --include="*.py" src/` — flag in non-test code
 
@@ -145,9 +161,11 @@ reduces repetition or clarifies flow. Common in cache checks and conditional
 assignments.
 
 **Examples**:
+
 - `if item not in (items := self.__items):` — assign + use in one line
-- `stack.push(new_bid := Bid(buyer, amount))` — create + push
+- `stack.push(new_order := Order(buyer, amount))` — create + push
 
 **Tooling**:
+
 - LLM review: patterns where a variable is assigned then immediately used once
   could use walrus operator
