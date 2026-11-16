@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`z-spec --version` and `z-spec --help` no longer prompt in an enabled
+  repo (punt-kit DES-039).** `z-spec enable` stops granting the
+  `Bash(z-spec -*)` ask rule, which matched every command starting with an
+  option. The CLI ask tier is now one rule per unsafe verb. `z-spec enable`
+  and `z-spec disable` both remove the old rule from a repo an earlier
+  version enabled.
+
 ### Removed
 
 - **rulesync is removed; `.claude/rules/`, `AGENTS.md`, `CLAUDE.md`, and

@@ -80,10 +80,10 @@
   "src/punt_zspec/claude_settings.py": {
     "method_ratio": 1.0,
     "encapsulation_ratio": 1.0,
-    "avg_params": 0.88,
+    "avg_params": 0.9,
     "max_complexity": 8.0,
-    "avg_complexity": 3.62,
-    "module_size": 119.0,
+    "avg_complexity": 3.7,
+    "module_size": 136.0,
     "classes_per_module": 2.0,
     "class_to_func_ratio": 1.0,
     "init_violations": 0.0,

@@ -46,13 +46,22 @@ def test_each_surface_is_allowed_broadly_with_exact_ask_carve_outs() -> None:
     )
     assert "mcp__plugin_z-spec_zspec__enablement" in _ASK
     cli = {f"Bash(z-spec {verb}:*)" for verb in ("enable", "disable", "mcp")}
-    cli.add("Bash(z-spec -*)")
     assert cli <= set(_ASK)
+    assert "Bash(z-spec -*)" not in _ASK
     skills = {rule for rule in _ASK if rule.startswith("Skill(")}
     assert skills == {f"Skill(z-spec:{cmd})" for cmd in gated}
     assert all((_COMMANDS_DIR / f"{cmd}.md").is_file() for cmd in gated)
     assert len(_ALL) == len(set(_ALL))
     assert not any("-dev" in rule for rule in _ALL)
+
+
+@pytest.mark.parametrize("verb", ["register", "prune"])
+def test_both_verbs_strip_the_legacy_flag_rule(tmp_path: Path, verb: str) -> None:
+    _write(tmp_path, {"permissions": {"ask": ["Bash(ls:*)", "Bash(z-spec -*)"]}})
+    changed = getattr(SettingsRules(tmp_path), verb)()
+    assert ("Bash(z-spec -*)" in changed) == (verb == "prune")
+    assert "Bash(z-spec -*)" not in _tier(tmp_path, "ask")
+    assert "Bash(ls:*)" in _tier(tmp_path, "ask")
 
 
 def test_register_creates_the_file_with_every_rule(tmp_path: Path) -> None:
