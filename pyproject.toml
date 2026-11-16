@@ -54,6 +54,9 @@ module-name = "punt_zspec"
 [tool.ruff]
 line-length = 88
 target-version = "py313"
+# .claude/rules/*.md carry fenced Python examples (some intentionally
+# non-conforming); ruff must not try to parse them as source.
+extend-exclude = [".claude"]
 
 [tool.ruff.lint]
 select = [

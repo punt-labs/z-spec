@@ -4,12 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed
+
+- **rulesync is removed; `.claude/rules/`, `AGENTS.md`, `CLAUDE.md`, and
+  `.mcp.json` are now hand-authored.** The `.rulesync/` source tree,
+  `rulesync.jsonc`, the `check-rulesync`/`gen-rulesync` Makefile targets, and
+  the CI step that ran `npx rulesync generate --check` are gone. The formerly
+  generated files are kept as plain committed files. The org Python rules are
+  deployed directly as 22 `.claude/rules/python-*.md` files (canonical in
+  `punt-kit/lang-rules/python/`), replacing the former
+  `python-standards-pointer.md`.
+
 ### Changed
 
 - **Linear is the sole tracker for z-spec; beads is removed.** The
   `.beads/` directory, `BEADS.md`, the `BEADS_*` settings in `.envrc`, and
-  the beads ignore rules are gone, and the workflow doc and rulesync
-  overview name Linear as the tracker. The 51 former active beads live in
+  the beads ignore rules are gone, and the workflow doc names Linear as the
+  tracker. The 51 former active beads live in
   Linear (`PL-730`–`PL-780`, team Punt Labs, label `repo:z-spec`).
 
 - **PR review follows `punt-kit/standards/pr-review.md`.** Local review
@@ -31,36 +42,11 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- **Per-tool rulesync projection: MCP registration and scoped rules for
-  claude/codex/opencode/pi.** `.rulesync/mcp.jsonc` is the single source of
-  truth for the `zspec` MCP server registration; `npx rulesync generate`
-  projects it into each tool's native config (`.mcp.json`,
-  `.codex/config.toml`, `opencode.jsonc` — pi has no MCP surface at all, per
-  rulesync's own supported-tools matrix) and `make check-rulesync` gates
-  drift between the committed projections and a fresh regenerate. Two new
-  scoped rules — Z notation conventions (`.tex`/`examples/**`) and a
-  Python-standards pointer (`**/*.py`) — load path-conditionally for Claude
-  Code via `.claude/rules/*.md`; codexcli and pi fold them unconditionally
-  into the shared root `AGENTS.md` instead, since neither has a modular,
-  glob-scoped rules surface (see each rule file's own scoping caveat).
-
-- **Rulesync's `permissions` feature was evaluated and NOT adopted.** A
-  pilot projected bash/read/edit allow-ask-deny policy from
-  `.rulesync/permissions.jsonc` into claude/codex/opencode/pi, but the
-  generated output silently mistranslated on 2 of 4 tools: Claude Code's
-  generated space-form bash pattern (`"git *"`) never matched its Bash
-  matcher (needed a hand-authored colon-form override, `Bash(git:*)`), and
-  codex's generated allow `prefix_rule`s were shadowed by its own generated
-  catch-all `prompt` rule (codex keeps the most-restrictive decision when
-  multiple prefix rules match a command, so the `git`/`make` allows never
-  applied — confirmed by Bugbot). A permission generator whose output
-  *looks* correct but does not enforce is worse than no generator — it
-  creates false confidence that `.env` and similar secrets stay protected.
-  The `permissions` feature is removed from every target in `rulesync.jsonc`,
-  `.rulesync/permissions.jsonc` is deleted, and `.claude/settings.json` is
-  restored to its pre-pilot, hand-authored policy. See `rulesync.jsonc`'s
-  `targets` comment and `.rulesync/rules/overview.md` for the record, so a
-  future maintainer does not re-add it blindly.
+- **MCP registration and scoped rules are committed directly.** The `zspec`
+  MCP server registration (`.mcp.json`, `.codex/config.toml`) and the scoped
+  rules — Z notation conventions (`.tex`/`examples/**`) and the Python rule
+  set (`**/*.py`) — are hand-authored under `.claude/rules/*.md`, loaded
+  path-conditionally by Claude Code's `paths:` frontmatter.
 
 ### Fixed
 
