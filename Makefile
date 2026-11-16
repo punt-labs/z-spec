@@ -1,4 +1,4 @@
-.PHONY: help lint type test test-py test-e2e check check-oo update-oo check-coupling update-coupling check-suppressions update-suppressions check-dev-commands gen-dev-commands check-rulesync format build install uat clean depot assert report spec-reports metrics coverage
+.PHONY: help lint type test test-py test-e2e check check-oo update-oo check-coupling update-coupling check-suppressions update-suppressions check-dev-commands gen-dev-commands format build install uat clean depot assert report spec-reports metrics coverage
 
 FUZZ      ?= fuzz
 PROBCLI   ?= $(HOME)/Applications/ProB/probcli
@@ -33,20 +33,6 @@ TIMEOUT   ?= 1800000
 SPECS     := $(filter-out %-bad.tex,$(wildcard examples/*.tex))
 SPEC_NAMES := $(notdir $(basename $(SPECS)))
 
-# rulesync generates AGENTS.md/CLAUDE.md, per-tool MCP registrations, and
-# path-scoped rules from .rulesync/ — see check-rulesync below. Pinned to the major
-# version tested in the adoption PR; bump deliberately, not implicitly via a
-# bare `npx rulesync`. Targets and per-tool features (rules/mcp)
-# are declared in rulesync.jsonc's per-target object form, NOT passed here:
-# CLI flags outrank the config file (highest-priority source per rulesync's
-# own config-precedence rules), so a `--targets`/`--features` flag here would
-# silently override the object-form config and collapse every tool back onto
-# the same flat feature set — the opposite of what per-target form is for.
-RULESYNC        ?= npx rulesync@16.24.1
-# codex's project_doc_max_bytes silently truncates AGENTS.md past this; see
-# https://github.com/openai/codex — AGENTS.md must stay well under it.
-AGENTS_MD_MAX_BYTES ?= 32768
-
 # ── Required targets (makefile.md) ──────────────────────────
 
 help: ## Show available targets
@@ -59,19 +45,6 @@ lint: ## Lint markdown, Python, and shell
 	uv run ruff check .
 	uv run ruff format --check .
 	shellcheck -x scripts/*.sh install.sh plugin/hooks/*.sh
-	$(MAKE) check-rulesync
-
-check-rulesync: ## Verify generated configs match .rulesync/ (rules+mcp, per rulesync.jsonc) and AGENTS.md stays under codex's byte cap
-	$(RULESYNC) generate --check
-	@bytes=$$(wc -c < AGENTS.md); \
-	if [ "$$bytes" -ge $(AGENTS_MD_MAX_BYTES) ]; then \
-		echo "AGENTS.md is $$bytes bytes >= $(AGENTS_MD_MAX_BYTES) (codex project_doc_max_bytes cap) — trim .rulesync/rules/overview.md"; \
-		exit 1; \
-	fi; \
-	echo "AGENTS.md: $$bytes bytes (cap $(AGENTS_MD_MAX_BYTES))"
-
-gen-rulesync: ## Regenerate all per-tool configs (rules+mcp) from .rulesync/
-	$(RULESYNC) generate
 
 type: type-py $(addprefix type-z-,$(SPEC_NAMES)) ## Type-check Python and Z specs
 

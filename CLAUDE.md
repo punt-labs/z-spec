@@ -95,24 +95,9 @@ PR review follows punt-kit/standards/pr-review.md: local review (qodo review + s
   checkout requirement stated above).
 - `README.md` — user-facing surface. `CHANGELOG.md` — release history.
   `examples/*.tex` — the spec corpus gated by `make check`.
-- Z notation conventions (ProB-compatible) — sourced from
-  `.rulesync/rules/z-conventions.md`. Claude Code
-  loads it only when you touch a `.tex` spec or anything under `examples/`
-  (its `paths:`-scoped `.claude/rules/` mechanism honors the glob); codexcli
-  and pi have no per-file scoping and instead get it folded into the shared
-  root `AGENTS.md`, so it is always in context for those two tools. See the
-  rule file's own scoping caveat for the full picture.
-- **`permissions` was piloted here and rejected — do not re-add it without
-  reading this first.** Rulesync's `permissions` feature (bash/read/edit
-  allow-ask-deny policy, projected from `.rulesync/permissions.jsonc`) was
-  tried against claude/codex/opencode/pi and mistranslated on 2 of 4 tools:
-  Claude Code's generated space-form bash pattern (`"git *"`) never matched
-  its Bash matcher (needs `Bash(git:*)`), and codex's generated allow
-  `prefix_rule`s were shadowed by its own generated catch-all `prompt` rule
-  (codex keeps the most-restrictive decision when multiple rules match a
-  command). A generator whose output looks correct but silently does not
-  enforce is worse than no generator. See `rulesync.jsonc`'s `targets`
-  comment and `CHANGELOG.md` (`[Unreleased]`) for the full record.
+- Z notation conventions (ProB-compatible) — in
+  `.claude/rules/z-conventions.md`, a hand-authored `paths:`-scoped rule Claude
+  Code loads only when you touch a `.tex` spec or anything under `examples/`.
 
 ## Code quality
 

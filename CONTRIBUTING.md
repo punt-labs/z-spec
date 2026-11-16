@@ -26,11 +26,7 @@ make check
 make uat
 ```
 
-`make lint` runs ruff check, ruff format --check, markdownlint, and
-`check-rulesync` (verifies `AGENTS.md`/`CLAUDE.md` are generated from
-`.rulesync/rules/*.md` with no drift, and that `AGENTS.md` stays under
-codex's byte cap). `check-rulesync` shells out to `npx rulesync`, so it
-needs `npx` on `PATH`.
+`make lint` runs ruff check, ruff format --check, markdownlint, and shellcheck.
 `make type` runs mypy, pyright, and fuzz on every spec in `examples/`.
 `make test` runs pytest and probcli on every spec in `examples/`.
 `make check` runs lint, type, test, and the OO/coupling/suppression ratchets —
