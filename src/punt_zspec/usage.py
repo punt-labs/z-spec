@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import time
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Literal, final
+from typing import TYPE_CHECKING, Literal, Self, final
 
 from punt_observe.telemetry import (
     DurationAttr,
@@ -94,11 +94,16 @@ def schemas() -> tuple[SignalSchema, ...]:
 class Observation:
     """The outcome of one capability call, filled in by the call site."""
 
+    _outcome: Outcome
+    _failure: CommandFailure | None
     __slots__ = ("_failure", "_outcome")
 
-    def __init__(self) -> None:
-        self._outcome: Outcome = "ok"
-        self._failure: CommandFailure | None = None
+    def __new__(cls) -> Self:
+        """Start an observation that succeeds unless told otherwise."""
+        self = super().__new__(cls)
+        self._outcome = "ok"
+        self._failure = None
+        return self
 
     def result[T: JsonObject](self, result: CommandResult[T]) -> CommandResult[T]:
         """Note *result*'s outcome and hand it back unchanged.
@@ -138,13 +143,16 @@ class Usage:
     a client module never opens a store.
     """
 
+    _surface: Surface
+    _telemetry: Telemetry
     __slots__ = ("_surface", "_telemetry")
 
-    def __init__(self, surface: Surface) -> None:
-        self._surface: Surface = surface
-        self._telemetry: Telemetry = open_telemetry(
-            TOOL, (), TelemetryConfig(enabled=False)
-        )
+    def __new__(cls, surface: Surface) -> Self:
+        """Bind *surface* with capture disabled until :meth:`start`."""
+        self = super().__new__(cls)
+        self._surface = surface
+        self._telemetry = open_telemetry(TOOL, (), TelemetryConfig(enabled=False))
+        return self
 
     def start(self, config: TelemetryConfig | None = None) -> None:
         """Open capture for this process; the off switches always win.

@@ -1,44 +1,49 @@
 """Configure z-spec diagnostics for its process entry points.
 
 Library modules only declare ``logging.getLogger(__name__)``; the CLI and the
-MCP server call :func:`configure_logging` once at startup, which routes every
-record to the private, redacted, rotated file the shared ``punt-observe``
-package owns at ``~/.punt-labs/z-spec/logs/z-spec.log``.
+MCP server call :meth:`DiagnosticLog.configure` once at startup, which routes
+every record to the private, redacted, rotated file the shared
+``punt-observe`` package owns at ``~/.punt-labs/z-spec/logs/z-spec.log``.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, final
 
-from punt_observe.logging import (
-    LoggingSetupError,
-    configure_logging as _configure_logging,
-)
+from punt_observe.logging import LoggingSetupError, configure_logging
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-__all__ = ["TOOL", "LoggingSetupError", "Role", "configure_logging"]
+__all__ = ["TOOL", "DiagnosticLog", "LoggingSetupError", "Role"]
 
 TOOL = "z-spec"
 
 type Role = Literal["cli", "mcp"]
 
 
-def configure_logging(role: Role, *, stderr_level: str = "WARNING") -> Path:
-    """Configure a private durable sink and optional terminal diagnostics.
+@final
+class DiagnosticLog:
+    """The one place a z-spec process configures its diagnostics."""
 
-    stderr only carries records at ``stderr_level`` or above; stdout is never
-    a log sink, so the MCP stdio transport stays clean.
+    __slots__ = ()
 
-    Args:
-        role: The entry point configuring the process.
-        stderr_level: The lowest level echoed to stderr.
+    @staticmethod
+    def configure(role: Role, *, stderr_level: str = "WARNING") -> Path:
+        """Configure a private durable sink and optional terminal diagnostics.
 
-    Returns:
-        The path of the active log file.
+        stderr only carries records at ``stderr_level`` or above; stdout is
+        never a log sink, so the MCP stdio transport stays clean.
 
-    Raises:
-        LoggingSetupError: The private log directory or file cannot be secured.
-    """
-    return _configure_logging(TOOL, role, stderr_level=stderr_level)
+        Args:
+            role: The entry point configuring the process.
+            stderr_level: The lowest level echoed to stderr.
+
+        Returns:
+            The path of the active log file.
+
+        Raises:
+            LoggingSetupError: The private log directory or file cannot be
+                secured.
+        """
+        return configure_logging(TOOL, role, stderr_level=stderr_level)

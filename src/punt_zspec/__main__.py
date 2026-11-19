@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Annotated
 import typer
 
 from punt_zspec import __version__
-from punt_zspec.logging_config import LoggingSetupError, Role, configure_logging
+from punt_zspec.logging_config import DiagnosticLog, LoggingSetupError, Role
 from punt_zspec.usage import Usage
 
 if TYPE_CHECKING:
@@ -44,7 +44,7 @@ def main(
     """Z specification toolkit."""
     role: Role = "mcp" if ctx.invoked_subcommand == "mcp" else "cli"
     try:
-        configure_logging(role)
+        DiagnosticLog.configure(role)
     except LoggingSetupError as exc:
         typer.echo(f"error: cannot open the z-spec log: {exc}", err=True)
         raise typer.Exit(1) from exc

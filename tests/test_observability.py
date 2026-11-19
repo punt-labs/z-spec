@@ -35,7 +35,7 @@ from punt_observe.telemetry import SchemaRegistry, TelemetryConfig
 from punt_zspec.commands.doctor import DoctorReport
 from punt_zspec.commands.registry import CAPABILITIES
 from punt_zspec.commands.result import CommandError, CommandFailure, CommandResult
-from punt_zspec.logging_config import configure_logging
+from punt_zspec.logging_config import DiagnosticLog
 from punt_zspec.usage import SCHEMA_VERSION, Usage, schemas, signal_name
 
 if TYPE_CHECKING:
@@ -337,7 +337,7 @@ def test_unstarted_usage_opens_no_store(private_home: Path) -> None:
 
 
 def test_log_records_are_redacted_and_single_line(private_home: Path) -> None:
-    path = configure_logging("cli")
+    path = DiagnosticLog.configure("cli")
 
     logging.getLogger("punt_zspec.test").warning(
         "fetch failed: %s", "https://u:SECRET@host/p?token=SECRET\nforged [INFO] x"

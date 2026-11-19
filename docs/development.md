@@ -160,7 +160,7 @@ primary Claude Code plugin journey.
 |--------|---------------|
 | `__main__.py` | Typer CLI — the verb surface |
 | `server.py` | FastMCP server (key: `zspec`) — the tool surface; owns the lux session lifespan |
-| `logging_config.py` | `configure_logging` — the one place entry points configure diagnostics, through `punt-observe` |
+| `logging_config.py` | `DiagnosticLog.configure` — the one place entry points configure diagnostics, through `punt-observe` |
 | `usage.py` | `Usage` — the typed usage-event schemas and the per-call recorder both surfaces share |
 | `server_context.py` | Shared per-request context both surfaces build commands from |
 | `commands/registry.py` | The canonical capability list (`CAPABILITIES`) and each capability's name on each surface |
