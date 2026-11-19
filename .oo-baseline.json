@@ -26,11 +26,11 @@
     "future_annotations": 1.0
   },
   "src/punt_zspec/applet.py": {
-    "method_ratio": 0.9,
+    "method_ratio": 0.917,
     "encapsulation_ratio": 1.0,
-    "avg_params": 1.7,
-    "max_complexity": 11.0,
-    "avg_complexity": 5.1,
+    "avg_params": 1.58,
+    "max_complexity": 9.0,
+    "avg_complexity": 4.33,
     "module_size": 437.0,
     "classes_per_module": 1.0,
     "class_to_func_ratio": 0.5,
