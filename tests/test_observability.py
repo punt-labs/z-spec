@@ -31,7 +31,9 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
 from punt_observe.telemetry import SchemaRegistry, TelemetryConfig
+from typer.testing import CliRunner
 
+from punt_zspec.__main__ import app
 from punt_zspec.commands.doctor import DoctorReport
 from punt_zspec.commands.registry import CAPABILITIES
 from punt_zspec.commands.result import CommandError, CommandFailure, CommandResult
@@ -348,6 +350,21 @@ def test_log_records_are_redacted_and_single_line(private_home: Path) -> None:
     text = path.read_text("utf-8")
     assert "SECRET" not in text
     assert text.count("\n") == 1
+
+
+def test_cli_exits_cleanly_when_home_cannot_be_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def no_home() -> Path:
+        raise RuntimeError("Could not determine home directory.")
+
+    monkeypatch.setattr(Path, "home", staticmethod(no_home))
+
+    result = CliRunner().invoke(app, ["doctor"])
+
+    assert result.exit_code == 1
+    assert "error: cannot open the z-spec log" in result.output
+    assert result.exception is None or isinstance(result.exception, SystemExit)
 
 
 def test_source_never_configures_logging_by_hand() -> None:

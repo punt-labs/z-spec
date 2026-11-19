@@ -43,7 +43,11 @@ class DiagnosticLog:
             The path of the active log file.
 
         Raises:
-            LoggingSetupError: The private log directory or file cannot be
-                secured.
+            LoggingSetupError: The home directory cannot be found, or the
+                private log directory or file cannot be secured.
         """
-        return configure_logging(TOOL, role, stderr_level=stderr_level)
+        try:
+            return configure_logging(TOOL, role, stderr_level=stderr_level)
+        except RuntimeError as exc:  # Path.home(): no HOME and no passwd entry
+            msg = "cannot locate the home directory"
+            raise LoggingSetupError(msg) from exc
