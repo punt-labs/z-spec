@@ -139,5 +139,5 @@ precision = 2
 
 [dependency-groups]
 dev = [
-    "punt-oo-ratchet==0.1.0",
+    "punt-oo-ratchet==0.2.2",
 ]
