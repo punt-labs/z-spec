@@ -203,6 +203,46 @@ def test_mcp_entry_point_logs_to_file_and_keeps_stdout_for_json_rpc(
     assert "z-spec.mcp.disable" in {name for name, _ in _events(private_home)}
 
 
+def test_unreadable_report_records_one_invalid_report_failure(
+    private_home: Path, tmp_path: Path
+) -> None:
+    spec = tmp_path / "s.tex"
+    spec.write_text("", encoding="utf-8")
+
+    proc = _cli(private_home, "partition", str(spec), "--report", "missing.json")
+
+    assert proc.returncode == 1
+    assert "error: cannot read report" in proc.stderr
+    [(name, attrs)] = _events(private_home)
+    assert name == "z-spec.cli.partition"
+    assert attrs["outcome"] == "failed"
+    assert attrs["failure"] == "invalid_report"
+
+
+def test_concurrent_cli_processes_share_one_intact_log(
+    private_home: Path, not_a_repo: Path
+) -> None:
+    writers = 6
+    procs = [
+        subprocess.Popen(
+            [sys.executable, "-m", "punt_zspec", "disable", str(not_a_repo)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=_env(private_home),
+        )
+        for _ in range(writers)
+    ]
+    for proc in procs:
+        assert proc.wait(timeout=_TIMEOUT_S) == 1
+
+    lines = _log(private_home).read_text("utf-8").splitlines()
+    completed = [line for line in lines if "Completed disable via cli" in line]
+    assert len(completed) == writers
+    assert all(re.match(r"\d{4}-\d{2}-\d{2} ", line) for line in lines)
+    # Telemetry is fail-open: contended SQLite writes may drop events, never block.
+    assert 1 <= len(_events(private_home)) <= writers
+
+
 def test_schemas_cover_every_capability_on_both_surfaces() -> None:
     declared = schemas()
     names = {schema.name for schema in declared}

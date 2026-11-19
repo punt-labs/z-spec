@@ -336,7 +336,7 @@ async def enablement(
                 RepoEnablement.apply, EnablementAction(action), Path(directory)
             )
         )
-    await _ctx.sync()
+        await _ctx.sync()
     return result.to_json()
 
 

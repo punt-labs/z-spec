@@ -16,6 +16,7 @@ from punt_zspec.usage import Usage
 if TYPE_CHECKING:
     from punt_zspec.commands.result import CommandResult, JsonObject
     from punt_zspec.types import Collection, EnablementReport, SpecModel, SpecReports
+    from punt_zspec.usage import Observation
 
 app = typer.Typer(
     name="z-spec",
@@ -64,16 +65,20 @@ _TOML_ARG = typer.Argument(
 _REPORT_OPT = typer.Option("--report", help="Report JSON file, or - for stdin")
 
 
-def _read_report(report: str) -> str:
+def _read_report(report: str, observed: Observation) -> str:
     """Read authored report JSON from stdin (``-``) or a file path.
 
-    A missing or unreadable file exits 1 with a clean message, no traceback.
+    A missing or unreadable file exits 1 with a clean message, no traceback,
+    and *observed* records the call as an ``invalid_report`` failure.
     """
     if report == "-":
         return sys.stdin.read()
     try:
         return Path(report).read_text("utf-8")
     except (OSError, UnicodeDecodeError) as exc:
+        from punt_zspec.commands.result import CommandFailure
+
+        observed.fail(CommandFailure.invalid_report)
         typer.echo(f"error: cannot read report: {exc}", err=True)
         raise typer.Exit(1) from exc
 
@@ -205,8 +210,8 @@ def partition(
     """Validate and persist an authored TTF partition report."""
     from punt_zspec.commands.partition import PartitionCommand
 
-    raw = _read_report(report)
     with _USAGE.observe("partition") as observed:
+        raw = _read_report(report, observed)
         result = observed.result(PartitionCommand().run(file, raw))
     typer.echo(str(_payload(result).path))
 
@@ -219,8 +224,8 @@ def audit(
     """Validate and persist an authored test-coverage audit report."""
     from punt_zspec.commands.audit import AuditCommand
 
-    raw = _read_report(report)
     with _USAGE.observe("audit") as observed:
+        raw = _read_report(report, observed)
         result = observed.result(AuditCommand().run(file, raw))
     typer.echo(str(_payload(result).path))
 

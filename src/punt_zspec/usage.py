@@ -120,9 +120,19 @@ class Observation:
             self._failure = err.kind
         return result
 
+    def fail(self, kind: CommandFailure) -> None:
+        """Note an expected failure the surface met before the command ran.
+
+        Args:
+            kind: The failure mode, as a command would have reported it.
+        """
+        self._outcome = "failed"
+        self._failure = kind
+
     def raised(self) -> None:
-        """Note that the call ended in an unexpected exception."""
-        self._outcome = "error"
+        """Note an unexpected exception, unless the failure was already noted."""
+        if self._outcome == "ok":
+            self._outcome = "error"
 
     @property
     def outcome(self) -> Outcome:
