@@ -15,10 +15,10 @@
   "src/punt_zspec/__main__.py": {
     "method_ratio": 0.0,
     "encapsulation_ratio": 1.0,
-    "avg_params": 1.55,
-    "max_complexity": 5.0,
-    "avg_complexity": 2.3,
-    "module_size": 265.0,
+    "avg_params": 1.67,
+    "max_complexity": 4.0,
+    "avg_complexity": 1.9,
+    "module_size": 274.0,
     "classes_per_module": 0.0,
     "class_to_func_ratio": 0.0,
     "init_violations": 0.0,
@@ -376,6 +376,19 @@
     "public_attr_violations": 0.0,
     "future_annotations": 1.0
   },
+  "src/punt_zspec/logging_config.py": {
+    "method_ratio": 1.0,
+    "encapsulation_ratio": 1.0,
+    "avg_params": 2.0,
+    "max_complexity": 2.0,
+    "avg_complexity": 2.0,
+    "module_size": 18.0,
+    "classes_per_module": 1.0,
+    "class_to_func_ratio": 1.0,
+    "init_violations": 0.0,
+    "public_attr_violations": 0.0,
+    "future_annotations": 1.0
+  },
   "src/punt_zspec/lux/__init__.py": {
     "method_ratio": 1.0,
     "encapsulation_ratio": 1.0,
@@ -616,7 +629,7 @@
     "avg_params": 1.87,
     "max_complexity": 1.0,
     "avg_complexity": 1.0,
-    "module_size": 129.0,
+    "module_size": 153.0,
     "classes_per_module": 0.0,
     "class_to_func_ratio": 0.0,
     "init_violations": 0.0,
@@ -762,6 +775,19 @@
     "module_size": 16.0,
     "classes_per_module": 0.0,
     "class_to_func_ratio": 1.0,
+    "init_violations": 0.0,
+    "public_attr_violations": 0.0,
+    "future_annotations": 1.0
+  },
+  "src/punt_zspec/usage.py": {
+    "method_ratio": 0.846,
+    "encapsulation_ratio": 1.0,
+    "avg_params": 0.77,
+    "max_complexity": 4.0,
+    "avg_complexity": 1.69,
+    "module_size": 126.0,
+    "classes_per_module": 2.0,
+    "class_to_func_ratio": 0.5,
     "init_violations": 0.0,
     "public_attr_violations": 0.0,
     "future_annotations": 1.0

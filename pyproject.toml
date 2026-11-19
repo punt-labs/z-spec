@@ -24,6 +24,7 @@ classifiers = [
 dependencies = [
     "mcp>=1.0.0",
     "punt-lux>=0.31,<0.32",
+    "punt-observe @ git+https://github.com/punt-labs/punt-observe@53e657555cab240795c850ea7f0e4dd77a8d98fc",
     "typer>=0.24.1",
 ]
 
@@ -72,12 +73,19 @@ select = [
     "TCH", # flake8-type-checking
     "TID", # flake8-tidy-imports
     "RUF", # Ruff-specific rules
+    "LOG", # flake8-logging (PY-LOG-2, PY-LOG-9)
+    "G",   # flake8-logging-format: lazy %-style arguments only
+    "T20", # flake8-print: operational output goes through logging
 ]
 ignore = [
     "TC001",  # Move import into TYPE_CHECKING
     "TC003",  # Move standard lib import into TYPE_CHECKING
     "RUF001", # Ambiguous Unicode — intentional for Z notation symbols
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# Dev scripts under tools/ report to the developer's terminal by design.
+"tools/*.py" = ["T201"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

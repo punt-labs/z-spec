@@ -329,6 +329,18 @@ not of one user, so it should be reviewed in a pull request like other
 repository settings. The `z-spec` CLI works in every directory whether or not
 the repository is enabled.
 
+### Logs and Usage Data
+
+z-spec writes its diagnostics to `~/.punt-labs/z-spec/logs/z-spec.log`. The
+log is readable only by you, rotates at 5 MiB, and keeps five old files.
+
+z-spec also records which commands and MCP tools you run, whether they
+succeeded, and how long they took, in `~/.punt-labs/z-spec/telemetry.db`. It
+never records file paths, spec text, or report contents, keeps records for
+90 days, and sends nothing over the network. To turn it off, set
+`Z_SPEC_TELEMETRY=off` (z-spec only) or `PUNT_TELEMETRY=off` (every Punt
+Labs tool).
+
 ## What Is Z?
 
 [Z](https://en.wikipedia.org/wiki/Z_notation) ("zed") is a formal specification language based on set theory and first-order predicate logic. It was developed at the University of Oxford in the late 1970s and early 1980s and is standardized as [ISO/IEC 13568](https://www.iso.org/standard/21573.html).

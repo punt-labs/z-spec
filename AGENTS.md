@@ -124,7 +124,7 @@ change.
 
 z-spec follows Punt Labs' org-wide Python standard in full. The canonical
 rules live in `punt-kit/lang-rules/python/` and are deployed into this repo's
-own `.claude/rules/python-*.md` — 22 scoped files, one per concern (style,
+own `.claude/rules/python-*.md` — 24 scoped files, one per concern (style,
 typing, OO ratchet, coupling, suppression policy, and more), each loading
 automatically when Claude Code touches a `.py` file via its own `paths:`
 frontmatter. They are repo-local, so a standalone clone carries them; do not

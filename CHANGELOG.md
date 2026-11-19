@@ -8,6 +8,14 @@ All notable changes to this project will be documented in this file.
 
 - z-spec checks public docstrings and Python comments in lint and CI, and
   builds a generated Python API reference from the source.
+- The CLI and the MCP server write diagnostics to a private, rotated log at
+  `~/.punt-labs/z-spec/logs/z-spec.log` through the shared `punt-observe`
+  package (PL-1200). stdout stays reserved for the MCP stdio transport.
+- Every CLI verb and MCP tool call records one local usage event,
+  `z-spec.<surface>.<capability>` version 1, carrying only its outcome,
+  failure kind and duration, in `~/.punt-labs/z-spec/telemetry.db` (90-day
+  retention). `PUNT_TELEMETRY=off` or `Z_SPEC_TELEMETRY=off` turns capture off;
+  nothing leaves the machine.
 
 ### Changed
 

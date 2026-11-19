@@ -1,0 +1,53 @@
+"""Configure z-spec diagnostics for its process entry points.
+
+Library modules only declare ``logging.getLogger(__name__)``; the CLI and the
+MCP server call :meth:`DiagnosticLog.configure` once at startup, which routes
+every record to the private, redacted, rotated file the shared
+``punt-observe`` package owns at ``~/.punt-labs/z-spec/logs/z-spec.log``.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Literal, final
+
+from punt_observe.logging import LoggingSetupError, configure_logging
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+__all__ = ["TOOL", "DiagnosticLog", "LoggingSetupError", "Role"]
+
+TOOL = "z-spec"
+
+type Role = Literal["cli", "mcp"]
+
+
+@final
+class DiagnosticLog:
+    """The one place a z-spec process configures its diagnostics."""
+
+    __slots__ = ()
+
+    @staticmethod
+    def configure(role: Role, *, stderr_level: str = "WARNING") -> Path:
+        """Configure a private durable sink and optional terminal diagnostics.
+
+        stderr only carries records at ``stderr_level`` or above; stdout is
+        never a log sink, so the MCP stdio transport stays clean.
+
+        Args:
+            role: The entry point configuring the process.
+            stderr_level: The lowest level echoed to stderr.
+
+        Returns:
+            The path of the active log file.
+
+        Raises:
+            LoggingSetupError: The home directory cannot be found, or the
+                private log directory or file cannot be secured.
+        """
+        try:
+            return configure_logging(TOOL, role, stderr_level=stderr_level)
+        except RuntimeError as exc:  # Path.home(): no HOME and no passwd entry
+            msg = "cannot locate the home directory"
+            raise LoggingSetupError(msg) from exc
