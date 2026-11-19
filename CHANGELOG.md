@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Run OO, coupling, and suppression quality gates from the pinned PyPI dev
+  package `punt-oo-ratchet==0.1.0` instead of embedded tooling. Existing
+  baselines, audit logs, and CI comparison refs are unchanged.
+
 ### Fixed
 
 - **`z-spec --version` and `z-spec --help` no longer prompt in an enabled

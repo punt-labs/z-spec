@@ -19,7 +19,7 @@ the rest of the system — a change in any dependency can break it.
 
 **Tooling**:
 
-- `tools/oo_coupling.py` — `efferent_coupling` metric
+- `uv run oo-ratchet coupling` — `efferent_coupling` metric
 - Fix: extract a facade or mediator that the module imports instead of
   importing each dependency directly
 
@@ -37,7 +37,7 @@ runtime `ImportError` when import order is wrong.
 
 **Tooling**:
 
-- `tools/oo_coupling.py` — `circular_imports` metric (1 if in cycle, 0 if not)
+- `uv run oo-ratchet coupling` — `circular_imports` metric (1 if in cycle, 0 if not)
 - Fix: break the cycle by extracting shared types into a separate module
   that both sides import, or use `TYPE_CHECKING` guards for annotation-only
   imports
@@ -58,7 +58,7 @@ maintain module.
 
 **Tooling**:
 
-- `tools/oo_coupling.py` — `public_names` metric
+- `uv run oo-ratchet coupling` — `public_names` metric
 - Fix: make internal helpers private (prefix with `_`), use `__all__` to
   control exports explicitly, extract internal utilities into separate modules
 

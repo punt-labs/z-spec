@@ -88,22 +88,22 @@ COUPLING_BASE    ?=
 SUPPRESSION_BASE ?=
 
 check-oo: ## OO ratchet — must improve over baseline, never regress
-	uv run python tools/oo_score.py src/punt_zspec/ --check $(OO_BASE)
+	uv run oo-ratchet oo src/punt_zspec/ --check $(OO_BASE)
 
 update-oo: ## Update OO baseline (stage .oo-baseline.json and .oo-audit.jsonl)
-	uv run python tools/oo_score.py src/punt_zspec/ --update $(OO_BASE)
+	uv run oo-ratchet oo src/punt_zspec/ --update $(OO_BASE)
 
 check-coupling: ## Coupling ratchet — merge-base scoped, must not regress
-	uv run python tools/oo_coupling.py src/punt_zspec/ --check $(COUPLING_BASE)
+	uv run oo-ratchet coupling src/punt_zspec/ --check $(COUPLING_BASE)
 
 update-coupling: ## Update coupling baseline (stage baseline and audit jsonl)
-	uv run python tools/oo_coupling.py src/punt_zspec/ --update $(COUPLING_BASE)
+	uv run oo-ratchet coupling src/punt_zspec/ --update $(COUPLING_BASE)
 
 check-suppressions: ## Suppression ratchet — base-commit scoped, count must not rise
-	uv run python tools/suppression_ratchet.py src/punt_zspec/ --check $(SUPPRESSION_BASE)
+	uv run oo-ratchet suppressions src/punt_zspec/ --check $(SUPPRESSION_BASE)
 
 update-suppressions: ## Update suppression baseline
-	uv run python tools/suppression_ratchet.py src/punt_zspec/ --update
+	uv run oo-ratchet suppressions src/punt_zspec/ --update
 
 format: ## Auto-format code
 	uv run ruff format .
@@ -160,11 +160,11 @@ assert-%: examples/%.tex
 
 report: ## Full diagnostics — every gate and metric, no fail-fast
 	@echo "── OO score ─────────────────────────────────────────────"
-	-uv run python tools/oo_score.py src/punt_zspec/ --threshold
+	-uv run oo-ratchet oo src/punt_zspec/ --threshold
 	@echo "── Coupling ─────────────────────────────────────────────"
-	-uv run python tools/oo_coupling.py src/punt_zspec/ --threshold
+	-uv run oo-ratchet coupling src/punt_zspec/ --threshold
 	@echo "── Suppressions ─────────────────────────────────────────"
-	-uv run python tools/suppression_ratchet.py src/punt_zspec/ --threshold
+	-uv run oo-ratchet suppressions src/punt_zspec/ --threshold
 	@echo "── Types (mypy) ─────────────────────────────────────────"
 	-uv run mypy src/ tests/
 	@echo "── Types (pyright) ──────────────────────────────────────"

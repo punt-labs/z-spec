@@ -14,7 +14,7 @@ fully comply. The rule is: every commit must improve compliance, never regress.
 When you touch a file:
 
 1. Record the baseline: `make check-oo` scores touched files against the
-   committed `.oo-baseline.json`; `python tools/oo_score.py <file>` runs the
+   committed `.oo-baseline.json`; `uv run oo-ratchet oo <file>` runs the
    same scoring directly
 2. Make your change
 3. Re-run the scoring — no metric may worsen
@@ -36,16 +36,17 @@ every file better than you found it.
 
 - `make check-oo` — score touched files against the committed baseline
 - `make update-oo` — rewrite the baseline after the code passes
-- `python tools/oo_score.py <file>` — direct scoring, before and after a change
-- `python tools/oo_score.py <directory> --threshold` — per-file breakdown
+- `uv run oo-ratchet oo <file>` — direct scoring, before and after a change
+- `uv run oo-ratchet oo <directory> --threshold` — per-file breakdown
 
-## PL-OA-2: The oo_score.py Tool Is Required
+## PL-OA-2: The punt-oo-ratchet Package Is Required
 
-**Statement**: Every Python project must have `tools/oo_score.py` available.
-This is a zero-dependency AST analysis script (stdlib only) that produces
-numeric OO quality metrics. It is provided by punt-kit as the canonical,
-deployable source for the ratchet tooling; obtain it from there rather than
-copying a developer-local file.
+**Statement**: Every Python project depends on the pinned PyPI dev package
+`punt-oo-ratchet==0.1.0`. It provides the zero-runtime-dependency AST gates
+`oo-ratchet oo`, `oo-ratchet coupling`, and `oo-ratchet suppressions`.
+Do not embed copies under `tools/`. Commit `pyproject.toml` and `uv.lock`;
+CI installs with `uv sync --frozen --all-extras`. Existing baseline and audit
+filenames remain compatible.
 
 **Metrics and thresholds**:
 
@@ -65,7 +66,7 @@ copying a developer-local file.
 
 **Criterion**:
 
-- Pass: `tools/oo_score.py` exists in the project and runs without error
+- Pass: `uv run oo-ratchet oo <src>` runs from the installed package
 - Fail: tool missing or broken
 
 ## PL-OA-3: Apply the Refactoring Protocol for Legacy Code
