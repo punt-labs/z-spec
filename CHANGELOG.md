@@ -11,10 +11,18 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Bump the quality-gate dev dependency to `punt-oo-ratchet==0.2.2` and
-  re-record the suppression baseline with an audited reset (PL-1175), removing
+- Bump the quality-gate dev dependency to `punt-oo-ratchet==0.3.0` and
+  record the approved metric-definition migration through the audited CLI
+  for all OO baseline rows: code-only module sizes and exception/enum/dataclass
+  exclusions (PL-1141). Coupling and suppression scores are unchanged.
+  Deliberately loosen the internal-import pass/fail limit from 7 to 10,
+  allowing 8–10 imports under the approved package default (PL-1188).
+  Merged suppression waivers now retire: a subsequent rise needs a fresh waiver,
+  even below the old ceiling.
+
+- Re-record the suppression baseline with an audited reset (PL-1175), removing
   the stale count for the deleted vendored-tool Ruff ignore. OO and coupling
-  baselines already match the new scorer and remain unchanged.
+  baselines matched the 0.2.2 scorer and were unchanged at that adoption.
 
 - Run OO, coupling, and suppression quality gates from the pinned PyPI dev
   package `punt-oo-ratchet` instead of embedded tooling. Baseline and audit

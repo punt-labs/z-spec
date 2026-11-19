@@ -1233,11 +1233,11 @@ wheels = [
 
 [[package]]
 name = "punt-oo-ratchet"
-version = "0.2.2"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/76/1a/deffeca3fc85d0d6e76f4e3acf9a59f8e7bc4a7742fe6fc0568d9189301d/punt_oo_ratchet-0.2.2.tar.gz", hash = "sha256:c1de26f25bd64a7bad9c42eb5da8ccd68f25792c22604ce7126bd561544c1711", size = 82453, upload-time = "2026-11-19T04:12:25.165Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b0/c0/f1d219b44495df37c411ad3bf4b68187a8f4bc060952fc87864c73bc0c64/punt_oo_ratchet-0.3.0.tar.gz", hash = "sha256:340b7e0cc1ea381815253d5a041a3872a0cf3904856f50e35184775410999d26", size = 84837, upload-time = "2026-11-19T07:29:33.684Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/db/e5/be79910f7932e46e786671f363a2fea8a9c6b960cfbdb134f9a11580c5b4/punt_oo_ratchet-0.2.2-py3-none-any.whl", hash = "sha256:a3b85ba32ba3e179991eaf32bac6035de481d70041f1d9e3307b78319a76873a", size = 106715, upload-time = "2026-11-19T04:12:23.87Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/15/cf1efc260691ef6a77558e313440d6118ef9855977da6053630da87744ba/punt_oo_ratchet-0.3.0-py3-none-any.whl", hash = "sha256:e213d486258ad3b5ad049387d5412097252f4a6438b78e2951751708873d5212", size = 110016, upload-time = "2026-11-19T07:29:32.362Z" },
 ]
 
 [[package]]
@@ -1288,7 +1288,7 @@ provides-extras = ["dev"]
 dev = [
     { name = "docstring-parser", specifier = ">=0.17,<1" },
     { name = "markdown", specifier = "==3.11.3" },
-    { name = "punt-oo-ratchet", specifier = "==0.2.2" },
+    { name = "punt-oo-ratchet", specifier = "==0.3.0" },
     { name = "types-markdown", specifier = ">=3.10,<4" },
 ]
 docs = [
