@@ -6,9 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Bump the quality-gate dev dependency to `punt-oo-ratchet==0.2.2` and
+  re-record the suppression baseline with an audited reset (PL-1175), removing
+  the stale count for the deleted vendored-tool Ruff ignore. OO and coupling
+  baselines already match the new scorer and remain unchanged.
+
 - Run OO, coupling, and suppression quality gates from the pinned PyPI dev
-  package `punt-oo-ratchet==0.1.0` instead of embedded tooling. Existing
-  baselines, audit logs, and CI comparison refs are unchanged.
+  package `punt-oo-ratchet` instead of embedded tooling. Baseline and audit
+  paths and CI comparison refs are unchanged.
 
 ### Fixed
 
