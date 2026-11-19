@@ -152,35 +152,7 @@ class _SpecSceneBuilder:
                 )
             )
 
-        # No operations means no counts to show, not zero of them. Rendering
-        # "0/0 ops" states a measurement that was not taken; the checks table
-        # below already carries the coverage verdict and its reason, and a card
-        # that recomputes what it was handed is how this defect was written the
-        # first time.
-        covered = sum(1 for op in report.operations if op.covered)
-        coverage_text = (
-            f"Coverage: {covered}/{len(report.operations)} ops"
-            if report.operations
-            else "Coverage: not measured"
-        )
-        result_text = "PASS" if report.ok else "FAIL"
-        elements.append(
-            GroupElement(
-                id=f"{p}metrics",
-                layout="columns",
-                children=[
-                    TextElement(
-                        id=f"{p}m-states", content=f"States: {report.states_analysed}"
-                    ),
-                    TextElement(
-                        id=f"{p}m-trans",
-                        content=f"Transitions: {report.transitions_fired}",
-                    ),
-                    TextElement(id=f"{p}m-coverage", content=coverage_text),
-                    TextElement(id=f"{p}m-result", content=f"Result: {result_text}"),
-                ],
-            )
-        )
+        elements.append(self._metrics_card(report))
 
         elements.append(SeparatorElement())
         elements.append(
@@ -205,34 +177,62 @@ class _SpecSceneBuilder:
             )
         )
 
-        if not report.operations:
-            elements.append(SeparatorElement())
-            elements.append(
-                TextElement(
-                    id=f"{p}ops-absent",
-                    content="No operation census in this report — see coverage above.",
-                )
-            )
-        if report.operations:
-            elements.append(SeparatorElement())
-            op_rows = [
-                [
-                    op.name,
-                    str(op.times_fired),
-                    "✓ covered" if op.covered else "✗ uncovered",
-                ]
-                for op in report.operations
-            ]
-            elements.append(
-                TableElement(
-                    id=f"{p}ops-coverage",
-                    columns=["Operation", "Times Fired", "Status"],
-                    rows=op_rows,
-                    flags=TableFlags(resizable=True),
-                )
-            )
-
+        elements.append(SeparatorElement())
+        elements.append(self._operations_census(report))
         return elements
+
+    def _metrics_card(self, report: ProbReport) -> Element:
+        """States, transitions, coverage, and verdict as one row of cards."""
+        p = self._prefix
+        # No operations means no counts to show, not zero of them. Rendering
+        # "0/0 ops" states a measurement that was not taken; the checks table
+        # below already carries the coverage verdict and its reason, so the card
+        # must not recompute what it was handed.
+        covered = sum(1 for op in report.operations if op.covered)
+        coverage_text = (
+            f"Coverage: {covered}/{len(report.operations)} ops"
+            if report.operations
+            else "Coverage: not measured"
+        )
+        result_text = "PASS" if report.ok else "FAIL"
+        return GroupElement(
+            id=f"{p}metrics",
+            layout="columns",
+            children=[
+                TextElement(
+                    id=f"{p}m-states", content=f"States: {report.states_analysed}"
+                ),
+                TextElement(
+                    id=f"{p}m-trans",
+                    content=f"Transitions: {report.transitions_fired}",
+                ),
+                TextElement(id=f"{p}m-coverage", content=coverage_text),
+                TextElement(id=f"{p}m-result", content=f"Result: {result_text}"),
+            ],
+        )
+
+    def _operations_census(self, report: ProbReport) -> Element:
+        """Per-operation coverage table, or a note that probcli printed none."""
+        p = self._prefix
+        if not report.operations:
+            return TextElement(
+                id=f"{p}ops-absent",
+                content="No operation census in this report — see coverage above.",
+            )
+        op_rows = [
+            [
+                op.name,
+                str(op.times_fired),
+                "✓ covered" if op.covered else "✗ uncovered",
+            ]
+            for op in report.operations
+        ]
+        return TableElement(
+            id=f"{p}ops-coverage",
+            columns=["Operation", "Times Fired", "Status"],
+            rows=op_rows,
+            flags=TableFlags(resizable=True),
+        )
 
     def _counter_example_tab(self, report: ProbReport) -> list[Element]:
         """Trace table and the violated predicate."""

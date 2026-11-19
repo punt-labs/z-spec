@@ -58,6 +58,14 @@ class ZSpecLuxSession:
         # Browse target is the project root, not ``Path.cwd()``: the plugin-launched
         # server's cwd is the plugin checkout (pinned by ``--directory``), so cwd
         # would browse z-spec's own specs instead of the user's.
+        """Assemble the session; ``None`` arguments take the production values.
+
+        Args:
+            is_enabled: Reports whether the repository's ``enabled`` marker is present.
+            clients: The Hub clients; None builds them for this session's identity.
+            cwd: The directory Browse lists; None resolves the user's project root.
+            tutorial_manifest: The Tutorial manifest; None uses the shipped one.
+        """
         lux = clients if clients is not None else ZSpecLuxClients()
         directory = cwd if cwd is not None else ProjectRoot.resolve().path
         manifest = (

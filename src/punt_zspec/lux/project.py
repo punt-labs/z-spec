@@ -31,6 +31,7 @@ class ProjectRoot:
     __slots__ = ("_path",)
 
     def __new__(cls, path: Path) -> Self:
+        """Hold the resolved project directory ``path``."""
         self = super().__new__(cls)
         self._path = path
         return self

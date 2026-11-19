@@ -16,13 +16,22 @@ class AuditParser(Protocol):
     """Validate a wire dict into an AuditReport, raising on bad shape."""
 
     # dict[str, Any] (PY-TS-14): JSON wire boundary — json.loads yields this.
-    def __call__(self, data: dict[str, Any], /) -> AuditReport: ...
+    def __call__(self, data: dict[str, Any], /) -> AuditReport:
+        """Build an AuditReport from wire ``data``.
+
+        Raises:
+            KeyError: A required field is missing.
+            ValueError: A field holds an unknown enumeration value.
+        """
+        ...
 
 
 class AuditPersister(Protocol):
     """Persist an audit report beside its spec and return the written path."""
 
-    def __call__(self, spec: Path, report: AuditReport, /) -> Path: ...
+    def __call__(self, spec: Path, report: AuditReport, /) -> Path:
+        """Write ``report`` beside ``spec`` and return the written path."""
+        ...
 
 
 @final
@@ -38,6 +47,7 @@ class AuditCommand:
         parse: AuditParser = audit_from_dict,
         persist: AuditPersister = save_audit,
     ) -> Self:
+        """Inject the collaborators; the defaults parse and write real reports."""
         self = super().__new__(cls)
         self._parse = parse
         self._persist = persist

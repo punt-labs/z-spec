@@ -83,6 +83,7 @@ class CodeBlockMap:
     _top_level: tuple[bool, ...]
 
     def __new__(cls, lines: tuple[str, ...]) -> Self:
+        """Classify each of ``lines`` as inside or outside a code block."""
         self = super().__new__(cls)
         code: set[int] = set()
         opener: Fence | None = None  # None = no block open (PY-TS-14: a state)

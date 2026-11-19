@@ -41,6 +41,7 @@ class ZSpecMenuRegistrar:
     __slots__ = ("_connect",)
 
     def __new__(cls, connect: Callable[[], MenuClient]) -> Self:
+        """Inject the factory that connects the REST client."""
         self = super().__new__(cls)
         self._connect = connect
         return self

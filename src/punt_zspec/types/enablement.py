@@ -36,6 +36,7 @@ class EnablementReport:
     permissions: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:  # PY-TS-14: JSON wire boundary
+        """Return the wire form of this report."""
         return {
             "ok": True,
             "action": str(self.action),

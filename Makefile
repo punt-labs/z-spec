@@ -1,4 +1,4 @@
-.PHONY: help lint type test test-py test-e2e check check-oo update-oo check-coupling update-coupling check-suppressions update-suppressions check-dev-commands gen-dev-commands format build install uat clean depot assert report spec-reports metrics coverage
+.PHONY: help lint type test test-py test-e2e check check-oo update-oo check-coupling update-coupling check-suppressions update-suppressions check-dev-commands gen-dev-commands check-comments check-docstrings build-api-docs format build install uat clean depot assert report spec-reports metrics coverage
 
 FUZZ      ?= fuzz
 PROBCLI   ?= $(HOME)/Applications/ProB/probcli
@@ -40,17 +40,29 @@ help: ## Show available targets
 
 # The shellcheck line is byte-identical to lint.yml's, so a shell fault fails
 # here rather than on the PR. plugin/hooks/*.sh is in scope: it ships to users.
-lint: ## Lint markdown, Python, and shell
+lint: check-comments check-docstrings ## Lint markdown, Python, comments, docstrings, and shell
 	npx markdownlint-cli2 "**/*.md" "#node_modules"
 	uv run ruff check .
 	uv run ruff format --check .
 	shellcheck -x scripts/*.sh install.sh plugin/hooks/*.sh
 
+check-comments: ## Reject commented-out code and tracker references in Python prose
+	uv run ruff check --select ERA001 .
+	uv run python tools/check_python_docs.py comments src tests tools
+
+check-docstrings: ## Check public Python docstrings and documented argument names
+	uv run ruff check --select D,D401 --ignore D105,D107,D417 src/
+	uv run python tools/check_python_docs.py docstrings src/
+
+build-api-docs: ## Build and verify the generated Python API reference
+	uv run --group docs mkdocs build --strict
+	uv run python tools/check_python_docs.py api .tmp/api-site/objects.inv
+
 type: type-py $(addprefix type-z-,$(SPEC_NAMES)) ## Type-check Python and Z specs
 
 type-py:
-	uv run mypy src/ tests/
-	uv run pyright src/ tests/
+	uv run mypy src/ tests/ tools/
+	uv run pyright src/ tests/ tools/
 
 type-z-%: examples/%.tex
 	@echo "fuzz $<"

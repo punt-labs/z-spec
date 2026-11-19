@@ -45,6 +45,7 @@ class SpecModel:
         return result
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the wire form of this model."""
         return {
             "title": self.title,
             "sections": self.sections,

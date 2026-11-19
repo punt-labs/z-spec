@@ -31,6 +31,7 @@ class ZSpecLuxClients:
     def __new__(cls, identity: ZSpecLuxIdentity | None = None) -> Self:
         # None (PY-TS-14): the real per-session applet identity; tests inject a
         # fixed one. A concrete default, not a missing value.
+        """Share ``identity``; the default is this session's applet identity."""
         self = super().__new__(cls)
         self._identity = (
             identity if identity is not None else ZSpecLuxIdentity.for_session()

@@ -17,7 +17,7 @@ from punt_zspec.types import ProbReport
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").partition("\n")[0])
     parser.add_argument("spec", type=Path, help="the .tex specification to check")
     parser.add_argument(
         "--setsize", type=int, default=1, help="probcli DEFAULT_SETSIZE"

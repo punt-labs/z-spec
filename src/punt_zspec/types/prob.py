@@ -27,6 +27,7 @@ class CheckResult:
     detail: str = ""
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the wire form of this check."""
         return {
             "name": self.name,
             "status": self.status.value,
@@ -52,6 +53,7 @@ class OperationCoverage:
         return self.times_fired > 0
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the wire form of this operation's coverage."""
         return {
             "name": self.name,
             "times_fired": self.times_fired,
@@ -86,6 +88,7 @@ class ProbReport:
         )
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the wire form of this report."""
         result: dict[str, Any] = {
             "timestamp": self.timestamp,
             "probcli_version": self.probcli_version,

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- z-spec checks public docstrings and Python comments in lint and CI, and
+  builds a generated Python API reference from the source.
+
 ### Changed
 
 - Bump the quality-gate dev dependency to `punt-oo-ratchet==0.2.2` and

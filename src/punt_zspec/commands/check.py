@@ -14,19 +14,25 @@ from punt_zspec.types import FuzzResult
 class FuzzResolver(Protocol):
     """Locate the fuzz binary, or return None when it is absent."""
 
-    def __call__(self) -> Path | None: ...
+    def __call__(self) -> Path | None:
+        """Return the fuzz path, or None when fuzz is not installed."""
+        ...
 
 
 class FuzzRunner(Protocol):
     """Run fuzz on a spec and return its structured result."""
 
-    def __call__(self, spec: Path, binary: Path, /) -> FuzzResult: ...
+    def __call__(self, spec: Path, binary: Path, /) -> FuzzResult:
+        """Type-check ``spec`` with the fuzz executable at ``binary``."""
+        ...
 
 
 class FuzzPersister(Protocol):
     """Persist a fuzz result alongside its spec and return the written path."""
 
-    def __call__(self, spec: Path, result: FuzzResult, /) -> Path: ...
+    def __call__(self, spec: Path, result: FuzzResult, /) -> Path:
+        """Write ``result`` beside ``spec`` and return the written path."""
+        ...
 
 
 @final
@@ -44,6 +50,7 @@ class CheckCommand:
         run: FuzzRunner = run_fuzz,
         persist: FuzzPersister = save_fuzz,
     ) -> Self:
+        """Inject the collaborators; the defaults run the real fuzz."""
         self = super().__new__(cls)
         self._resolve = resolve
         self._run = run

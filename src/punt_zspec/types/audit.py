@@ -27,9 +27,11 @@ class AuditConstraint:
 
     @property
     def covered(self) -> bool:
+        """Whether a test covers this constraint."""
         return self.covered_by is not None
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the wire form of this constraint."""
         result: dict[str, Any] = {
             "text": self.text,
             "category": self.category,
@@ -53,6 +55,7 @@ class AuditSuggestion:
     test_pattern: str = ""
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the wire form of this suggestion."""
         result: dict[str, Any] = {
             "text": self.text,
             "category": self.category,
@@ -76,18 +79,22 @@ class AuditReport:
 
     @property
     def total(self) -> int:
+        """The number of constraints audited."""
         return len(self.constraints) + len(self.uncovered)
 
     @property
     def covered_count(self) -> int:
+        """The number of constraints a test covers."""
         return sum(1 for c in self.constraints if c.covered)
 
     @property
     def percentage(self) -> int:
+        """The covered share of constraints, as a whole percentage."""
         return round(self.covered_count * 100 / self.total) if self.total else 0
 
     @property
     def by_category(self) -> dict[str, dict[str, int]]:
+        """Return total and covered counts keyed by constraint category."""
         cats: dict[str, dict[str, int]] = {}
         for c in self.constraints:
             entry = cats.setdefault(c.category, {"covered": 0, "total": 0})
@@ -100,6 +107,7 @@ class AuditReport:
         return cats
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the wire form of this report."""
         return {
             "specification": self.specification,
             "testDirectory": self.test_directory,

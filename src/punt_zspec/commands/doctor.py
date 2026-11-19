@@ -16,7 +16,9 @@ class BinaryResolver(Protocol):
     """Locate a toolchain binary, or return None when it is absent."""
 
     # Path | None (PY-TS-14): None is a real state — the binary is not installed.
-    def __call__(self) -> Path | None: ...
+    def __call__(self) -> Path | None:
+        """Return the binary's path, or None when it is not installed."""
+        ...
 
 
 @final
@@ -30,9 +32,11 @@ class DoctorReport:
 
     @property
     def healthy(self) -> bool:
+        """Whether both fuzz and probcli resolved."""
         return self.fuzz is not None and self.probcli is not None
 
     def to_dict(self) -> dict[str, Any]:  # PY-TS-14: JSON wire boundary
+        """Return the wire form of this report."""
         return {
             "version": self.version,
             "fuzz": str(self.fuzz) if self.fuzz else None,
@@ -54,6 +58,7 @@ class DoctorCommand:
         fuzz: BinaryResolver = resolve_fuzz,
         probcli: BinaryResolver = resolve_probcli,
     ) -> Self:
+        """Inject the binary resolvers; the defaults search the real toolchain."""
         self = super().__new__(cls)
         self._resolve_fuzz = fuzz
         self._resolve_probcli = probcli

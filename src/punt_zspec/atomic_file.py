@@ -47,6 +47,7 @@ class AtomicFile:
     __slots__ = ("_lock_path", "_path")
 
     def __new__(cls, path: Path) -> Self:
+        """Bind the file at ``path``; nothing is read or locked until used."""
         self = super().__new__(cls)
         # Resolved once because the lock name derives from it: a symlinked
         # CLAUDE.md is one real file under two names, and a name-keyed lock

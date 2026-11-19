@@ -43,6 +43,7 @@ class ZSpecFrameRaiser:
     __slots__ = ("_connect",)
 
     def __new__(cls, connect: Callable[[], FrameRaiseClient]) -> Self:
+        """Inject the factory that connects the REST client."""
         self = super().__new__(cls)
         self._connect = connect
         return self
@@ -79,6 +80,7 @@ class ZSpecClickRunner:
     __slots__ = ("_display", "_raiser")
 
     def __new__(cls, display: Display, raiser: ZSpecFrameRaiser) -> Self:
+        """Render through ``display`` and raise frames through ``raiser``."""
         self = super().__new__(cls)
         self._display = display
         self._raiser = raiser

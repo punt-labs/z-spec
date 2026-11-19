@@ -32,6 +32,7 @@ class SpecPickerBuilder:
     __slots__ = ()
 
     def __new__(cls) -> Self:
+        """Create the builder."""
         return super().__new__(cls)
 
     def __call__(

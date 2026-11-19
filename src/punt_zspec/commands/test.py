@@ -18,7 +18,9 @@ class ProbResolver(Protocol):
     """Locate the probcli binary, or return None when it is absent."""
 
     # Path | None (PY-TS-14): None is a real state — probcli is not installed.
-    def __call__(self) -> Path | None: ...
+    def __call__(self) -> Path | None:
+        """Return the probcli path, or None when probcli is not installed."""
+        ...
 
 
 class SuiteRunner(Protocol):
@@ -33,13 +35,25 @@ class SuiteRunner(Protocol):
         setsize: int,
         max_ops: int,
         timeout_ms: int,
-    ) -> ProbReport: ...
+    ) -> ProbReport:
+        """Run the full suite on ``spec`` with ``binary`` and return the report.
+
+        Args:
+            spec: The Z specification to test.
+            binary: The probcli executable.
+            setsize: The cardinality probcli gives each deferred given set.
+            max_ops: probcli's ``MAX_OPERATIONS`` per state.
+            timeout_ms: probcli's ``TIME_OUT`` for one internal computation.
+        """
+        ...
 
 
 class ReportPersister(Protocol):
     """Persist a ProB report alongside its spec and return the written path."""
 
-    def __call__(self, spec: Path, report: ProbReport, /) -> Path: ...
+    def __call__(self, spec: Path, report: ProbReport, /) -> Path:
+        """Write ``report`` beside ``spec`` and return the written path."""
+        ...
 
 
 @final
@@ -61,6 +75,7 @@ class TestCommand:
         run: SuiteRunner = run_full_suite,
         persist: ReportPersister = save_report,
     ) -> Self:
+        """Inject the collaborators; the defaults run the real probcli."""
         self = super().__new__(cls)
         self._resolve = resolve
         self._run = run

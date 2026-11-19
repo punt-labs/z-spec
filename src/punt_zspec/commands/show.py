@@ -18,7 +18,13 @@ class Display(Protocol):
 
     # object (PY-TS-14): the scene is a lux element built by an injected builder;
     # the command forwards it uninspected to keep punt_lux out of this layer.
-    def show(self, scene: object, *, frame_id: str, frame_title: str) -> None: ...
+    def show(self, scene: object, *, frame_id: str, frame_title: str) -> None:
+        """Render ``scene`` in the frame ``frame_id`` titled ``frame_title``.
+
+        Raises:
+            DisplayError: The surface cannot render the scene.
+        """
+        ...
 
 
 class DisplayError(Exception):
@@ -28,22 +34,30 @@ class DisplayError(Exception):
 class SpecParser(Protocol):
     """Parse a .tex spec into a SpecModel, raising on unreadable input."""
 
-    def __call__(self, path: Path, /) -> SpecModel: ...
+    def __call__(self, path: Path, /) -> SpecModel:
+        """Parse the spec at ``path``.
+
+        Raises:
+            OSError: The file cannot be read.
+        """
+        ...
 
 
 class SpecReportsLoader(Protocol):
     """Load the four persisted reports beside a spec into one bundle."""
 
-    def __call__(self, spec: Path, /) -> SpecReports: ...
+    def __call__(self, spec: Path, /) -> SpecReports:
+        """Load every report saved beside ``spec``."""
+        ...
 
 
 class SpecSceneBuilder(Protocol):
     """Build an opaque lux scene from a spec, its model, and its reports."""
 
     # object return (PY-TS-14): a lux element; the command forwards it uninspected.
-    def __call__(
-        self, spec: Path, model: SpecModel, reports: SpecReports, /
-    ) -> object: ...
+    def __call__(self, spec: Path, model: SpecModel, reports: SpecReports, /) -> object:
+        """Build the scene for ``spec`` from its ``model`` and ``reports``."""
+        ...
 
 
 @final
@@ -54,6 +68,7 @@ class DisplayResult:
     scene_id: str
 
     def to_dict(self) -> dict[str, Any]:  # PY-TS-14: JSON wire boundary
+        """Return the wire form of this result."""
         return {"ok": True, "scene_id": self.scene_id}
 
 
@@ -74,6 +89,7 @@ class ShowCommand:
         parse: SpecParser = parse_spec,
         load: SpecReportsLoader = load_all_reports,
     ) -> Self:
+        """Inject the collaborators; the defaults render on the lux Hub."""
         self = super().__new__(cls)
         self._build = build
         self._display = display

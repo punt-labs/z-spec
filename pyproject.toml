@@ -79,6 +79,16 @@ ignore = [
     "RUF001", # Ambiguous Unicode — intentional for Z notation symbols
 ]
 
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.pydoclint]
+style = "google"
+arg-type-hints-in-docstring = false
+skip-checking-short-docstrings = false
+allow-init-docstring = true
+check-style-mismatch = true
+
 [tool.ruff.lint.isort]
 known-first-party = ["punt_zspec"]
 combine-as-imports = true
@@ -140,4 +150,11 @@ precision = 2
 [dependency-groups]
 dev = [
     "punt-oo-ratchet==0.2.2",
+    "docstring-parser>=0.17,<1",
+    "markdown==3.11.3",
+    "types-markdown>=3.10,<4",
+]
+docs = [
+    "mkdocs>=1.6.1",
+    "mkdocstrings[python]>=1.0.8",
 ]
