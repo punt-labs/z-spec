@@ -24,7 +24,7 @@ classifiers = [
 dependencies = [
     "mcp>=1.0.0",
     "punt-lux>=0.31,<0.32",
-    "punt-observe @ git+https://github.com/punt-labs/punt-observe@a90872cc20cf688dfd41aeb36c7120e63fc69849",
+    "punt-observe @ git+https://github.com/punt-labs/punt-observe@53e657555cab240795c850ea7f0e4dd77a8d98fc",
     "typer>=0.24.1",
 ]
 

@@ -1261,7 +1261,7 @@ wheels = [
 [[package]]
 name = "punt-observe"
 version = "0.1.0"
-source = { git = "https://github.com/punt-labs/punt-observe?rev=a90872cc20cf688dfd41aeb36c7120e63fc69849#a90872cc20cf688dfd41aeb36c7120e63fc69849" }
+source = { git = "https://github.com/punt-labs/punt-observe?rev=53e657555cab240795c850ea7f0e4dd77a8d98fc#53e657555cab240795c850ea7f0e4dd77a8d98fc" }
 dependencies = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-sdk" },
@@ -1313,7 +1313,7 @@ requires-dist = [
     { name = "mcp", specifier = ">=1.0.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.14.0" },
     { name = "punt-lux", specifier = ">=0.31,<0.32" },
-    { name = "punt-observe", git = "https://github.com/punt-labs/punt-observe?rev=a90872cc20cf688dfd41aeb36c7120e63fc69849" },
+    { name = "punt-observe", git = "https://github.com/punt-labs/punt-observe?rev=53e657555cab240795c850ea7f0e4dd77a8d98fc" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.390" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.0.0" },

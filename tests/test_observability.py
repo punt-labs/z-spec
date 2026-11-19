@@ -219,13 +219,6 @@ def test_unreadable_report_records_one_invalid_report_failure(
     assert attrs["failure"] == "invalid_report"
 
 
-@pytest.mark.xfail(
-    reason=(
-        "punt-observe a90872c re-opens SQLite sidecars under a live connection, "
-        "dropping its fcntl locks; concurrent writers can SIGBUS (PL-1207)"
-    ),
-    strict=False,
-)
 def test_concurrent_cli_processes_share_one_intact_log(
     private_home: Path, not_a_repo: Path
 ) -> None:
@@ -248,8 +241,7 @@ def test_concurrent_cli_processes_share_one_intact_log(
     completed = [line for line in lines if "Completed disable via cli" in line]
     assert len(completed) == writers
     assert all(re.match(r"\d{4}-\d{2}-\d{2} ", line) for line in lines)
-    # Telemetry is fail-open: contended SQLite writes may drop events, never block.
-    assert 1 <= len(_events(private_home)) <= writers
+    assert len(_events(private_home)) == writers
 
 
 def test_schemas_cover_every_capability_on_both_surfaces() -> None:
