@@ -39,6 +39,7 @@ class MarkdownLines:
     __slots__ = ("_blocks", "_lines")
 
     def __new__(cls, text: str) -> Self:
+        """Split ``text`` into physical lines and classify each one."""
         self = super().__new__(cls)
         self._lines = tuple(text.splitlines(keepends=True))
         self._blocks = CodeBlockMap(self._lines)
@@ -82,7 +83,7 @@ class MarkdownLines:
             raise UnclosedFenceError(msg)
 
     def eol(self) -> str:
-        """Return the document's EOL convention, defaulting to ``\\n``."""
+        r"""Return the document's EOL convention, defaulting to ``\n``."""
         for line in self._lines:
             if line.endswith("\r\n"):
                 return "\r\n"
@@ -119,6 +120,7 @@ class ClaudeMdImport:
     __slots__ = ("_host", "_line")
 
     def __new__(cls, host: Path, import_line: str) -> Self:
+        """Bind ``import_line`` to the ``CLAUDE.md`` at ``host``."""
         cls._validate(import_line)
         self = super().__new__(cls)
         self._host = AtomicFile(host)

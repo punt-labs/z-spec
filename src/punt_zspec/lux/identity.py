@@ -41,6 +41,7 @@ class ZSpecLuxIdentity:
         # every applet of one session (vox-panel included) must stamp the same
         # one to share a submenu. Two sessions still keep distinct connections:
         # each has its own session pid.
+        """Name the applet after the repository at ``project``."""
         self = super().__new__(cls)
         self._client_identity = ClientIdentity(
             kind="applet",

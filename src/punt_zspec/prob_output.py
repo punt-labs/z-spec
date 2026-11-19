@@ -47,8 +47,7 @@ class ProbOutput:
     # Success markers probcli prints for the checks that do not explore a state
     # space. Ordered: the first marker present decides. Every phrase here is
     # quoted from a captured transcript: a marker matching a string probcli
-    # does not emit is the same defect as a parser inferring one, and this
-    # table carried such a marker until the transcripts were checked.
+    # does not emit is the same defect as a parser inferring one.
     #
     # ALL OPERATIONS COVERED is deliberately absent. It answers the coverage
     # question, not "did this run find anything", and probcli prints it mid-run
@@ -73,6 +72,7 @@ class ProbOutput:
     )
 
     def __new__(cls, text: str, returncode: int) -> Self:
+        """Hold one run's combined output ``text`` and its ``returncode``."""
         self = super().__new__(cls)
         self._text = text
         self._returncode = returncode

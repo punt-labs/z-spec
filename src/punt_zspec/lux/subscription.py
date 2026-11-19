@@ -65,6 +65,15 @@ class ZSpecSubscription:
         click: ZSpecClickRunner,
         is_enabled: Callable[[], bool],
     ) -> Self:
+        """Assemble the subscription from its collaborators.
+
+        Args:
+            entries: The menu entries to register.
+            menu: Registers each entry's callback with the Hub.
+            listen: Opens the listener connection that delivers clicks.
+            click: Runs the entry a click names.
+            is_enabled: Reports whether the repository's ``enabled`` marker is present.
+        """
         self = super().__new__(cls)
         self._entries = entries
         self._menu = menu

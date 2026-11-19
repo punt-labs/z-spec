@@ -16,7 +16,13 @@ from punt_zspec.types import Collection, SpecModel
 class ManifestParser(Protocol):
     """Parse a manifest.toml into a Collection, raising on bad input."""
 
-    def __call__(self, path: Path, /) -> Collection: ...
+    def __call__(self, path: Path, /) -> Collection:
+        """Parse the manifest at ``path`` into a Collection.
+
+        Raises:
+            ValueError: The manifest is malformed.
+        """
+        ...
 
 
 class BrowseSceneBuilder(Protocol):
@@ -25,7 +31,9 @@ class BrowseSceneBuilder(Protocol):
     # object return (PY-TS-14): a lux element; the command forwards it uninspected.
     def __call__(
         self, collection: Collection, specs: list[tuple[SpecModel, Path]], /
-    ) -> object: ...
+    ) -> object:
+        """Build the browser scene for ``collection`` and its parsed ``specs``."""
+        ...
 
 
 @final
@@ -37,6 +45,7 @@ class BrowseResult:
     title: str
 
     def to_dict(self) -> dict[str, Any]:  # PY-TS-14: JSON wire boundary
+        """Return the wire form of this result."""
         return {"ok": True, "total": self.total, "title": self.title}
 
 
@@ -57,6 +66,7 @@ class BrowseCommand:
         parse_manifest: ManifestParser = parse_manifest,
         parse_spec: SpecParser = parse_spec,
     ) -> Self:
+        """Inject the collaborators; the defaults render on the lux Hub."""
         self = super().__new__(cls)
         self._build = build
         self._display = display

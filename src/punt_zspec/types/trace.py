@@ -15,6 +15,7 @@ class TraceStep:
     state: dict[str, str]
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the wire form of this step."""
         return {
             "step_number": self.step_number,
             "operation": self.operation,
@@ -30,6 +31,7 @@ class CounterExample:
     violation: str
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the wire form of this counter-example."""
         return {
             "steps": [s.to_dict() for s in self.steps],
             "violation": self.violation,

@@ -51,6 +51,7 @@ class EnabledMarker:
     __slots__ = ("_path",)
 
     def __new__(cls, path: Path) -> Self:
+        """Bind the marker file at ``path``."""
         self = super().__new__(cls)
         self._path = path
         return self
@@ -94,6 +95,7 @@ class DepositedGuide:
     __slots__ = ("_host",)
 
     def __new__(cls, path: Path) -> Self:
+        """Bind the deposited guide at ``path``."""
         self = super().__new__(cls)
         self._host = AtomicFile(path)
         return self
@@ -143,6 +145,7 @@ class RepoEnablement:
         claude_md: ClaudeMdImport,
         settings: SettingsRules,
     ) -> Self:
+        """Assemble the four artifacts that enablement writes and removes."""
         self = super().__new__(cls)
         self._guide = guide
         self._marker = marker

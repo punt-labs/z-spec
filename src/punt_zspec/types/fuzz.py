@@ -24,6 +24,7 @@ class FuzzResult:
     raw_output: str = ""
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the wire form of this result."""
         return {
             "ok": self.ok,
             "errors": [

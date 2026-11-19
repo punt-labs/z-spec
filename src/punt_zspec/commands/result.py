@@ -12,9 +12,10 @@ class JsonObject(Protocol):
     """A value that serializes to a JSON object."""
 
     # dict[str, Any] justified (PY-TS-14): JSON wire boundary — the values are
-    # heterogeneous by definition, and every existing *.to_dict already returns
-    # this shape (see types.py).
-    def to_dict(self) -> dict[str, Any]: ...
+    # heterogeneous by definition, and every to_dict returns this shape.
+    def to_dict(self) -> dict[str, Any]:
+        """Return this value as a JSON object."""
+        ...
 
 
 class CommandFailure(StrEnum):
@@ -38,14 +39,14 @@ class CommandError:
     """A structured failure. Each surface renders it its own way."""
 
     kind: CommandFailure
-    message: str  # MCP-facing short text — matches current server.py strings
+    message: str  # MCP-facing short text
     hint: str = ""  # remediation suffix (e.g. "Set $FUZZ ...")
 
     def to_dict(self) -> dict[str, Any]:  # PY-TS-14 OK: JSON wire boundary
-        # The hint rides the wire too. A declining gate puts the actionable
-        # half of its answer there ("commit the marker so the repo stays on"),
-        # and the MCP surface is where that decline is now most often read —
-        # dropping it left the caller with a refusal and no remedy.
+        """Return the wire form of this error, with its hint when there is one."""
+        # A declining gate puts the actionable half of its answer in the hint
+        # ("commit the marker so the repo stays on"); without it an MCP caller
+        # gets a refusal and no remedy.
         failure: dict[str, Any] = {"ok": False, "error": self.message}
         if self.hint:
             failure["hint"] = self.hint
@@ -61,6 +62,11 @@ class CommandResult[PayloadT: JsonObject]:
     __slots__ = ("_error", "_payload")
 
     def __new__(cls, payload: PayloadT | None, error: CommandError | None) -> Self:
+        """Hold exactly one of ``payload`` and ``error``.
+
+        Raises:
+            ValueError: Both or neither of ``payload`` and ``error`` are given.
+        """
         if (payload is None) == (error is None):
             msg = "a command result carries exactly one of payload or error"
             raise ValueError(msg)
@@ -81,10 +87,12 @@ class CommandResult[PayloadT: JsonObject]:
 
     @property
     def is_ok(self) -> bool:
+        """Whether this result carries a payload."""
         return self._error is None
 
     @property
     def error(self) -> CommandError | None:  # PY-TS-14 OK: None documents success
+        """The failure, or None for a successful result."""
         return self._error
 
     def unwrap(self) -> PayloadT:

@@ -29,6 +29,7 @@ class Partition:
     notes: str = ""
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the wire form of this partition."""
         result: dict[str, Any] = {
             "id": self.id,
             "class": self.class_name,
@@ -57,6 +58,7 @@ class OperationPartitions:
 
     @property
     def summary(self) -> dict[str, int]:
+        """Return partition counts keyed by status."""
         total = len(self.partitions)
         accepted = sum(
             1 for p in self.partitions if p.status == PartitionStatus.accepted
@@ -73,6 +75,7 @@ class OperationPartitions:
         }
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the wire form of this operation's partitions."""
         return {
             "name": self.name,
             "kind": self.kind,
@@ -94,10 +97,12 @@ class PartitionReport:
 
     @property
     def total_partitions(self) -> int:
+        """The number of partitions across every operation."""
         return sum(len(op.partitions) for op in self.operations)
 
     @property
     def total_accepted(self) -> int:
+        """The number of accepted partitions across every operation."""
         return sum(
             1
             for op in self.operations
@@ -107,6 +112,7 @@ class PartitionReport:
 
     @property
     def total_rejected(self) -> int:
+        """The number of rejected partitions across every operation."""
         return sum(
             1
             for op in self.operations
@@ -115,6 +121,7 @@ class PartitionReport:
         )
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the wire form of this report."""
         return {
             "specification": self.specification,
             "timestamp": self.timestamp,

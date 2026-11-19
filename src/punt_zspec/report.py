@@ -169,6 +169,11 @@ def load_fuzz(tex_path: Path) -> FuzzResult | None:
 
 
 def fuzz_from_dict(data: dict[str, Any]) -> FuzzResult:
+    """Build a FuzzResult from its saved JSON form.
+
+    Raises:
+        KeyError: A required field is missing.
+    """
     errors = [
         FuzzError(line=e["line"], column=e["column"], message=e["message"])
         for e in data.get("errors", [])
@@ -200,6 +205,12 @@ def load_partition(tex_path: Path) -> PartitionReport | None:
 
 
 def partition_from_dict(data: dict[str, Any]) -> PartitionReport:
+    """Build a PartitionReport from its saved or authored JSON form.
+
+    Raises:
+        KeyError: A required field is missing.
+        ValueError: A partition has an unknown status.
+    """
     operations: list[OperationPartitions] = []
     for op_data in data.get("operations", []):
         partitions = [
@@ -256,6 +267,12 @@ def load_audit(tex_path: Path) -> AuditReport | None:
 
 
 def audit_from_dict(data: dict[str, Any]) -> AuditReport:
+    """Build an AuditReport from its saved or authored JSON form.
+
+    Raises:
+        KeyError: A required field is missing.
+        ValueError: A constraint has an unknown confidence.
+    """
     constraints = [
         AuditConstraint(
             text=c["text"],

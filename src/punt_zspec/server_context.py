@@ -24,14 +24,12 @@ __all__ = ["ServerContext"]
 class ServerContext:
     """One process's project root, enablement gate, and lux session.
 
-    Bundles the state a set of bare module globals used to hold, plus the
-    lifespan that operated on one of them from outside — state and its
-    behavior live together, instead of globals and a free function reaching
-    into one of them.
+    Keeps the process state and the lifespan that operates on it together,
+    rather than in module globals reached into by a free function.
 
     One per MCP server process — ``__new__`` enforces it, rather than
-    trusting the docstring: the duplicate-engine-instance failure vox paid
-    for once, before ``voxd`` (architecture.md).
+    trusting the docstring, because a duplicate engine instance is the
+    failure architecture.md warns against.
     """
 
     _constructed: ClassVar[bool] = False
@@ -42,6 +40,11 @@ class ServerContext:
     __slots__ = ("_gate", "_project_root", "_session")
 
     def __new__(cls) -> Self:
+        """Resolve the project root and build its gate and lux session.
+
+        Raises:
+            RuntimeError: A ServerContext was already constructed in this process.
+        """
         if cls._constructed:
             msg = "ServerContext already constructed once in this process"
             raise RuntimeError(msg)

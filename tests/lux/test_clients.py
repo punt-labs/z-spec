@@ -101,8 +101,8 @@ def test_listen_builds_a_hub_leg_on_the_applet_identity(
     # The receive leg is a LuxHubClient on the applet identity's canonical /ws
     # connection — luxd links a same-identity REST menu registration to it, and
     # links it only because both legs were handed the one identity object.
-    # LuxClient.listener owns the LuxHubClient.connect call now; the handlers
-    # are passed straight through.
+    # LuxClient.listener owns the LuxHubClient.connect call; the handlers are
+    # passed straight through.
     assert result is _LISTENER
     assert captured["identity"] is _IDENTITY.client_identity
     assert fake.listener_kwargs == {

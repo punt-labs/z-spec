@@ -33,8 +33,8 @@ ZSPEC_RULES: Final[dict[str, tuple[str, ...]]] = {
         *(f"Skill(z-spec:{cmd})" for cmd in ("enable", "disable", "setup")),
     ),
 }
-# Rules an earlier z-spec granted and no longer does; register and prune both
-# strip them. ``Bash(z-spec -*)`` made ``z-spec --version`` prompt.
+# Retired rules that register and prune both strip from the settings file.
+# ``Bash(z-spec -*)`` would make ``z-spec --version`` prompt.
 _LEGACY_RULES: Final[dict[str, tuple[str, ...]]] = {"ask": ("Bash(z-spec -*)",)}
 
 
@@ -53,6 +53,12 @@ class SettingsRules:
     def __new__(
         cls, root: Path, rules: dict[str, tuple[str, ...]] = ZSPEC_RULES
     ) -> Self:
+        """Bind ``rules`` to the settings file under ``root``.
+
+        Args:
+            root: The repository whose ``.claude/settings.json`` is edited.
+            rules: Rule strings keyed by permission tier (``allow`` or ``ask``).
+        """
         self = super().__new__(cls)
         self._root = root
         self._rules = rules

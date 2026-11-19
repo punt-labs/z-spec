@@ -44,6 +44,7 @@ class EnablementGate:
     __slots__ = ("_directory",)
 
     def __new__(cls, directory: Path) -> Self:
+        """Gate on the ``enabled`` marker of the repository at ``directory``."""
         self = super().__new__(cls)
         self._directory = directory
         return self

@@ -1,0 +1,15 @@
+site_name: z-spec Python API
+docs_dir: docs/api-reference
+site_dir: .tmp/api-site
+plugins:
+  - mkdocstrings:
+      enable_inventory: true
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_signature_annotations: true
+            show_source: false
+nav:
+  - Python API: index.md

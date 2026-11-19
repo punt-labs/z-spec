@@ -25,9 +25,9 @@ class PickerSceneBuilder(Protocol):
     """
 
     # object return (PY-TS-14): a lux element; the command forwards it uninspected.
-    def __call__(
-        self, specs: list[tuple[Path, SpecModel]], root: Path, /
-    ) -> object: ...
+    def __call__(self, specs: list[tuple[Path, SpecModel]], root: Path, /) -> object:
+        """Build the picker scene for ``specs`` found under ``root``."""
+        ...
 
 
 @final
@@ -45,6 +45,7 @@ class SpecDirectory:
     __slots__ = ("_parse", "_root")
 
     def __new__(cls, root: Path, parse: SpecParser) -> Self:
+        """Bind the directory ``root`` and the ``parse`` used to read each spec."""
         self = super().__new__(cls)
         self._root = root
         self._parse = parse
@@ -99,6 +100,7 @@ class PickerResult:
     scene_id: str
 
     def to_dict(self) -> dict[str, Any]:  # PY-TS-14: JSON wire boundary
+        """Return the wire form of this result."""
         return {"ok": True, "total": self.total, "scene_id": self.scene_id}
 
 
@@ -128,6 +130,7 @@ class PickerCommand:
         display: Display,
         parse: SpecParser = parse_spec,
     ) -> Self:
+        """Inject the collaborators; the defaults render on the lux Hub."""
         self = super().__new__(cls)
         self._build = build
         self._display = display

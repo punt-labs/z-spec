@@ -27,8 +27,9 @@ jobs:
       - run: uv sync --frozen --all-extras
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run mypy src/ tests/
-      - run: uv run pyright src/ tests/
+      - run: make check-comments check-docstrings
+      - run: uv run mypy src/ tests/ tools/
+      - run: uv run pyright src/ tests/ tools/
       # Mirrors `make lint`'s shellcheck line exactly; plugin/hooks/*.sh ships
       # to users, so it is linted with the release scripts and the installer.
       - run: shellcheck -x scripts/*.sh install.sh plugin/hooks/*.sh

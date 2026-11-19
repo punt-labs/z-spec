@@ -20,6 +20,7 @@ class SavedReport:
     path: Path
 
     def to_dict(self) -> dict[str, Any]:  # PY-TS-14: JSON wire boundary
+        """Return the wire form of this result."""
         return {"ok": True, "path": str(self.path)}
 
 
@@ -27,13 +28,22 @@ class PartitionParser(Protocol):
     """Validate a wire dict into a PartitionReport, raising on bad shape."""
 
     # dict[str, Any] (PY-TS-14): JSON wire boundary — json.loads yields this.
-    def __call__(self, data: dict[str, Any], /) -> PartitionReport: ...
+    def __call__(self, data: dict[str, Any], /) -> PartitionReport:
+        """Build a PartitionReport from wire ``data``.
+
+        Raises:
+            KeyError: A required field is missing.
+            ValueError: A field holds an unknown enumeration value.
+        """
+        ...
 
 
 class PartitionPersister(Protocol):
     """Persist a partition report beside its spec and return the written path."""
 
-    def __call__(self, spec: Path, report: PartitionReport, /) -> Path: ...
+    def __call__(self, spec: Path, report: PartitionReport, /) -> Path:
+        """Write ``report`` beside ``spec`` and return the written path."""
+        ...
 
 
 @final
@@ -49,6 +59,7 @@ class PartitionCommand:
         parse: PartitionParser = partition_from_dict,
         persist: PartitionPersister = save_partition,
     ) -> Self:
+        """Inject the collaborators; the defaults parse and write real reports."""
         self = super().__new__(cls)
         self._parse = parse
         self._persist = persist

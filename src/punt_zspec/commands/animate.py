@@ -18,7 +18,9 @@ class ProbResolver(Protocol):
     """Locate the probcli binary, or return None when it is absent."""
 
     # Path | None (PY-TS-14): None is a real state — probcli is not installed.
-    def __call__(self) -> Path | None: ...
+    def __call__(self) -> Path | None:
+        """Return the probcli path, or None when probcli is not installed."""
+        ...
 
 
 class AnimateRunner(Protocol):
@@ -26,13 +28,24 @@ class AnimateRunner(Protocol):
 
     def __call__(
         self, spec: Path, binary: Path, /, *, steps: int, setsize: int
-    ) -> ProbReport: ...
+    ) -> ProbReport:
+        """Animate ``spec`` with ``binary`` and return the report.
+
+        Args:
+            spec: The Z specification to animate.
+            binary: The probcli executable.
+            steps: How many random animation steps to take.
+            setsize: The cardinality probcli gives each deferred given set.
+        """
+        ...
 
 
 class ReportPersister(Protocol):
     """Persist a ProB report alongside its spec and return the written path."""
 
-    def __call__(self, spec: Path, report: ProbReport, /) -> Path: ...
+    def __call__(self, spec: Path, report: ProbReport, /) -> Path:
+        """Write ``report`` beside ``spec`` and return the written path."""
+        ...
 
 
 @final
@@ -50,6 +63,7 @@ class AnimateCommand:
         run: AnimateRunner = run_animate,
         persist: ReportPersister = save_report,
     ) -> Self:
+        """Inject the collaborators; the defaults run the real probcli."""
         self = super().__new__(cls)
         self._resolve = resolve
         self._run = run

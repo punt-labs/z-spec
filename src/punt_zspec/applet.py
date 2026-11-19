@@ -154,9 +154,8 @@ class _SpecSceneBuilder:
 
         # No operations means no counts to show, not zero of them. Rendering
         # "0/0 ops" states a measurement that was not taken; the checks table
-        # below already carries the coverage verdict and its reason, and a card
-        # that recomputes what it was handed is how this defect was written the
-        # first time.
+        # below already carries the coverage verdict and its reason, so the card
+        # must not recompute what it was handed.
         covered = sum(1 for op in report.operations if op.covered)
         coverage_text = (
             f"Coverage: {covered}/{len(report.operations)} ops"

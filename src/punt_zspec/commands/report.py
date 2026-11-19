@@ -15,7 +15,9 @@ class ReportLoader(Protocol):
 
     # ProbReport | None (PY-TS-14): absence is the documented contract —
     # a spec legitimately has no saved report yet.
-    def __call__(self, spec: Path, /) -> ProbReport | None: ...
+    def __call__(self, spec: Path, /) -> ProbReport | None:
+        """Return the report saved for ``spec``, or None when there is none."""
+        ...
 
 
 @final
@@ -26,6 +28,7 @@ class ReportCommand:
     __slots__ = ("_load",)
 
     def __new__(cls, load: ReportLoader = load_report) -> Self:
+        """Inject the loader; the default reads the report beside the spec."""
         self = super().__new__(cls)
         self._load = load
         return self

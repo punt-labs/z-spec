@@ -170,7 +170,7 @@ def test_picker_titles_its_frame_the_same_whatever_the_directory(
 def test_picker_hands_the_builder_the_resolved_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # With the frame title now a constant, the scene is the only place naming the
+    # The frame title is a constant, so the scene is the only place naming the
     # tree that was searched — and the CLI default Path() and MCP default "."
     # are both the cwd, which names nothing until it is resolved.
     _write(tmp_path / "a.tex", "SPEC a")

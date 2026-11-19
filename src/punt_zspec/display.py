@@ -20,7 +20,14 @@ logger = logging.getLogger(__name__)
 class HubConnector(Protocol):
     """Locate luxd and return a ``LuxClient``, raising when luxd is unreachable."""
 
-    def __call__(self) -> LuxClient: ...
+    def __call__(self) -> LuxClient:
+        """Return a client connected to luxd.
+
+        Raises:
+            HubUnavailableError: luxd cannot be located.
+            OSError: luxd cannot be reached.
+        """
+        ...
 
 
 @final
@@ -32,6 +39,7 @@ class LuxDisplay:
 
     def __new__(cls, connect: HubConnector | None = None) -> Self:
         # None (PY-TS-14): use the real LuxClient connector — a concrete default.
+        """Inject the Hub connector; the default locates the running luxd."""
         self = super().__new__(cls)
         self._connect = connect if connect is not None else LuxDisplay._default_connect
         return self

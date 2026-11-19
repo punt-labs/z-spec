@@ -54,6 +54,7 @@ class UnreadableCoverage:
     __slots__ = ("_reason",)
 
     def __new__(cls, reason: str) -> Self:
+        """Record why the run has no coverage census."""
         self = super().__new__(cls)
         self._reason = reason
         return self
@@ -82,6 +83,7 @@ class CoverageCensus:
     __slots__ = ("_operations",)
 
     def __new__(cls, operations: tuple[OperationCoverage, ...]) -> Self:
+        """Hold the operations the census named."""
         self = super().__new__(cls)
         self._operations = operations
         return self

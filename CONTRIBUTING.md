@@ -26,7 +26,12 @@ make check
 make uat
 ```
 
-`make lint` runs ruff check, ruff format --check, markdownlint, and shellcheck.
+`make lint` runs ruff check, ruff format --check, markdownlint, shellcheck, and
+the comment and public-docstring checks (`make check-comments`,
+`make check-docstrings`).
+`make build-api-docs` builds and verifies the
+[Python API reference](docs/api-reference/index.md); open
+`.tmp/api-site/index.html` to read it.
 `make type` runs mypy, pyright, and fuzz on every spec in `examples/`.
 `make test` runs pytest and probcli on every spec in `examples/`.
 `make check` runs lint, type, test, and the OO/coupling/suppression ratchets —

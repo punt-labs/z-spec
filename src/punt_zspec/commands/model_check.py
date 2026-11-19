@@ -18,7 +18,9 @@ class ProbResolver(Protocol):
     """Locate the probcli binary, or return None when it is absent."""
 
     # Path | None (PY-TS-14): None is a real state — probcli is not installed.
-    def __call__(self) -> Path | None: ...
+    def __call__(self) -> Path | None:
+        """Return the probcli path, or None when probcli is not installed."""
+        ...
 
 
 class ModelCheckRunner(Protocol):
@@ -33,13 +35,25 @@ class ModelCheckRunner(Protocol):
         setsize: int,
         max_ops: int,
         timeout_ms: int,
-    ) -> ProbReport: ...
+    ) -> ProbReport:
+        """Model-check ``spec`` with ``binary`` and return the report.
+
+        Args:
+            spec: The Z specification to model-check.
+            binary: The probcli executable.
+            setsize: The cardinality probcli gives each deferred given set.
+            max_ops: probcli's ``MAX_OPERATIONS`` per state.
+            timeout_ms: probcli's ``TIME_OUT`` for one internal computation.
+        """
+        ...
 
 
 class ReportPersister(Protocol):
     """Persist a ProB report alongside its spec and return the written path."""
 
-    def __call__(self, spec: Path, report: ProbReport, /) -> Path: ...
+    def __call__(self, spec: Path, report: ProbReport, /) -> Path:
+        """Write ``report`` beside ``spec`` and return the written path."""
+        ...
 
 
 @final
@@ -57,6 +71,7 @@ class ModelCheckCommand:
         run: ModelCheckRunner = run_model_check,
         persist: ReportPersister = save_report,
     ) -> Self:
+        """Inject the collaborators; the defaults run the real probcli."""
         self = super().__new__(cls)
         self._resolve = resolve
         self._run = run

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- z-spec checks public docstrings and Python comments in lint and CI, and
+  builds a generated Python API reference from the source.
+
 ### Changed
 
 - Run OO, coupling, and suppression quality gates from the pinned PyPI dev
