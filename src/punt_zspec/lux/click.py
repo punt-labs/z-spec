@@ -1,14 +1,14 @@
-"""What one menu click does: raise the entry's frame, render it, report a failure.
+"""What one menu click does: render the entry, report a failure.
 
-``ZSpecFrameRaiser`` is the guarded transport for the Hub's ``raise_frame`` —
-the same best-effort discipline ``ZSpecMenuRegistrar`` holds over
-``register_callback``. ``ZSpecClickRunner`` is the click itself: raise first for
-an instant response, then render off the event loop, and replace the frame with
-the reason when the render fails.
+``ZSpecClickRunner`` is the click itself: render off the event loop and replace
+the frame with the reason when the render fails. The frame is raised by luxd
+Display-locally — the callback was registered with the entry's scene as its
+``frame_id`` — so the click no longer mutates the display from the client side
+(punt-lux DES-088).
 
-Nothing here runs inline on the FastMCP event loop. The raise and the render both
-go through :func:`asyncio.to_thread`, so a blocking REST round-trip never starves
-the loop that serves check/test/animate.
+Nothing here runs inline on the FastMCP event loop. The render goes through
+:func:`asyncio.to_thread`, so a blocking REST round-trip never starves the loop
+that serves check/test/animate.
 """
 
 from __future__ import annotations
@@ -17,84 +17,41 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Self, final
 
-from punt_lux import HubUnavailableError
-from punt_lux.operations import OpError
-
 from punt_zspec.commands.show import DisplayError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from punt_zspec.commands.result import CommandError
     from punt_zspec.commands.show import Display
     from punt_zspec.lux.entry import ZSpecMenuEntry
-    from punt_zspec.lux.ports import FrameRaiseClient
 
-__all__ = ["ZSpecClickRunner", "ZSpecFrameRaiser"]
+__all__ = ["ZSpecClickRunner"]
 
 logger = logging.getLogger(__name__)
 
 
 @final
-class ZSpecFrameRaiser:
-    """Bring one Hub frame to the front over the REST client, failure-tolerant."""
-
-    _connect: Callable[[], FrameRaiseClient]
-    __slots__ = ("_connect",)
-
-    def __new__(cls, connect: Callable[[], FrameRaiseClient]) -> Self:
-        """Inject the factory that connects the REST client."""
-        self = super().__new__(cls)
-        self._connect = connect
-        return self
-
-    async def raise_frame(self, frame_id: str) -> None:
-        """Raise ``frame_id`` off-thread, dropping any lux failure.
-
-        A best-effort REST I/O boundary (PY-EH-6): a down luxd logs a warning, any
-        other transport fault is logged with its traceback, and neither is raised
-        — the full render follows this call, and losing it to a failed raise would
-        turn a slow click into a dead one. A frame the display does not hold
-        answers ``raised`` false rather than erroring; that is the cold path, and
-        the render behind it is what puts the frame up.
-        """
-        try:
-            client = await asyncio.to_thread(self._connect)
-            result = await asyncio.to_thread(client.raise_frame, frame_id)
-        except HubUnavailableError:
-            logger.warning("luxd unavailable; frame %s not raised", frame_id)
-            return
-        except Exception:
-            logger.exception("[lux] raising frame %s failed", frame_id)
-            return
-        if isinstance(result, OpError):
-            logger.warning("luxd refused to raise %s: %s", frame_id, result.reason)
-
-
-@final
 class ZSpecClickRunner:
-    """Run one menu entry's click: raise its frame, render it, report a failure."""
+    """Run one menu entry's click: render it, report a failure into its frame."""
 
     _display: Display
-    _raiser: ZSpecFrameRaiser
-    __slots__ = ("_display", "_raiser")
+    __slots__ = ("_display",)
 
-    def __new__(cls, display: Display, raiser: ZSpecFrameRaiser) -> Self:
-        """Render through ``display`` and raise frames through ``raiser``."""
+    def __new__(cls, display: Display) -> Self:
+        """Render clicks through ``display``."""
         self = super().__new__(cls)
         self._display = display
-        self._raiser = raiser
         return self
 
     async def run(self, entry: ZSpecMenuEntry) -> None:
-        """Raise the entry's frame, render it off-loop, and report a failure.
+        """Render the entry off-loop and report a failure into its frame.
 
-        A failed render (empty project, unreadable spec, down luxd) returns a
-        typed failure rather than raising; without inspecting it the user is left
-        looking at whatever the frame held before, with no diagnostic. On failure
-        the error is logged and the frame is replaced with the failure text.
+        luxd raises the entry's frame on click, so the render here is the whole
+        of the client's work. A failed render (empty project, unreadable spec,
+        down luxd) returns a typed failure rather than raising; without
+        inspecting it the user is left looking at whatever the frame held before,
+        with no diagnostic. On failure the error is logged and the frame is
+        replaced with the failure text.
         """
-        await self._raiser.raise_frame(entry.scene_id)
         outcome = await asyncio.to_thread(entry.run, self._display)
         error = outcome.error
         if error is not None:

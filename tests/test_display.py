@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from punt_lux import HubUnavailableError
+from punt_lux.client_host import UNOBSERVED
 from punt_lux.domain.ids import ConnectionId
 from punt_lux.operations import OpError, RenderRequest, SceneShown, Scope
 from punt_lux.protocol import TextElement
@@ -13,7 +14,11 @@ from punt_lux.protocol import TextElement
 from punt_zspec.commands.show import DisplayError
 from punt_zspec.display import LuxDisplay
 
-_SCOPE = Scope(connection_id=ConnectionId("test-scope"))
+_SCOPE = Scope(
+    connection_id=ConnectionId("test-scope"),
+    client_host=UNOBSERVED,
+    provenance="in_process",
+)
 
 
 def _client_stub(renderer: Any) -> Any:

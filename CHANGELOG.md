@@ -11,6 +11,18 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **punt-lux 0.33.1: the lux receive leg no longer mutates the display
+  (DES-088).** punt-lux 0.33.1 removed `raise_frame` and every
+  display-mutating operation from all client surfaces — a client may read the
+  display but never mutate it. A menu click's frame-raise is now done
+  Display-locally by luxd: `register_callback` gained a `frame_id` parameter,
+  and luxd raises that frame when the callback fires. z-spec's receive leg
+  migrated accordingly — `ZSpecFrameRaiser` and the `FrameRaiseClient`
+  REST surface are deleted, `ZSpecClickRunner` only renders, and each menu
+  entry's `scene_id` is threaded into `register_callback` as its `frame_id`
+  so the clicked entry still comes to the front. `Scope` now requires
+  `connection_id`, `client_host`, and `provenance`.
+
 - Bump the quality-gate dev dependency to `punt-oo-ratchet==0.3.0` and
   record the approved metric-definition migration through the audited CLI
   for all OO baseline rows: code-only module sizes and exception/enum/dataclass

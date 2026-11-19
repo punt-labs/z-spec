@@ -1,8 +1,11 @@
 """Humble-object tests for ZSpecSubscription — routing, registration, loop safety.
 
 No live Hub: a fake registrar, a fake listener factory, and a click runner over a
-recording REST client drive the receive leg. Async tests run on a throwaway loop
-via ``asyncio.run``. What a click then *does* is covered in ``test_click.py``.
+fake Display drive the receive leg. luxd raises the clicked entry's frame
+Display-locally (punt-lux DES-088), so the subscription passes each entry's
+scene as ``frame_id`` at registration and the click itself only renders. Async
+tests run on a throwaway loop via ``asyncio.run``. What a click then *does* is
+covered in ``test_click.py``.
 """
 
 from __future__ import annotations
@@ -11,11 +14,9 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from punt_lux.operations import FrameRaise, OpError
-
 from punt_zspec.commands.picker import PickerResult
 from punt_zspec.commands.result import CommandResult
-from punt_zspec.lux.click import ZSpecClickRunner, ZSpecFrameRaiser
+from punt_zspec.lux.click import ZSpecClickRunner
 from punt_zspec.lux.entry import ZSpecMenuEntry
 from punt_zspec.lux.subscription import ZSpecSubscription
 
@@ -37,17 +38,6 @@ _PROJECT = Path("/work/repo")
 _OK: ClickOutcome = CommandResult.ok(PickerResult(total=1, scene_id="z-spec-picker"))
 
 
-class _RecordingRaiseClient:
-    """A FrameRaiseClient that records each frame a click asked to raise."""
-
-    def __init__(self) -> None:
-        self.frames: list[str] = []
-
-    def raise_frame(self, frame_id: str) -> FrameRaise | OpError:
-        self.frames.append(frame_id)
-        return FrameRaise(frame_id=frame_id, raised=True)
-
-
 class _UnusedDisplay:
     """A Display no successful click touches — only a failed render reports."""
 
@@ -56,13 +46,15 @@ class _UnusedDisplay:
 
 
 class _RecordingMenu:
-    """A MenuRegistrar that records each (callback_id, label) registration."""
+    """A MenuRegistrar recording each (callback_id, label, frame_id) registration."""
 
     def __init__(self) -> None:
-        self.registered: list[tuple[str, str]] = []
+        self.registered: list[tuple[str, str, str | None]] = []
 
-    async def register(self, callback_id: str, label: str) -> None:
-        self.registered.append((callback_id, label))
+    async def register(
+        self, callback_id: str, label: str, frame_id: str | None = None
+    ) -> None:
+        self.registered.append((callback_id, label, frame_id))
 
 
 def _unused_listen(
@@ -153,12 +145,11 @@ def _entries(
     )
 
 
-def _runner(client: _RecordingRaiseClient) -> ZSpecClickRunner:
-    return ZSpecClickRunner(_UnusedDisplay(), ZSpecFrameRaiser(lambda: client))
+def _runner() -> ZSpecClickRunner:
+    return ZSpecClickRunner(_UnusedDisplay())
 
 
 def _subscription(
-    raise_client: _RecordingRaiseClient,
     menu: _RecordingMenu | None = None,
     tutorial_log: list[tuple[Path, str]] | None = None,
     browse_log: list[tuple[Path, str]] | None = None,
@@ -172,68 +163,63 @@ def _subscription(
         ),
         menu=menu if menu is not None else _RecordingMenu(),
         listen=_unused_listen,
-        click=_runner(raise_client),
+        click=_runner(),
         is_enabled=lambda: enabled,
     )
 
 
 def test_tutorial_click_runs_the_tutorial_command_with_matching_scene_id() -> None:
-    async def scenario() -> tuple[list[tuple[Path, str]], list[str]]:
+    async def scenario() -> list[tuple[Path, str]]:
         tut: list[tuple[Path, str]] = []
-        client = _RecordingRaiseClient()
-        sub = _subscription(client, tutorial_log=tut)
+        sub = _subscription(tutorial_log=tut)
         await sub.on_callback("z-spec-tutorial")
-        return tut, client.frames
+        return tut
 
-    tut, raised = asyncio.run(scenario())
+    tut = asyncio.run(scenario())
 
-    # The command renders into the SAME id the click raised — one Hub scene.
+    # The command renders into the SAME id luxd raised on click — one Hub scene.
     assert tut == [(_MANIFEST, "z-spec-tutorial")]
-    assert raised == ["z-spec-tutorial"]
 
 
 def test_browse_click_runs_the_picker_command_on_the_project() -> None:
-    async def scenario() -> tuple[list[tuple[Path, str]], list[str]]:
+    async def scenario() -> list[tuple[Path, str]]:
         brw: list[tuple[Path, str]] = []
-        client = _RecordingRaiseClient()
-        sub = _subscription(client, browse_log=brw)
+        sub = _subscription(browse_log=brw)
         await sub.on_callback("z-spec-browse")
-        return brw, client.frames
+        return brw
 
-    brw, raised = asyncio.run(scenario())
+    brw = asyncio.run(scenario())
 
     assert brw == [(_PROJECT, "z-spec-browse")]
-    assert raised == ["z-spec-browse"]
 
 
 def test_unknown_callback_is_a_noop() -> None:
-    async def scenario() -> tuple[list[tuple[Path, str]], list[tuple[Path, str]], int]:
+    async def scenario() -> tuple[list[tuple[Path, str]], list[tuple[Path, str]]]:
         tut: list[tuple[Path, str]] = []
         brw: list[tuple[Path, str]] = []
-        client = _RecordingRaiseClient()
-        sub = _subscription(client, tutorial_log=tut, browse_log=brw)
+        sub = _subscription(tutorial_log=tut, browse_log=brw)
         await sub.on_callback("nope")
-        return tut, brw, len(client.frames)
+        return tut, brw
 
-    tut, brw, raised = asyncio.run(scenario())
+    tut, brw = asyncio.run(scenario())
 
-    assert (tut, brw, raised) == ([], [], 0)
+    assert (tut, brw) == ([], [])
 
 
-def test_on_connect_registers_both_entries_under_their_own_titles() -> None:
-    async def scenario() -> list[tuple[str, str]]:
+def test_on_connect_registers_both_entries_with_their_scene_as_frame_id() -> None:
+    async def scenario() -> list[tuple[str, str, str | None]]:
         menu = _RecordingMenu()
-        sub = _subscription(_RecordingRaiseClient(), menu=menu)
+        sub = _subscription(menu=menu)
         await sub.on_connect()
         return menu.registered
 
     registered = asyncio.run(scenario())
 
-    # The label luxd shows is the entry's one title — the same string the frame
-    # behind the click carries.
+    # The label luxd shows is the entry's one title; the frame_id is its scene,
+    # which luxd raises Display-locally on click (DES-088).
     assert registered == [
-        ("z-spec-tutorial", "Z-Spec Tutorial"),
-        ("z-spec-browse", "Z-Spec Browser"),
+        ("z-spec-tutorial", "Z-Spec Tutorial", "z-spec-tutorial"),
+        ("z-spec-browse", "Z-Spec Browser", "z-spec-browse"),
     ]
 
 
@@ -245,9 +231,9 @@ def test_on_connect_registers_nothing_where_z_spec_is_not_enabled() -> None:
     a luxd restart.
     """
 
-    async def scenario() -> list[tuple[str, str]]:
+    async def scenario() -> list[tuple[str, str, str | None]]:
         menu = _RecordingMenu()
-        sub = _subscription(_RecordingRaiseClient(), menu=menu, enabled=False)
+        sub = _subscription(menu=menu, enabled=False)
         await sub.on_connect()
         return menu.registered
 
@@ -258,20 +244,17 @@ def test_a_click_dispatches_nothing_where_z_spec_is_not_enabled() -> None:
     """A stale entry must be inert, not merely unregistered.
 
     The lux lease keeps an entry on the shared window after the marker goes, so
-    the click that follows a `disable` still arrives. It must raise nothing and
-    run no command — the same answer the gated tools give.
+    the click that follows a `disable` still arrives. It must run no command —
+    the same answer the gated tools give.
     """
 
-    async def scenario() -> tuple[list[tuple[Path, str]], int]:
+    async def scenario() -> list[tuple[Path, str]]:
         brw: list[tuple[Path, str]] = []
-        client = _RecordingRaiseClient()
-        sub = _subscription(client, browse_log=brw, enabled=False)
+        sub = _subscription(browse_log=brw, enabled=False)
         await sub.on_callback("z-spec-browse")
-        return brw, len(client.frames)
+        return brw
 
-    ran, raised = asyncio.run(scenario())
-
-    assert (ran, raised) == ([], 0)
+    assert asyncio.run(scenario()) == []
 
 
 def test_enablement_is_re_read_per_click_not_captured_at_registration() -> None:
@@ -284,7 +267,7 @@ def test_enablement_is_re_read_per_click_not_captured_at_registration() -> None:
             entries=_entries([], brw),
             menu=_RecordingMenu(),
             listen=_unused_listen,
-            click=_runner(_RecordingRaiseClient()),
+            click=_runner(),
             is_enabled=lambda: enabled,
         )
         await sub.on_callback("z-spec-browse")
@@ -300,7 +283,7 @@ def test_enablement_is_re_read_per_click_not_captured_at_registration() -> None:
 
 def test_on_event_is_a_noop() -> None:
     async def scenario() -> None:
-        sub = _subscription(_RecordingRaiseClient())
+        sub = _subscription()
         # z-spec subscribes to no topics; a stray event must never raise.
         await sub.on_event("music.play", {"album": "x"})
 
@@ -308,7 +291,7 @@ def test_on_event_is_a_noop() -> None:
 
 
 def test_stop_is_safe_before_any_connection() -> None:
-    sub = _subscription(_RecordingRaiseClient())
+    sub = _subscription()
 
     sub.stop()  # no listener built yet — must not raise
 
@@ -322,14 +305,14 @@ def test_a_stopped_subscription_runs_again_when_restarted() -> None:
     never receives, and a menu that never re-registers — silently.
     """
 
-    async def scenario() -> tuple[int, list[tuple[str, str]]]:
+    async def scenario() -> tuple[int, list[tuple[str, str, str | None]]]:
         made: list[_RecordingListener] = []
         menu = _RecordingMenu()
         sub = ZSpecSubscription(
             entries=_entries([], []),
             menu=menu,
             listen=_listen_factory(made),
-            click=_runner(_RecordingRaiseClient()),
+            click=_runner(),
             is_enabled=lambda: True,
         )
 
@@ -349,7 +332,7 @@ def test_a_stopped_subscription_runs_again_when_restarted() -> None:
 
     # A second connection, and both entries registered on each of them.
     assert listeners == 2
-    assert [callback_id for callback_id, _ in registered] == [
+    assert [callback_id for callback_id, _, _ in registered] == [
         "z-spec-tutorial",
         "z-spec-browse",
         "z-spec-tutorial",

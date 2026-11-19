@@ -24,10 +24,12 @@ class _RecordingClient:
 
     def __init__(self, result: Ok | OpError) -> None:
         self._result = result
-        self.calls: list[tuple[str, str]] = []
+        self.calls: list[tuple[str, str, str | None]] = []
 
-    def register_callback(self, callback_id: str, label: str) -> Ok | OpError:
-        self.calls.append((callback_id, label))
+    def register_callback(
+        self, callback_id: str, label: str, frame_id: str | None = None
+    ) -> Ok | OpError:
+        self.calls.append((callback_id, label, frame_id))
         return self._result
 
 
@@ -36,22 +38,29 @@ class _FlakyClient:
 
     def __init__(self, fail_times: int) -> None:
         self._fail_times = fail_times
-        self.calls: list[tuple[str, str]] = []
+        self.calls: list[tuple[str, str, str | None]] = []
 
-    def register_callback(self, callback_id: str, label: str) -> Ok | OpError:
-        self.calls.append((callback_id, label))
+    def register_callback(
+        self, callback_id: str, label: str, frame_id: str | None = None
+    ) -> Ok | OpError:
+        self.calls.append((callback_id, label, frame_id))
         if len(self.calls) <= self._fail_times:
             return OpError(code="rejected", reason="no listen leg")
         return Ok()
 
 
-def test_register_calls_register_callback_with_the_id_and_label() -> None:
+def test_register_calls_register_callback_with_the_id_label_and_frame_id() -> None:
     client = _RecordingClient(Ok())
 
-    asyncio.run(ZSpecMenuRegistrar(lambda: client).register("z-spec-tutorial", "Label"))
+    asyncio.run(
+        ZSpecMenuRegistrar(lambda: client).register(
+            "z-spec-tutorial", "Label", "z-spec-tutorial"
+        )
+    )
 
-    # The happy path succeeds on the FIRST attempt — the retry never fires.
-    assert client.calls == [("z-spec-tutorial", "Label")]
+    # The happy path succeeds on the FIRST attempt — the retry never fires. The
+    # entry's scene rides along as frame_id for luxd to raise on click (DES-088).
+    assert client.calls == [("z-spec-tutorial", "Label", "z-spec-tutorial")]
 
 
 def test_register_retries_a_transient_rejection_then_succeeds(
@@ -62,10 +71,10 @@ def test_register_retries_a_transient_rejection_then_succeeds(
     monkeypatch.setattr(menu, "_RETRY_BACKOFF_SECONDS", 0.0)
     client = _FlakyClient(fail_times=2)
 
-    asyncio.run(ZSpecMenuRegistrar(lambda: client).register("id", "Label"))
+    asyncio.run(ZSpecMenuRegistrar(lambda: client).register("id", "Label", "scene"))
 
     # Two refusals, then Ok — three calls total, then it stops (idempotent by id).
-    assert client.calls == [("id", "Label")] * 3
+    assert client.calls == [("id", "Label", "scene")] * 3
 
 
 def test_register_gives_up_after_the_cap_without_raising(
@@ -77,9 +86,9 @@ def test_register_gives_up_after_the_cap_without_raising(
 
     # Every attempt is refused: it retries to the cap, logs, and returns — never
     # raising, so the receive leg survives a persistent rejection.
-    asyncio.run(ZSpecMenuRegistrar(lambda: client).register("id", "Label"))
+    asyncio.run(ZSpecMenuRegistrar(lambda: client).register("id", "Label", "scene"))
 
-    assert client.calls == [("id", "Label")] * _TEST_CAP
+    assert client.calls == [("id", "Label", "scene")] * _TEST_CAP
 
 
 def test_register_swallows_a_down_luxd() -> None:
@@ -92,7 +101,9 @@ def test_register_swallows_a_down_luxd() -> None:
 
 def test_register_swallows_a_raising_client() -> None:
     class _Boom:
-        def register_callback(self, callback_id: str, label: str) -> Ok | OpError:
+        def register_callback(
+            self, callback_id: str, label: str, frame_id: str | None = None
+        ) -> Ok | OpError:
             raise RuntimeError("transport blew up")
 
     asyncio.run(ZSpecMenuRegistrar(lambda: _Boom()).register("id", "Label"))

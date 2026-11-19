@@ -43,10 +43,10 @@ class ZSpecLuxClients:
 
         Callers invoke this lazily/under a guard: ``for_identity`` raises
         ``HubUnavailableError`` when luxd is not running, and the menu registrar
-        and frame raiser both swallow that so the tool surface survives. The
-        returned client is ``LuxClient.sync``, typed here against the local
-        :class:`LuxRestClient` Protocol — the subset z-spec actually consumes,
-        namely ``register_callback(id, label)`` and ``raise_frame(id)``.
+        swallows that so the tool surface survives. The returned client is
+        ``LuxClient.sync``, typed against the local :class:`LuxRestClient`
+        Protocol — the one capability z-spec consumes,
+        ``register_callback(id, label, frame_id)``; luxd raises the frame on click.
         """
         return LuxClient.for_identity(self._identity.client_identity).sync
 
