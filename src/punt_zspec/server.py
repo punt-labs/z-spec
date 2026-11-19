@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -13,6 +14,7 @@ from punt_zspec import __version__
 from punt_zspec.commands.enablement import RepoEnablement
 from punt_zspec.server_context import ServerContext
 from punt_zspec.types import EnablementAction
+from punt_zspec.usage import Usage
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -24,7 +26,10 @@ if TYPE_CHECKING:
 __all__ = ["lifespan", "mcp"]
 
 
+logger = logging.getLogger(__name__)
+
 _ctx = ServerContext()
+_USAGE = Usage("mcp")
 
 
 @asynccontextmanager
@@ -38,9 +43,18 @@ async def lifespan(server: FastMCP) -> AsyncGenerator[None]:
     name this module promises FastMCP and the plugin tests (PL-CU-3), and a
     bound method borrowed from an internal singleton is a worse public
     symbol than a plain function this module owns outright.
+
+    Usage capture lives exactly as long as the server, and its bounded flush
+    runs off the event loop.
     """
-    async with _ctx.lifespan(server):
-        yield
+    logger.info("Started MCP server: version=%s", __version__)
+    _USAGE.start()
+    try:
+        async with _ctx.lifespan(server):
+            yield
+    finally:
+        await asyncio.to_thread(_USAGE.stop)
+        logger.info("Stopped MCP server")
 
 
 mcp = FastMCP(
@@ -74,7 +88,8 @@ def check(file: str) -> str:
     """
     from punt_zspec.commands.check import CheckCommand
 
-    return CheckCommand().run(Path(file)).to_json()
+    with _USAGE.observe("check") as observed:
+        return observed.result(CheckCommand().run(Path(file))).to_json()
 
 
 @mcp.tool()
@@ -100,7 +115,8 @@ def test(
     from punt_zspec.commands.test import TestCommand
 
     options = ProbOptions(setsize=setsize, max_ops=max_ops, timeout_ms=timeout)
-    return TestCommand().run(Path(file), options).to_json()
+    with _USAGE.observe("test") as observed:
+        return observed.result(TestCommand().run(Path(file), options)).to_json()
 
 
 @mcp.tool()
@@ -120,7 +136,8 @@ def animate(file: str, steps: int = 20, setsize: int = 2) -> str:
     from punt_zspec.commands.options import AnimateOptions
 
     options = AnimateOptions(steps=steps, setsize=setsize)
-    return AnimateCommand().run(Path(file), options).to_json()
+    with _USAGE.observe("animate") as observed:
+        return observed.result(AnimateCommand().run(Path(file), options)).to_json()
 
 
 @mcp.tool()
@@ -146,7 +163,8 @@ def model_check(
     from punt_zspec.commands.options import ProbOptions
 
     options = ProbOptions(setsize=setsize, max_ops=max_ops, timeout_ms=timeout)
-    return ModelCheckCommand().run(Path(file), options).to_json()
+    with _USAGE.observe("model-check") as observed:
+        return observed.result(ModelCheckCommand().run(Path(file), options)).to_json()
 
 
 @mcp.tool()
@@ -159,7 +177,8 @@ def doctor() -> str:
     """
     from punt_zspec.commands.doctor import DoctorCommand
 
-    return DoctorCommand().run().to_json()
+    with _USAGE.observe("doctor") as observed:
+        return observed.result(DoctorCommand().run()).to_json()
 
 
 @mcp.tool()
@@ -189,7 +208,10 @@ def show(file: str) -> str:
             audit=reports.audit,
         )
 
-    return ShowCommand(build=build, display=_ctx.display).run(Path(file)).to_json()
+    with _USAGE.observe("show") as observed:
+        return observed.result(
+            ShowCommand(build=build, display=_ctx.display).run(Path(file))
+        ).to_json()
 
 
 @mcp.tool()
@@ -205,7 +227,8 @@ def report(file: str) -> str:
     """
     from punt_zspec.commands.report import ReportCommand
 
-    return ReportCommand().run(Path(file)).to_json()
+    with _USAGE.observe("report") as observed:
+        return observed.result(ReportCommand().run(Path(file))).to_json()
 
 
 @mcp.tool()
@@ -224,7 +247,10 @@ def partition(file: str, report_json: str) -> str:
     """
     from punt_zspec.commands.partition import PartitionCommand
 
-    return PartitionCommand().run(Path(file), report_json).to_json()
+    with _USAGE.observe("partition") as observed:
+        return observed.result(
+            PartitionCommand().run(Path(file), report_json)
+        ).to_json()
 
 
 @mcp.tool()
@@ -247,9 +273,9 @@ def browse(manifest: str) -> str:
     def build(collection: Collection, specs: list[tuple[SpecModel, Path]]) -> object:
         return build_browser_scene(collection, specs)
 
-    return (
-        BrowseCommand(build=build, display=_ctx.display).run(Path(manifest)).to_json()
-    )
+    command = BrowseCommand(build=build, display=_ctx.display)
+    with _USAGE.observe("browse") as observed:
+        return observed.result(command.run(Path(manifest))).to_json()
 
 
 @mcp.tool()
@@ -272,11 +298,9 @@ def pick(directory: str = _ctx.project_dir) -> str:
     from punt_zspec.picker_scene import build_spec_picker
 
     # build_spec_picker satisfies PickerSceneBuilder structurally — pass it directly.
-    return (
-        PickerCommand(build=build_spec_picker, display=_ctx.display)
-        .run(Path(directory))
-        .to_json()
-    )
+    command = PickerCommand(build=build_spec_picker, display=_ctx.display)
+    with _USAGE.observe("pick") as observed:
+        return observed.result(command.run(Path(directory))).to_json()
 
 
 @mcp.tool()
@@ -306,9 +330,12 @@ async def enablement(
     """
     # Off-thread: the working-tree writes block, and this is the one tool that
     # runs on the loop the listener shares (ADR §5.3).
-    result = await asyncio.to_thread(
-        RepoEnablement.apply, EnablementAction(action), Path(directory)
-    )
+    with _USAGE.observe(action) as observed:
+        result = observed.result(
+            await asyncio.to_thread(
+                RepoEnablement.apply, EnablementAction(action), Path(directory)
+            )
+        )
     await _ctx.sync()
     return result.to_json()
 
@@ -329,4 +356,5 @@ def audit(file: str, report_json: str) -> str:
     """
     from punt_zspec.commands.audit import AuditCommand
 
-    return AuditCommand().run(Path(file), report_json).to_json()
+    with _USAGE.observe("audit") as observed:
+        return observed.result(AuditCommand().run(Path(file), report_json)).to_json()
