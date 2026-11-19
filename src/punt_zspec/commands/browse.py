@@ -20,7 +20,8 @@ class ManifestParser(Protocol):
         """Parse the manifest at ``path`` into a Collection.
 
         Raises:
-            ValueError: The manifest is malformed.
+            FileNotFoundError: The manifest does not exist.
+            ValueError: A required field is missing or the lesson list is empty.
         """
         ...
 

@@ -39,6 +39,12 @@ Each command validates its inputs, runs the binary or store, and returns a
 
 ::: punt_zspec.commands.browse.BrowseCommand
 
+::: punt_zspec.commands.picker.PickerCommand
+
+::: punt_zspec.commands.enable.EnableCommand
+
+::: punt_zspec.commands.disable.DisableCommand
+
 ## Results
 
 ::: punt_zspec.commands.result.CommandResult
