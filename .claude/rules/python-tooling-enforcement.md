@@ -35,7 +35,7 @@ make check
 
 ## Tier 0: OO Score (Custom, Deterministic, Exit Code 0/1)
 
-The `tools/oo_score.py` script produces numeric OO quality metrics via AST
+The `uv run oo-ratchet oo` script produces numeric OO quality metrics via AST
 analysis. No external dependencies. Exits 1 if any metric fails.
 
 | Metric | Threshold | What It Catches |
@@ -55,9 +55,9 @@ analysis. No external dependencies. Exits 1 if any metric fails.
 **Usage**:
 
 ```bash
-python tools/oo_score.py path/to/module.py           # human-readable
-python tools/oo_score.py path/to/package/ --json      # machine-readable
-python tools/oo_score.py path/to/package/ --threshold  # per-file breakdown
+uv run oo-ratchet oo path/to/module.py           # human-readable
+uv run oo-ratchet oo path/to/package/ --json      # machine-readable
+uv run oo-ratchet oo path/to/package/ --threshold  # per-file breakdown
 ```
 
 **Agent protocol**: Run before AND after every change. Score must not regress.

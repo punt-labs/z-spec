@@ -166,7 +166,8 @@ make uat            # build + install, then run docs/testing/manual-tests.md
 `type` (mypy + pyright + fuzz on every spec), `test` (pytest + probcli on every
 spec), `check-oo`, `check-coupling`, `check-suppressions`, `check-dev-commands`.
 
-The three ratchets are adopted verbatim from vox, the canonical implementation.
+The three ratchets run from the pinned PyPI dev package
+`punt-oo-ratchet==0.1.0`, installed by `uv sync`.
 `check-oo` passes only if no metric regressed on touched files **and at least
 one improved** — see the OO ratchet section of [`CLAUDE.md`](CLAUDE.md) for what
 that demands and what it forbids. Coverage never goes down; the test count never

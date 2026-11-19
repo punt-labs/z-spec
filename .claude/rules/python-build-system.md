@@ -54,7 +54,7 @@ baseline measurement before refactoring and for end-of-session summaries.
 
 **Required report sections** (each prints a labeled header):
 
-1. OO Score (tools/oo_score.py --threshold)
+1. OO Score (uv run oo-ratchet oo --threshold)
 2. Type Safety (mypy --strict)
 3. Formatting (ruff format --check)
 4. Lint (ruff with OO-relevant rules)
@@ -98,18 +98,19 @@ make report SRC=src/<package>/          # scoped diagnostics
 
 ## PY-BS-5: Enforcement Tools Must Pass Their Own Checks
 
-**Statement**: Any custom tool that enforces coding standards (e.g.,
-`tools/oo_score.py`) must itself pass `make check`. A tool that fails its own
-rules has no authority to enforce them on other code.
+**Statement**: The shared `punt-oo-ratchet` package must pass `make check`
+in its own `python-oo-ratchet` repository. Consumers depend on the pinned
+PyPI dev package rather than embedding its implementation.
 
 **Criterion**:
 
-- Pass: `python tools/oo_score.py tools/` exits 0
+- Pass: the package's own `make check` passes
 - Fail: enforcement tool has OO score violations
 
 **Tooling**:
 
-- `make check SRC=tools/` — must pass before committing tool changes
+- In `python-oo-ratchet`: `make check` before committing tool changes
+- In a consumer: `make check` runs the installed package's gates
 
 ## PY-BS-6: Every Module Must Have Tests
 

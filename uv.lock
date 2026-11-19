@@ -1004,6 +1004,15 @@ wheels = [
 ]
 
 [[package]]
+name = "punt-oo-ratchet"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/49/0a/cc2148b04fde951c0936b6eede2799dae16db7b5800d1b1f9da7a210c42e/punt_oo_ratchet-0.1.0.tar.gz", hash = "sha256:85ce780213eedacc590569fe2026ee9d4cd6952a4e501cc414627679dbf51331", size = 74203, upload-time = "2026-11-19T02:06:35.637Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/48/f7/4d68ce7c24fd01d44efb95450bf0b67c795b255f4858dc83cd61a8d0430d/punt_oo_ratchet-0.1.0-py3-none-any.whl", hash = "sha256:a25cb0008008c2bee014f831a5e67c298f17ae7dcead6149aba88c3734edd72a", size = 97205, upload-time = "2026-11-19T02:06:34.408Z" },
+]
+
+[[package]]
 name = "punt-z-spec"
 version = "0.20.5"
 source = { editable = "." }
@@ -1022,6 +1031,11 @@ dev = [
     { name = "ruff" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "punt-oo-ratchet" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "mcp", specifier = ">=1.0.0" },
@@ -1034,6 +1048,9 @@ requires-dist = [
     { name = "typer", specifier = ">=0.24.1" },
 ]
 provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "punt-oo-ratchet", specifier = "==0.1.0" }]
 
 [[package]]
 name = "py-key-value-aio"

@@ -101,8 +101,8 @@ PR review follows punt-kit/standards/pr-review.md: local review (qodo review + s
 
 ## Code quality
 
-Three ratchets — OO, coupling, suppression — adopted verbatim from vox, the
-canonical implementation. `make check-oo` passes only if no metric regressed
+Three ratchets — OO, coupling, suppression — run from the pinned PyPI dev
+package `punt-oo-ratchet==0.1.0`. `make check-oo` passes only if no metric regressed
 on touched files and at least one improved. Never edit `.oo-baseline.json` by
 hand except `--rebaseline` for structural refactors; never suppress the
 ratchet. Org standards (see `../punt-kit/standards/python.md` above) override

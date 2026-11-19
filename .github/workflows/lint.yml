@@ -35,6 +35,7 @@ jobs:
       # Every prod slash command has a generated -dev twin; drift means the dev
       # plugin and the shipped plugin disagree.
       - run: make check-dev-commands
+      # All three gates run the PyPI-pinned punt-oo-ratchet dev package via Make.
       # OO ratchet on a PR: compare code-at-HEAD against the baseline at the
       # merge-base. --require-base AND the explicit fetch are both mandatory —
       # with either missing, an unresolvable base would fail open and let a
