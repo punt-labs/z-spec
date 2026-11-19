@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import ast
 import io
+import os
 import re
 import subprocess
 import sys
@@ -16,6 +17,10 @@ from docstring_parser import DocstringStyle, ParseError, parse
 from markdown import Markdown
 from markdown.util import HTML_PLACEHOLDER_RE
 
+# pydoclint needs docstring-parser-fork, which installs over the same
+# ``docstring_parser`` package that a runtime dependency pulls in, so it runs in
+# its own tool environment.
+_PYDOCLINT = "pydoclint==0.12.0"
 _DOC_DIAGNOSTIC = re.compile(r".+:\d+: DOC(\d{3}): (.+)")
 _REQUIRED_DOC_CODES = {1, 2, 3, 102, 111, 304}
 _OPTIONAL_DOC_CODES = {
@@ -261,6 +266,10 @@ def _check_docstrings(source: Path) -> list[str]:
         return [f"No Python source files found: {source}"]
     result = subprocess.run(
         [
+            "uvx",
+            "--quiet",
+            "--from",
+            _PYDOCLINT,
             "pydoclint",
             "--config",
             "pyproject.toml",
@@ -275,6 +284,8 @@ def _check_docstrings(source: Path) -> list[str]:
         stderr=subprocess.STDOUT,
         text=True,
         check=False,
+        # uv's own RUST_LOG output would land among pydoclint's diagnostics.
+        env={name: value for name, value in os.environ.items() if name != "RUST_LOG"},
     )
     findings = doclint_findings(result.returncode, result.stdout)
     if not findings:

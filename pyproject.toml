@@ -150,8 +150,7 @@ precision = 2
 [dependency-groups]
 dev = [
     "punt-oo-ratchet==0.1.0",
-    "pydoclint==0.12.0",
-    "docstring-parser-fork==0.0.16",
+    "docstring-parser>=0.17,<1",
     "markdown==3.11.3",
     "types-markdown>=3.10,<4",
 ]

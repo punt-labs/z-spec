@@ -401,15 +401,6 @@ wheels = [
 ]
 
 [[package]]
-name = "docstring-parser-fork"
-version = "0.0.16"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/04/ce/48b17c6c24d0af112f73721a90fac245450e548b82b53169260720f60d07/docstring_parser_fork-0.0.16.tar.gz", hash = "sha256:9ecf861ceab8b87d1297a71001c15a1956ad02e87434ee6473643a5988094f7c", size = 36360, upload-time = "2026-07-03T07:27:46.668Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c1/69/427c34e61827818942b48ececd7c892b8f58ba4ce4cfc89ba9fd8dbe8a8d/docstring_parser_fork-0.0.16-py3-none-any.whl", hash = "sha256:c024c97af582d6acf85a14f0b332b3a2ab08626648d251c25e47191f33064386", size = 25253, upload-time = "2026-07-03T07:27:45.591Z" },
-]
-
-[[package]]
 name = "docutils"
 version = "0.22.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1270,10 +1261,9 @@ dev = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "docstring-parser-fork" },
+    { name = "docstring-parser" },
     { name = "markdown" },
     { name = "punt-oo-ratchet" },
-    { name = "pydoclint" },
     { name = "types-markdown" },
 ]
 docs = [
@@ -1296,10 +1286,9 @@ provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "docstring-parser-fork", specifier = "==0.0.16" },
+    { name = "docstring-parser", specifier = ">=0.17,<1" },
     { name = "markdown", specifier = "==3.11.3" },
     { name = "punt-oo-ratchet", specifier = "==0.1.0" },
-    { name = "pydoclint", specifier = "==0.12.0" },
     { name = "types-markdown", specifier = ">=3.10,<4" },
 ]
 docs = [
@@ -1426,19 +1415,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/68/ca/31c57507b13119d7d3cfa1576dad2911a4861e3be07b579395f4e9d393f9/pydantic_settings-2.15.0.tar.gz", hash = "sha256:694b793e84f766ba76a90ebdefc01d0a9a045dab0382bee70393da93712ad117", size = 261253, upload-time = "2026-08-07T09:24:57.419Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/30/a4/2bffa9f8e804325a09867f0e9d30795c80ea9f8d62560bd1b6ad6220eb2f/pydantic_settings-2.15.0-py3-none-any.whl", hash = "sha256:0ba092c291c94baceb5eff768aa0d56400a457585bc0175925a5a5510303da42", size = 69413, upload-time = "2026-08-07T09:24:55.839Z" },
-]
-
-[[package]]
-name = "pydoclint"
-version = "0.12.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "click" },
-    { name = "docstring-parser-fork" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/9b/f7/ae03ad83f47dfee8a468544e4b77b254940299b15f9710e00450a5034729/pydoclint-0.12.0.tar.gz", hash = "sha256:ac061ae24381547e41d5a45044a1f88c87a54541b67ec959bd5160c69256482c", size = 255216, upload-time = "2026-10-28T06:48:34.428Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/6e/45/9aea4898fcfbb3ed973eb23f6b83c677bb8bcecb59e9681fae6da82bb3be/pydoclint-0.12.0-py3-none-any.whl", hash = "sha256:28f5763a865cb19b54883dfe68b05b01d2c2fc2e8d59dcf424cc345bc976a689", size = 99545, upload-time = "2026-10-28T06:48:33.34Z" },
 ]
 
 [[package]]
