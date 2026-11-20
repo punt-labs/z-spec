@@ -19,6 +19,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Depend on the `punt-observe==0.1.0` PyPI release instead of a git commit
+  pin, so z-spec can be published to PyPI again (PL-1200).
+
 - **punt-lux 0.33.1: the lux receive leg no longer mutates the display
   (DES-088).** punt-lux 0.33.1 removed `raise_frame` and every
   display-mutating operation from all client surfaces — a client may read the
