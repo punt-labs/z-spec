@@ -24,10 +24,10 @@ class _RecordingClient:
 
     def __init__(self, result: Ok | OpError) -> None:
         self._result = result
-        self.calls: list[tuple[str, str, str | None]] = []
+        self.calls: list[tuple[str, str, str]] = []
 
     def register_callback(
-        self, callback_id: str, label: str, frame_id: str | None = None
+        self, callback_id: str, label: str, frame_id: str
     ) -> Ok | OpError:
         self.calls.append((callback_id, label, frame_id))
         return self._result
@@ -38,10 +38,10 @@ class _FlakyClient:
 
     def __init__(self, fail_times: int) -> None:
         self._fail_times = fail_times
-        self.calls: list[tuple[str, str, str | None]] = []
+        self.calls: list[tuple[str, str, str]] = []
 
     def register_callback(
-        self, callback_id: str, label: str, frame_id: str | None = None
+        self, callback_id: str, label: str, frame_id: str
     ) -> Ok | OpError:
         self.calls.append((callback_id, label, frame_id))
         if len(self.calls) <= self._fail_times:
@@ -96,14 +96,14 @@ def test_register_swallows_a_down_luxd() -> None:
         raise HubUnavailableError("luxd down")
 
     # Must return cleanly — a missing menu never crashes the daemon.
-    asyncio.run(ZSpecMenuRegistrar(connect).register("id", "Label"))
+    asyncio.run(ZSpecMenuRegistrar(connect).register("id", "Label", "scene"))
 
 
 def test_register_swallows_a_raising_client() -> None:
     class _Boom:
         def register_callback(
-            self, callback_id: str, label: str, frame_id: str | None = None
+            self, callback_id: str, label: str, frame_id: str
         ) -> Ok | OpError:
             raise RuntimeError("transport blew up")
 
-    asyncio.run(ZSpecMenuRegistrar(lambda: _Boom()).register("id", "Label"))
+    asyncio.run(ZSpecMenuRegistrar(lambda: _Boom()).register("id", "Label", "scene"))

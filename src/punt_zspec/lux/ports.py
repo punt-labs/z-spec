@@ -50,7 +50,7 @@ class MenuClient(Protocol):
     """The REST surface that registers a menu callback under the applet identity."""
 
     def register_callback(
-        self, callback_id: str, label: str, frame_id: str | None = None
+        self, callback_id: str, label: str, frame_id: str
     ) -> Ok | OpError:
         """Register a menu entry — luxd raises ``frame_id`` on click (DES-088)."""
         ...

@@ -46,9 +46,7 @@ class ZSpecMenuRegistrar:
         self._connect = connect
         return self
 
-    async def register(
-        self, callback_id: str, label: str, frame_id: str | None = None
-    ) -> None:
+    async def register(self, callback_id: str, label: str, frame_id: str) -> None:
         """Register the ``label`` menu entry off-thread, dropping any lux failure.
 
         ``frame_id`` is the entry's scene, which luxd raises on click (DES-088).

@@ -26,9 +26,7 @@ __all__ = ["ClickCommand", "ClickCommandFactory", "ClickOutcome", "MenuRegistrar
 class MenuRegistrar(Protocol):
     """The guarded registration of one menu callback the subscription drives."""
 
-    async def register(
-        self, callback_id: str, label: str, frame_id: str | None = None
-    ) -> None:
+    async def register(self, callback_id: str, label: str, frame_id: str) -> None:
         """Register the callback — ``frame_id`` is luxd's raise-on-click scene."""
         ...
 

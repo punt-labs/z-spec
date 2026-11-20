@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from punt_zspec.commands.picker import PickerResult
 from punt_zspec.commands.result import CommandResult
 from punt_zspec.lux.click import ZSpecClickRunner
-from punt_zspec.lux.entry import ZSpecMenuEntry
+from punt_zspec.lux.entry import ZSpecMenuEntries, ZSpecMenuEntry
 from punt_zspec.lux.subscription import ZSpecSubscription
 
 if TYPE_CHECKING:
@@ -49,11 +49,9 @@ class _RecordingMenu:
     """A MenuRegistrar recording each (callback_id, label, frame_id) registration."""
 
     def __init__(self) -> None:
-        self.registered: list[tuple[str, str, str | None]] = []
+        self.registered: list[tuple[str, str, str]] = []
 
-    async def register(
-        self, callback_id: str, label: str, frame_id: str | None = None
-    ) -> None:
+    async def register(self, callback_id: str, label: str, frame_id: str) -> None:
         self.registered.append((callback_id, label, frame_id))
 
 
@@ -207,9 +205,17 @@ def test_unknown_callback_is_a_noop() -> None:
 
 
 def test_on_connect_registers_both_entries_with_their_scene_as_frame_id() -> None:
-    async def scenario() -> list[tuple[str, str, str | None]]:
+    async def scenario() -> list[tuple[str, str, str]]:
         menu = _RecordingMenu()
-        sub = _subscription(menu=menu)
+        sub = ZSpecSubscription(
+            entries=ZSpecMenuEntries.of(
+                tutorial_manifest=_MANIFEST, browse_root=_PROJECT
+            ),
+            menu=menu,
+            listen=_unused_listen,
+            click=_runner(),
+            is_enabled=lambda: True,
+        )
         await sub.on_connect()
         return menu.registered
 
@@ -219,7 +225,7 @@ def test_on_connect_registers_both_entries_with_their_scene_as_frame_id() -> Non
     # which luxd raises Display-locally on click (DES-088).
     assert registered == [
         ("z-spec-tutorial", "Z-Spec Tutorial", "z-spec-tutorial"),
-        ("z-spec-browse", "Z-Spec Browser", "z-spec-browse"),
+        ("z-spec-browse", "Z-Spec Browser", "z-spec-picker"),
     ]
 
 
@@ -231,7 +237,7 @@ def test_on_connect_registers_nothing_where_z_spec_is_not_enabled() -> None:
     a luxd restart.
     """
 
-    async def scenario() -> list[tuple[str, str, str | None]]:
+    async def scenario() -> list[tuple[str, str, str]]:
         menu = _RecordingMenu()
         sub = _subscription(menu=menu, enabled=False)
         await sub.on_connect()
@@ -305,7 +311,7 @@ def test_a_stopped_subscription_runs_again_when_restarted() -> None:
     never receives, and a menu that never re-registers — silently.
     """
 
-    async def scenario() -> tuple[int, list[tuple[str, str, str | None]]]:
+    async def scenario() -> tuple[int, list[tuple[str, str, str]]]:
         made: list[_RecordingListener] = []
         menu = _RecordingMenu()
         sub = ZSpecSubscription(
