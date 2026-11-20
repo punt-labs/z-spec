@@ -160,6 +160,8 @@ primary Claude Code plugin journey.
 |--------|---------------|
 | `__main__.py` | Typer CLI — the verb surface |
 | `server.py` | FastMCP server (key: `zspec`) — the tool surface; owns the lux session lifespan |
+| `logging_config.py` | `DiagnosticLog.configure` — the one place entry points configure diagnostics, through `punt-observe` |
+| `usage.py` | `Usage` — the typed usage-event schemas and the per-call recorder both surfaces share |
 | `server_context.py` | Shared per-request context both surfaces build commands from |
 | `commands/registry.py` | The canonical capability list (`CAPABILITIES`) and each capability's name on each surface |
 | `commands/*.py` | One command per capability: `check`, `test`, `animate`, `model_check`, `report`, `doctor`, `partition`, `audit`, `show`, `browse`, `picker`, `enable`, `disable` |
@@ -192,6 +194,31 @@ primary Claude Code plugin journey.
 This table is refreshed by hand; when it drifts from `commands/registry.py`'s
 `CAPABILITIES` tuple or the `src/punt_zspec/` tree, the registry and the tree
 are authoritative.
+
+## Diagnostics and usage telemetry
+
+Both surfaces adopt the shared `punt-observe` package, pinned by git commit in
+`pyproject.toml` until it is published to PyPI. Library modules only declare
+`logger = logging.getLogger(__name__)`; nothing under `src/` configures
+logging except `logging_config.py`, and
+`tests/test_observability.py` bans `basicConfig` and stdlib rotating
+handlers there.
+
+| Process | Entry point | Role | Diagnostic sink | Usage capture |
+|---------|-------------|------|-----------------|---------------|
+| `z-spec <verb>` | `__main__.main` callback | `cli` | `~/.punt-labs/z-spec/logs/z-spec.log`; WARNING+ also to stderr | `z-spec.cli.<capability>` events, flushed when the verb exits |
+| `z-spec mcp` | `__main__.main` callback, then `server.lifespan` | `mcp` | same file; WARNING+ to stderr, never stdout | `z-spec.mcp.<capability>` events for the server's lifetime |
+
+The plugin's only hook, `plugin/hooks/suppress-output.sh`, is a shell script
+that runs no Python and writes no log. z-spec spawns no daemon or detached
+worker; `fuzz` and `probcli` are child processes whose output z-spec parses.
+
+Each usage event carries only closed enums and a duration: `outcome`
+(`ok`/`failed`/`error`), `failure` (a `CommandFailure` value) and
+`duration_ms`. A new attribute or capability changes the schema in
+`usage.py`; a changed meaning bumps `SCHEMA_VERSION`. The store, retention and
+exporter belong to `punt-observe`; switching to OTLP export is
+`TelemetryConfig` configuration, not new instrumentation.
 
 ## The OO ratchet: a good deed, not a rebaseline
 

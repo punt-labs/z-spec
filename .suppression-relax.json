@@ -1,0 +1,8 @@
+[
+  {
+    "file": "tools/*.py",
+    "ceiling": 1,
+    "justify": "PL-1200: punt-kit PY-LOG-2/PY-LOG-9 require Ruff T20 and a narrow exemption for intentional terminal output; tools/ dev scripts report to the developer's terminal by design",
+    "added_at": "2026-11-19T20:24:06.438255Z"
+  }
+]

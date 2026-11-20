@@ -10,10 +10,13 @@ from typing import TYPE_CHECKING, Annotated
 import typer
 
 from punt_zspec import __version__
+from punt_zspec.logging_config import DiagnosticLog, LoggingSetupError, Role
+from punt_zspec.usage import Usage
 
 if TYPE_CHECKING:
-    from punt_zspec.commands.result import CommandResult
+    from punt_zspec.commands.result import CommandResult, JsonObject
     from punt_zspec.types import Collection, EnablementReport, SpecModel, SpecReports
+    from punt_zspec.usage import Observation
 
 app = typer.Typer(
     name="z-spec",
@@ -21,6 +24,8 @@ app = typer.Typer(
     no_args_is_help=True,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
+
+_USAGE = Usage("cli")
 
 
 def _version_callback(value: bool) -> None:
@@ -31,12 +36,22 @@ def _version_callback(value: bool) -> None:
 
 @app.callback()
 def main(
+    ctx: typer.Context,
     version: Annotated[
         bool | None,
         typer.Option("--version", "-V", callback=_version_callback, is_eager=True),
     ] = None,
 ) -> None:
     """Z specification toolkit."""
+    role: Role = "mcp" if ctx.invoked_subcommand == "mcp" else "cli"
+    try:
+        DiagnosticLog.configure(role)
+    except LoggingSetupError as exc:
+        typer.echo(f"error: cannot open the z-spec log: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    if role == "cli":
+        _USAGE.start()
+        ctx.call_on_close(_USAGE.stop)
 
 
 _TEX_ARG = typer.Argument(
@@ -50,18 +65,36 @@ _TOML_ARG = typer.Argument(
 _REPORT_OPT = typer.Option("--report", help="Report JSON file, or - for stdin")
 
 
-def _read_report(report: str) -> str:
+def _read_report(report: str, observed: Observation) -> str:
     """Read authored report JSON from stdin (``-``) or a file path.
 
-    A missing or unreadable file exits 1 with a clean message, no traceback.
+    A missing or unreadable file exits 1 with a clean message, no traceback,
+    and *observed* records the call as an ``invalid_report`` failure.
     """
     if report == "-":
         return sys.stdin.read()
     try:
         return Path(report).read_text("utf-8")
     except (OSError, UnicodeDecodeError) as exc:
+        from punt_zspec.commands.result import CommandFailure
+
+        observed.fail(CommandFailure.invalid_report)
         typer.echo(f"error: cannot read report: {exc}", err=True)
         raise typer.Exit(1) from exc
+
+
+def _payload[T: JsonObject](result: CommandResult[T], *, hint: bool = False) -> T:
+    """Return *result*'s payload, or print its error to stderr and exit 1.
+
+    With *hint*, the message ends in a full stop followed by any remediation
+    hint, the form the binary-backed verbs print.
+    """
+    err = result.error
+    if err is None:
+        return result.unwrap()
+    suffix = f".{f' {err.hint}' if err.hint else ''}" if hint else ""
+    typer.echo(f"error: {err.message}{suffix}", err=True)
+    raise typer.Exit(1)
 
 
 @app.command()
@@ -71,13 +104,9 @@ def check(
     """Type-check a Z specification with fuzz."""
     from punt_zspec.commands.check import CheckCommand
 
-    result = CheckCommand().run(file)
-    err = result.error
-    if err is not None:
-        suffix = f" {err.hint}" if err.hint else ""
-        typer.echo(f"error: {err.message}.{suffix}", err=True)
-        raise typer.Exit(1)
-    fuzz = result.unwrap()
+    with _USAGE.observe("check") as observed:
+        result = observed.result(CheckCommand().run(file))
+    fuzz = _payload(result, hint=True)
     if fuzz.ok:
         typer.echo(f"fuzz: {file.name} OK")
         return
@@ -103,13 +132,9 @@ def test(
     from punt_zspec.commands.test import TestCommand
 
     options = ProbOptions(setsize=setsize, max_ops=max_ops, timeout_ms=timeout)
-    result = TestCommand().run(file, options)
-    err = result.error
-    if err is not None:
-        suffix = f" {err.hint}" if err.hint else ""
-        typer.echo(f"error: {err.message}.{suffix}", err=True)
-        raise typer.Exit(1)
-    report = result.unwrap()
+    with _USAGE.observe("test") as observed:
+        result = observed.result(TestCommand().run(file, options))
+    report = _payload(result, hint=True)
     typer.echo(json.dumps(report.to_dict(), indent=2))
     if not report.ok:
         raise typer.Exit(1)
@@ -127,13 +152,11 @@ def animate(
     from punt_zspec.commands.animate import AnimateCommand
     from punt_zspec.commands.options import AnimateOptions
 
-    result = AnimateCommand().run(file, AnimateOptions(steps=steps, setsize=setsize))
-    err = result.error
-    if err is not None:
-        suffix = f" {err.hint}" if err.hint else ""
-        typer.echo(f"error: {err.message}.{suffix}", err=True)
-        raise typer.Exit(1)
-    report = result.unwrap()
+    with _USAGE.observe("animate") as observed:
+        result = observed.result(
+            AnimateCommand().run(file, AnimateOptions(steps=steps, setsize=setsize))
+        )
+    report = _payload(result, hint=True)
     typer.echo(json.dumps(report.to_dict(), indent=2))
     if not report.ok:
         raise typer.Exit(1)
@@ -155,13 +178,9 @@ def model_check(
     from punt_zspec.commands.options import ProbOptions
 
     options = ProbOptions(setsize=setsize, max_ops=max_ops, timeout_ms=timeout)
-    result = ModelCheckCommand().run(file, options)
-    err = result.error
-    if err is not None:
-        suffix = f" {err.hint}" if err.hint else ""
-        typer.echo(f"error: {err.message}.{suffix}", err=True)
-        raise typer.Exit(1)
-    report = result.unwrap()
+    with _USAGE.observe("model-check") as observed:
+        result = observed.result(ModelCheckCommand().run(file, options))
+    report = _payload(result, hint=True)
     typer.echo(json.dumps(report.to_dict(), indent=2))
     if not report.ok:
         raise typer.Exit(1)
@@ -174,7 +193,8 @@ def report(
     """Load and display an existing report."""
     from punt_zspec.commands.report import ReportCommand
 
-    result = ReportCommand().run(file)
+    with _USAGE.observe("report") as observed:
+        result = observed.result(ReportCommand().run(file))
     err = result.error
     if err is not None:
         typer.echo(err.message, err=True)
@@ -190,13 +210,10 @@ def partition(
     """Validate and persist an authored TTF partition report."""
     from punt_zspec.commands.partition import PartitionCommand
 
-    raw = _read_report(report)
-    result = PartitionCommand().run(file, raw)
-    err = result.error
-    if err is not None:
-        typer.echo(f"error: {err.message}", err=True)
-        raise typer.Exit(1)
-    typer.echo(str(result.unwrap().path))
+    with _USAGE.observe("partition") as observed:
+        raw = _read_report(report, observed)
+        result = observed.result(PartitionCommand().run(file, raw))
+    typer.echo(str(_payload(result).path))
 
 
 @app.command()
@@ -207,13 +224,10 @@ def audit(
     """Validate and persist an authored test-coverage audit report."""
     from punt_zspec.commands.audit import AuditCommand
 
-    raw = _read_report(report)
-    result = AuditCommand().run(file, raw)
-    err = result.error
-    if err is not None:
-        typer.echo(f"error: {err.message}", err=True)
-        raise typer.Exit(1)
-    typer.echo(str(result.unwrap().path))
+    with _USAGE.observe("audit") as observed:
+        raw = _read_report(report, observed)
+        result = observed.result(AuditCommand().run(file, raw))
+    typer.echo(str(_payload(result).path))
 
 
 @app.command()
@@ -235,11 +249,11 @@ def show(
             audit=reports.audit,
         )
 
-    result = ShowCommand(build=build, display=LuxDisplay()).run(file)
-    err = result.error
-    if err is not None:
-        typer.echo(f"error: {err.message}", err=True)
-        raise typer.Exit(1)
+    with _USAGE.observe("show") as observed:
+        result = observed.result(
+            ShowCommand(build=build, display=LuxDisplay()).run(file)
+        )
+    _payload(result)
     typer.echo(result.to_json())
 
 
@@ -255,11 +269,11 @@ def browse(
     def build(collection: Collection, specs: list[tuple[SpecModel, Path]]) -> object:
         return build_browser_scene(collection, specs)
 
-    result = BrowseCommand(build=build, display=LuxDisplay()).run(manifest)
-    err = result.error
-    if err is not None:
-        typer.echo(f"error: {err.message}", err=True)
-        raise typer.Exit(1)
+    with _USAGE.observe("browse") as observed:
+        result = observed.result(
+            BrowseCommand(build=build, display=LuxDisplay()).run(manifest)
+        )
+    _payload(result)
     typer.echo(result.to_json())
 
 
@@ -281,11 +295,11 @@ def pick(
     from punt_zspec.picker_scene import build_spec_picker
 
     # build_spec_picker satisfies PickerSceneBuilder structurally — pass it directly.
-    result = PickerCommand(build=build_spec_picker, display=LuxDisplay()).run(directory)
-    err = result.error
-    if err is not None:
-        typer.echo(f"error: {err.message}", err=True)
-        raise typer.Exit(1)
+    with _USAGE.observe("pick") as observed:
+        result = observed.result(
+            PickerCommand(build=build_spec_picker, display=LuxDisplay()).run(directory)
+        )
+    _payload(result)
     typer.echo(result.to_json())
 
 
@@ -294,7 +308,8 @@ def doctor() -> None:
     """Check Z specification environment health."""
     from punt_zspec.commands.doctor import DoctorCommand
 
-    health = DoctorCommand().run().unwrap()
+    with _USAGE.observe("doctor") as observed:
+        health = observed.result(DoctorCommand().run()).unwrap()
     typer.echo(f"z-spec {health.version}")
     fuzz_status = f"OK ({health.fuzz})" if health.fuzz else "NOT FOUND"
     prob_status = f"OK ({health.probcli})" if health.probcli else "NOT FOUND"
@@ -333,7 +348,9 @@ def enable(
     """Turn z-spec on in this repository."""
     from punt_zspec.commands.enable import EnableCommand
 
-    _echo_enablement(EnableCommand().run(directory))
+    with _USAGE.observe("enable") as observed:
+        result = observed.result(EnableCommand().run(directory))
+    _echo_enablement(result)
 
 
 @app.command()
@@ -343,7 +360,9 @@ def disable(
     """Turn z-spec off in this repository, leaving its files dormant."""
     from punt_zspec.commands.disable import DisableCommand
 
-    _echo_enablement(DisableCommand().run(directory))
+    with _USAGE.observe("disable") as observed:
+        result = observed.result(DisableCommand().run(directory))
+    _echo_enablement(result)
 
 
 @app.command()
