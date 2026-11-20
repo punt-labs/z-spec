@@ -197,8 +197,8 @@ are authoritative.
 
 ## Diagnostics and usage telemetry
 
-Both surfaces adopt the shared `punt-observe` package, pinned by git commit in
-`pyproject.toml` until it is published to PyPI. Library modules only declare
+Both surfaces adopt the shared `punt-observe` package, pinned to a PyPI
+release in `pyproject.toml`. Library modules only declare
 `logger = logging.getLogger(__name__)`; nothing under `src/` configures
 logging except `logging_config.py`, and
 `tests/test_observability.py` bans `basicConfig` and stdlib rotating
