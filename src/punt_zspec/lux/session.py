@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Self, final
 
 from punt_zspec.display import LuxDisplay
-from punt_zspec.lux.click import ZSpecClickRunner, ZSpecFrameRaiser
+from punt_zspec.lux.click import ZSpecClickRunner
 from punt_zspec.lux.clients import ZSpecLuxClients
 from punt_zspec.lux.entry import ZSpecMenuEntries
 from punt_zspec.lux.menu import ZSpecMenuRegistrar
@@ -84,7 +84,7 @@ class ZSpecLuxSession:
             ),
             menu=ZSpecMenuRegistrar(lux.rest),
             listen=lux.listen,
-            click=ZSpecClickRunner(self._display, ZSpecFrameRaiser(lux.rest)),
+            click=ZSpecClickRunner(self._display),
             is_enabled=is_enabled,
         )
         self._task = None

@@ -46,8 +46,10 @@ class ZSpecMenuRegistrar:
         self._connect = connect
         return self
 
-    async def register(self, callback_id: str, label: str) -> None:
+    async def register(self, callback_id: str, label: str, frame_id: str) -> None:
         """Register the ``label`` menu entry off-thread, dropping any lux failure.
+
+        ``frame_id`` is the entry's scene, which luxd raises on click (DES-088).
 
         A best-effort REST I/O boundary (PY-EH-6): a down luxd logs a warning; any
         other transport fault is logged with its traceback and swallowed. An
@@ -60,7 +62,7 @@ class ZSpecMenuRegistrar:
             try:
                 client = await asyncio.to_thread(self._connect)
                 result = await asyncio.to_thread(
-                    client.register_callback, callback_id, label
+                    client.register_callback, callback_id, label, frame_id
                 )
             except HubUnavailableError:
                 logger.warning("luxd unavailable; %r menu entry not registered", label)
