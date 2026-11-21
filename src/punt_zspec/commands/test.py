@@ -109,4 +109,4 @@ class TestCommand:
             timeout_ms=options.timeout_ms,
         )
         self._persist(spec, report)
-        return CommandResult.ok(report)
+        return CommandResult.checked(report)

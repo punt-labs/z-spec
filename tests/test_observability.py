@@ -9,14 +9,17 @@ an exporter swap needs no change to z-spec's instrumentation.
 
 from __future__ import annotations
 
+import fcntl
 import json
 import logging
 import os
 import re
+import shutil
 import sqlite3
 import stat
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, final
 
@@ -41,11 +44,12 @@ from punt_zspec.logging_config import DiagnosticLog
 from punt_zspec.usage import SCHEMA_VERSION, Usage, schemas, signal_name
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Generator, Sequence
 
     from opentelemetry.sdk.trace import ReadableSpan
 
 _SRC = Path(__file__).resolve().parents[1] / "src"
+_PLUGIN = _SRC.parent / "plugin"
 _TIMEOUT_S = 120
 
 
@@ -92,6 +96,52 @@ def not_a_repo(tmp_path: Path) -> Path:
     path = tmp_path / "secret-project-name"
     path.mkdir()
     return path
+
+
+@pytest.fixture
+def check_toolchain(tmp_path: Path) -> dict[str, str]:
+    """Isolate binary lookup while exercising a real executable subprocess."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    git = shutil.which("git")
+    assert git is not None
+    (bin_dir / "git").symlink_to(git)
+    fuzz = bin_dir / "fuzz"
+    fuzz.write_text(
+        '#!/bin/sh\ncase "$2" in *bad.tex) echo SYNTHETIC_DIAGNOSTIC; exit 1;; esac\n',
+        encoding="utf-8",
+    )
+    fuzz.chmod(0o700)
+    return {"PATH": str(bin_dir), "FUZZ": str(fuzz), "PROBCLI": ""}
+
+
+def test_cli_logs_check_and_doctor_verdicts(
+    private_home: Path, tmp_path: Path, check_toolchain: dict[str, str]
+) -> None:
+    bad, good = tmp_path / "private-bad.tex", tmp_path / "private-good.tex"
+    bad.touch()
+    good.touch()
+
+    failed = _cli(private_home, "check", str(bad), **check_toolchain)
+    assert failed.returncode == 1
+    assert "SYNTHETIC_DIAGNOSTIC" in failed.stderr
+    assert _cli(private_home, "check", str(good), **check_toolchain).returncode == 0
+    assert _cli(private_home, "doctor", **check_toolchain).returncode == 1
+    healthy = {**check_toolchain, "PROBCLI": check_toolchain["FUZZ"]}
+    assert _cli(private_home, "doctor", **healthy).returncode == 0
+
+    text = _log(private_home).read_text("utf-8")
+    assert (
+        text.count("Completed check via cli: outcome=failed failure=check_failed") == 1
+    )
+    assert text.count("Completed check via cli: outcome=ok failure=none") == 1
+    assert (
+        text.count("Completed doctor via cli: outcome=failed failure=binary_missing")
+        == 1
+    )
+    assert text.count("Completed doctor via cli: outcome=ok failure=none") == 1
+    assert "SYNTHETIC_DIAGNOSTIC" not in text
+    assert bad.name not in text
 
 
 def test_cli_entry_point_writes_private_durable_log(
@@ -147,16 +197,15 @@ def _reply(proc: subprocess.Popen[str]) -> dict[str, Any]:
     return reply
 
 
-def test_mcp_entry_point_logs_to_file_and_keeps_stdout_for_json_rpc(
-    private_home: Path, not_a_repo: Path
-) -> None:
+@contextmanager
+def _mcp(home: Path, **extra: str) -> Generator[subprocess.Popen[str]]:
     proc = subprocess.Popen(
         [sys.executable, "-m", "punt_zspec", "mcp"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
         text=True,
-        env=_env(private_home),
+        env=_env(home, **extra),
     )
     try:
         _rpc(
@@ -174,20 +223,7 @@ def test_mcp_entry_point_logs_to_file_and_keeps_stdout_for_json_rpc(
         )
         assert _reply(proc)["id"] == 1
         _rpc(proc, {"jsonrpc": "2.0", "method": "notifications/initialized"})
-        _rpc(
-            proc,
-            {
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "tools/call",
-                "params": {
-                    "name": "enablement",
-                    "arguments": {"action": "disable", "directory": str(not_a_repo)},
-                },
-            },
-        )
-        reply = _reply(proc)
-        assert reply["id"] == 2
+        yield proc
         assert proc.stdin is not None
         proc.stdin.close()
         assert proc.wait(timeout=_TIMEOUT_S) == 0
@@ -196,11 +232,186 @@ def test_mcp_entry_point_logs_to_file_and_keeps_stdout_for_json_rpc(
             proc.kill()
             proc.wait()
 
+
+def _call_tool(
+    proc: subprocess.Popen[str], name: str, arguments: dict[str, object]
+) -> dict[str, Any]:
+    _rpc(
+        proc,
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {"name": name, "arguments": arguments},
+        },
+    )
+    reply = _reply(proc)
+    assert reply["id"] == 2
+    content: dict[str, Any] = json.loads(reply["result"]["content"][0]["text"])
+    return content
+
+
+def test_mcp_entry_point_logs_to_file_and_keeps_stdout_for_json_rpc(
+    private_home: Path, not_a_repo: Path
+) -> None:
+    with _mcp(private_home) as proc:
+        result = _call_tool(
+            proc, "enablement", {"action": "disable", "directory": str(not_a_repo)}
+        )
+        assert result["ok"] is False
+
     text = _log(private_home).read_text("utf-8")
     assert "Started MCP server" in text
     assert "Completed disable via mcp: outcome=failed" in text
     assert "Stopped MCP server" in text
     assert "z-spec.mcp.disable" in {name for name, _ in _events(private_home)}
+
+
+def test_mcp_logs_check_and_doctor_verdicts(
+    private_home: Path, tmp_path: Path, check_toolchain: dict[str, str]
+) -> None:
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    marker = tmp_path / ".punt-labs" / "z-spec" / "enabled"
+    marker.parent.mkdir(parents=True)
+    marker.touch()
+    bad, good = tmp_path / "private-bad.tex", tmp_path / "private-good.tex"
+    bad.touch()
+    good.touch()
+
+    with _mcp(
+        private_home, CLAUDE_PROJECT_DIR=str(tmp_path), **check_toolchain
+    ) as proc:
+        failed = _call_tool(proc, "check", {"file": str(bad)})
+        assert failed["ok"] is False
+        assert failed["errors"][0]["message"] == "SYNTHETIC_DIAGNOSTIC"
+        assert _call_tool(proc, "check", {"file": str(good)})["ok"] is True
+        assert _call_tool(proc, "doctor", {})["healthy"] is False
+
+    text = _log(private_home).read_text("utf-8")
+    assert (
+        text.count("Completed check via mcp: outcome=failed failure=check_failed") == 1
+    )
+    assert text.count("Completed check via mcp: outcome=ok failure=none") == 1
+    assert (
+        text.count("Completed doctor via mcp: outcome=failed failure=binary_missing")
+        == 1
+    )
+    assert "SYNTHETIC_DIAGNOSTIC" not in text
+    assert bad.name not in text
+
+
+def _hook(home: Path, tool: str, response: object) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(_PLUGIN / "hooks" / "suppress-output.sh")],
+        input=json.dumps(
+            {
+                "tool_name": f"mcp__plugin_z-spec-dev_zspec__{tool}",
+                "tool_response": response,
+            }
+        ),
+        capture_output=True,
+        text=True,
+        env=_env(home, UV_PROJECT_ENVIRONMENT=str(Path(sys.executable).parent.parent)),
+        timeout=_TIMEOUT_S,
+        check=True,
+    )
+
+
+@pytest.mark.parametrize(
+    ("tool", "outcome"), [("check", "formatted"), ("secret", "fallback")]
+)
+def test_hook_logs_its_formatting_outcome_without_the_payload(
+    private_home: Path, tool: str, outcome: str
+) -> None:
+    response: dict[str, object] = {
+        "ok": False,
+        "errors": [{"message": "SYNTHETIC_DIAGNOSTIC"}],
+    }
+    proc = _hook(private_home, tool, response)
+
+    panel = json.loads(proc.stdout)["hookSpecificOutput"]
+    assert panel["hookEventName"] == "PostToolUse"
+    panel_prefix = "check FAIL" if tool == "check" else "secret: (unhandled"
+    assert panel["updatedMCPToolOutput"].startswith(panel_prefix)
+    assert json.loads(panel["additionalContext"]) == response
+    text = _log(private_home).read_text("utf-8")
+    assert f"Completed PostToolUse formatting via hook: outcome={outcome}" in text
+    assert "SYNTHETIC_DIAGNOSTIC" not in text
+    assert "secret" not in text
+    assert not _db(private_home).exists()
+
+
+def test_hook_preserves_a_non_object_response_as_fallback(private_home: Path) -> None:
+    proc = _hook(private_home, "check", "SYNTHETIC_DIAGNOSTIC")
+
+    panel = json.loads(proc.stdout)["hookSpecificOutput"]
+    assert panel["updatedMCPToolOutput"] == "check: (unexpected response — see result)"
+    assert panel["additionalContext"] == "SYNTHETIC_DIAGNOSTIC"
+    text = _log(private_home).read_text("utf-8")
+    assert "Completed PostToolUse formatting via hook: outcome=fallback" in text
+    assert "SYNTHETIC_DIAGNOSTIC" not in text
+
+
+def test_hook_still_formats_when_its_log_is_unavailable(private_home: Path) -> None:
+    (private_home / ".punt-labs").touch()
+    proc = _hook(private_home, "check", {"ok": True, "errors": []})
+
+    panel = json.loads(proc.stdout)["hookSpecificOutput"]
+    assert panel["updatedMCPToolOutput"] == "check OK — 0 errors"
+    assert proc.stderr == "z-spec hook: could not write formatting diagnostics\n"
+
+
+@pytest.mark.parametrize("blocked", ["unwritable", "locked"])
+def test_hook_still_formats_when_its_log_cannot_append(
+    private_home: Path, blocked: str
+) -> None:
+    log = _log(private_home)
+    log.parent.mkdir(parents=True)
+    lock = log.with_suffix(".log.rotate.lock")
+    if blocked == "unwritable":
+        lock.mkdir()
+        proc = _hook(private_home, "check", {"ok": True})
+    else:
+        with lock.open("w", encoding="utf-8") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            proc = _hook(private_home, "check", {"ok": True})
+
+    panel = json.loads(proc.stdout)["hookSpecificOutput"]
+    assert panel["updatedMCPToolOutput"] == "check OK — 0 errors"
+    assert proc.stderr == "z-spec hook: could not write formatting diagnostics\n"
+
+
+def test_marketplace_hook_warns_when_the_logging_entry_point_is_missing(
+    private_home: Path, tmp_path: Path
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name in ("bash", "cat", "jq"):
+        binary = shutil.which(name)
+        assert binary is not None
+        (bin_dir / name).symlink_to(binary)
+
+    hook = tmp_path / "suppress-output.sh"
+    shutil.copy2(_PLUGIN / "hooks" / hook.name, hook)
+    proc = subprocess.run(
+        [str(hook)],
+        input=json.dumps(
+            {
+                "tool_name": "mcp__plugin_z-spec_zspec__check",
+                "tool_response": {"ok": True, "errors": []},
+            }
+        ),
+        capture_output=True,
+        text=True,
+        env=_env(private_home, PATH=str(bin_dir)),
+        timeout=_TIMEOUT_S,
+        check=True,
+    )
+
+    panel = json.loads(proc.stdout)["hookSpecificOutput"]
+    assert panel["updatedMCPToolOutput"] == "check OK — 0 errors"
+    assert proc.stderr == "z-spec hook: could not write formatting diagnostics\n"
+    assert not _log(private_home).exists()
 
 
 def test_unreadable_report_records_one_invalid_report_failure(
@@ -264,6 +475,7 @@ def test_schemas_cover_every_capability_on_both_surfaces() -> None:
         (1, {}, None),
         (1, {"outcome": "ok", "duration_ms": 1.5}, None),
         (1, {"outcome": "failed", "failure": "spec_not_found"}, None),
+        (1, {"outcome": "failed", "failure": "check_failed"}, None),
         (2, {"outcome": "ok"}, "unknown_schema"),
         (1, {"path": "/home/user/spec.tex"}, "unknown_attribute"),
         (1, {"outcome": "spec text"}, "wrong_type"),

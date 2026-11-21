@@ -76,4 +76,4 @@ class CheckCommand:
             )
         result = self._run(spec, binary)
         self._persist(spec, result)
-        return CommandResult.ok(result)
+        return CommandResult.checked(result)

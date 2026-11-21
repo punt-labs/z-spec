@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Protocol, Self, final
 
 from punt_zspec import __version__
-from punt_zspec.commands.result import CommandResult
+from punt_zspec.commands.result import CommandFailure, CommandResult
 from punt_zspec.fuzz import resolve_fuzz
 from punt_zspec.prob import resolve_probcli
 
@@ -24,7 +24,7 @@ class BinaryResolver(Protocol):
 @final
 @dataclass(frozen=True, slots=True)
 class DoctorReport:
-    """Resolved toolchain health — health is data, never a failure."""
+    """Resolved toolchain health, including any missing binaries."""
 
     version: str
     fuzz: Path | None  # PY-TS-14: None = "fuzz not installed", a real state
@@ -65,11 +65,12 @@ class DoctorCommand:
         return self
 
     def run(self) -> CommandResult[DoctorReport]:
-        """Return a health report — always ok."""
-        return CommandResult.ok(
-            DoctorReport(
-                version=__version__,
-                fuzz=self._resolve_fuzz(),
-                probcli=self._resolve_probcli(),
-            )
+        """Return a health report even when a binary is missing."""
+        report = DoctorReport(
+            version=__version__,
+            fuzz=self._resolve_fuzz(),
+            probcli=self._resolve_probcli(),
+        )
+        return CommandResult.completed(
+            report, failure=None if report.healthy else CommandFailure.binary_missing
         )

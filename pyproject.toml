@@ -35,6 +35,7 @@ Repository = "https://github.com/punt-labs/z-spec"
 
 [project.scripts]
 z-spec = "punt_zspec.__main__:app"
+z-spec-hook = "punt_zspec._hook_entry:PostToolUseLog.run"
 
 [project.optional-dependencies]
 dev = [

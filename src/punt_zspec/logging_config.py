@@ -1,7 +1,7 @@
 """Configure z-spec diagnostics for its process entry points.
 
-Library modules only declare ``logging.getLogger(__name__)``; the CLI and the
-MCP server call :meth:`DiagnosticLog.configure` once at startup, which routes
+Library modules only declare ``logging.getLogger(__name__)``; each entry
+point calls :meth:`DiagnosticLog.configure` at startup, which routes
 every record to the private, redacted, rotated file the shared
 ``punt-observe`` package owns at ``~/.punt-labs/z-spec/logs/z-spec.log``.
 """
@@ -19,7 +19,7 @@ __all__ = ["TOOL", "DiagnosticLog", "LoggingSetupError", "Role"]
 
 TOOL = "z-spec"
 
-type Role = Literal["cli", "mcp"]
+type Role = Literal["cli", "hook", "mcp"]
 
 
 @final

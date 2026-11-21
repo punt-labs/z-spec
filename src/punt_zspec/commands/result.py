@@ -18,10 +18,20 @@ class JsonObject(Protocol):
         ...
 
 
+class _CheckReport(JsonObject, Protocol):
+    """A report that carries the verdict of an executed check."""
+
+    @property
+    def ok(self) -> bool:
+        """Return whether the check passed."""
+        ...
+
+
 class CommandFailure(StrEnum):
     """The expected, user-facing failure modes a command can return."""
 
     binary_missing = "binary_missing"
+    check_failed = "check_failed"
     spec_not_found = "spec_not_found"
     report_missing = "report_missing"
     invalid_report = "invalid_report"  # authored partition/audit JSON
@@ -55,14 +65,21 @@ class CommandError:
 
 @final
 class CommandResult[PayloadT: JsonObject]:
-    """Success carries a typed payload; failure carries a CommandError."""
+    """Carry a typed report or a command error when no report is available."""
 
-    _payload: PayloadT | None  # None marks a failure; error carries the reason
-    _error: CommandError | None  # None marks success; payload carries the value
-    __slots__ = ("_error", "_payload")
+    _payload: PayloadT | None
+    _error: CommandError | None
+    _failure: CommandFailure | None
+    __slots__ = ("_error", "_failure", "_payload")
 
-    def __new__(cls, payload: PayloadT | None, error: CommandError | None) -> Self:
-        """Hold exactly one of ``payload`` and ``error``.
+    def __new__(
+        cls,
+        payload: PayloadT | None,
+        error: CommandError | None,
+        *,
+        failure: CommandFailure | None = None,
+    ) -> Self:
+        """Hold exactly one of ``payload`` and ``error``, with its failure kind.
 
         Raises:
             ValueError: Both or neither of ``payload`` and ``error`` are given.
@@ -73,12 +90,26 @@ class CommandResult[PayloadT: JsonObject]:
         self = super().__new__(cls)
         self._payload = payload
         self._error = error
+        self._failure = error.kind if error is not None else failure
         return self
 
     @classmethod
     def ok[P: JsonObject](cls, payload: P) -> CommandResult[P]:
         """Return a successful result carrying ``payload``."""
         return CommandResult(payload, None)
+
+    @classmethod
+    def completed[P: JsonObject](
+        cls, payload: P, *, failure: CommandFailure | None
+    ) -> CommandResult[P]:
+        """Return a report with its domain outcome, without changing its wire form."""
+        return CommandResult(payload, None, failure=failure)
+
+    @classmethod
+    def checked[P: _CheckReport](cls, report: P) -> CommandResult[P]:
+        """Return a check report with its verdict as diagnostic metadata."""
+        failure = None if report.ok else CommandFailure.check_failed
+        return CommandResult.completed(report, failure=failure)
 
     @classmethod
     def failed(cls, error: CommandError) -> CommandResult[PayloadT]:
@@ -92,8 +123,13 @@ class CommandResult[PayloadT: JsonObject]:
 
     @property
     def error(self) -> CommandError | None:  # PY-TS-14 OK: None documents success
-        """The failure, or None for a successful result."""
+        """Return the command error, or None if a report is available."""
         return self._error
+
+    @property
+    def failure(self) -> CommandFailure | None:
+        """Return the failure kind from the command error or the domain verdict."""
+        return self._failure
 
     def unwrap(self) -> PayloadT:
         """Return the payload, or raise if this result is a failure."""

@@ -51,6 +51,18 @@ if [[ -z "$RESULT" ]]; then
   [[ -z "$RESULT" ]] && RESULT="(no output)"
 fi
 
+log_render() {
+  local outcome="$1" plugin_root diagnostics
+  local -a launcher=(z-spec-hook)
+  plugin_root="${BASH_SOURCE[0]%/*}/.."
+  if [[ "$(jq -r '.name' "$plugin_root/.claude-plugin/plugin.json" 2>/dev/null)" == "z-spec-dev" ]]; then
+    launcher=(uv run --no-sync --directory "$plugin_root" z-spec-hook)
+  fi
+  if ! diagnostics=$("${launcher[@]}" "$outcome" </dev/null 2>&1) || [[ -n "$diagnostics" ]]; then
+    printf '%s\n' 'z-spec hook: could not write formatting diagnostics' >&2
+  fi
+}
+
 # $ctx carries the full RESULT, which for a large ProB/partition/audit report
 # can be sizeable. Feed it to jq via --rawfile from a process substitution,
 # never --arg: an --arg value lands in jq's argv and a payload past ARG_MAX
@@ -63,16 +75,26 @@ fi
 # reaches the model in additionalContext, which is the channel that carries
 # detail.
 emit() {
-  local summary="$1" ctx="$2"
+  local summary="$1" ctx="$2" outcome="${3:-formatted}"
   (( ${#summary} > 80 )) && summary="${summary:0:77}..."
-  jq -n --arg summary "$summary" --rawfile ctx <(printf '%s' "$ctx") '{
+  if jq -n --arg summary "$summary" --rawfile ctx <(printf '%s' "$ctx") '{
     hookSpecificOutput: {
       hookEventName: "PostToolUse",
       updatedMCPToolOutput: $summary,
       additionalContext: $ctx
     }
-  }'
+  }'; then
+    log_render "$outcome"
+  else
+    log_render failed
+    return 1
+  fi
 }
+
+if ! printf '%s' "$RESULT" | jq -se 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then
+  emit "${TOOL_NAME:-z-spec}: (unexpected response — see result)" "$RESULT" fallback
+  exit 0
+fi
 
 # ── Error guard: {ok:false, error:<msg>} from any tool failure ───────
 # CommandError.to_dict() emits {"ok": false, "error": <message>}. A check with
@@ -179,6 +201,6 @@ case "$TOOL_NAME" in
     # SHORT panel line, full payload in additionalContext. Dumping raw JSON
     # into the panel channel would defeat suppression — the whole point of the
     # hook. This branch firing is still a Handler-completeness bug: add a case.
-    emit "${TOOL_NAME}: (unhandled — see result)" "$RESULT"
+    emit "${TOOL_NAME}: (unhandled — see result)" "$RESULT" fallback
     ;;
 esac
