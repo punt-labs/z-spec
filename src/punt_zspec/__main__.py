@@ -10,7 +10,11 @@ from typing import TYPE_CHECKING, Annotated
 import typer
 
 from punt_zspec import __version__
-from punt_zspec.logging_config import DiagnosticLog, LoggingSetupError, Role
+from punt_zspec.logging_config import (
+    POST_TOOL_USE_COMMAND,
+    DiagnosticLog,
+    LoggingSetupError,
+)
 from punt_zspec.usage import Usage
 
 if TYPE_CHECKING:
@@ -26,6 +30,7 @@ app = typer.Typer(
 )
 
 _USAGE = Usage("cli")
+app.command(POST_TOOL_USE_COMMAND, hidden=True)(DiagnosticLog.post_tool_use)
 
 
 def _version_callback(value: bool) -> None:
@@ -43,7 +48,7 @@ def main(
     ] = None,
 ) -> None:
     """Z specification toolkit."""
-    role: Role = "mcp" if ctx.invoked_subcommand == "mcp" else "cli"
+    role = DiagnosticLog.role(ctx.invoked_subcommand)
     try:
         DiagnosticLog.configure(role)
     except LoggingSetupError as exc:

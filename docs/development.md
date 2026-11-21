@@ -197,7 +197,7 @@ are authoritative.
 
 ## Diagnostics and usage telemetry
 
-Both surfaces adopt the shared `punt-observe` package, pinned to a PyPI
+The CLI, MCP server and hook adopt the shared `punt-observe` package, pinned to a PyPI
 release in `pyproject.toml`. Library modules only declare
 `logger = logging.getLogger(__name__)`; nothing under `src/` configures
 logging except `logging_config.py`, and
@@ -208,10 +208,13 @@ handlers there.
 |---------|-------------|------|-----------------|---------------|
 | `z-spec <verb>` | `__main__.main` callback | `cli` | `~/.punt-labs/z-spec/logs/z-spec.log`; WARNING+ also to stderr | `z-spec.cli.<capability>` events, flushed when the verb exits |
 | `z-spec mcp` | `__main__.main` callback, then `server.lifespan` | `mcp` | same file; WARNING+ to stderr, never stdout | `z-spec.mcp.<capability>` events for the server's lifetime |
+| PostToolUse | `plugin/hooks/suppress-output.sh` delegates diagnostics to `z-spec` | `hook` | same file; never stdout | None |
 
-The plugin's only hook, `plugin/hooks/suppress-output.sh`, is a shell script
-that runs no Python and writes no log. z-spec spawns no daemon or detached
-worker; `fuzz` and `probcli` are child processes whose output z-spec parses.
+The hook records its own formatting outcome (`formatted`, `fallback` or
+`failed`), never the tool response or a second copy of its verdict. If the
+log cannot be written, the hook still returns the formatted response.
+z-spec spawns no daemon or detached worker; `fuzz` and `probcli` are child
+processes whose output z-spec parses.
 
 Each usage event carries only closed enums and a duration: `outcome`
 (`ok`/`failed`/`error`), `failure` (a `CommandFailure` value) and

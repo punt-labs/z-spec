@@ -91,4 +91,4 @@ class AnimateCommand:
             )
         report = self._run(spec, binary, steps=options.steps, setsize=options.setsize)
         self._persist(spec, report)
-        return CommandResult.ok(report)
+        return CommandResult.checked(report)

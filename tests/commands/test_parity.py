@@ -8,10 +8,11 @@ from typer.main import get_command
 
 from punt_zspec.__main__ import app
 from punt_zspec.commands.registry import CAPABILITIES, Capability
+from punt_zspec.logging_config import POST_TOOL_USE_COMMAND
 from punt_zspec.server import mcp
 
-# The CLI carries one verb with no capability: the server launcher.
-_CLI_ONLY: frozenset[str] = frozenset({"mcp"})
+# Process entry points are not usage-tracked capabilities.
+_CLI_ONLY: frozenset[str] = frozenset({"mcp", POST_TOOL_USE_COMMAND})
 
 
 def _cli_verbs() -> set[str]:

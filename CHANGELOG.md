@@ -53,6 +53,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Log failed checks and unhealthy doctor reports as failures on CLI and MCP
+  without changing their output. The PostToolUse hook logs formatting outcomes
+  without recording tool output (PL-1226).
+
 - **`z-spec --version` and `z-spec --help` no longer prompt in an enabled
   repo (punt-kit DES-039).** `z-spec enable` stops granting the
   `Bash(z-spec -*)` ask rule, which matched every command starting with an

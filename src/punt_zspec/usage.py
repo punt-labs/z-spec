@@ -114,14 +114,12 @@ class Observation:
         Returns:
             The same result, so a call site can wrap its ``run`` call inline.
         """
-        err = result.error
-        if err is not None:
-            self._outcome = "failed"
-            self._failure = err.kind
+        if result.failure is not None:
+            self.fail(result.failure)
         return result
 
     def fail(self, kind: CommandFailure) -> None:
-        """Note an expected failure the surface met before the command ran.
+        """Note an expected command or domain failure.
 
         Args:
             kind: The failure mode, as a command would have reported it.
