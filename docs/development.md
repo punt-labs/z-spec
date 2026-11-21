@@ -208,11 +208,12 @@ handlers there.
 |---------|-------------|------|-----------------|---------------|
 | `z-spec <verb>` | `__main__.main` callback | `cli` | `~/.punt-labs/z-spec/logs/z-spec.log`; WARNING+ also to stderr | `z-spec.cli.<capability>` events, flushed when the verb exits |
 | `z-spec mcp` | `__main__.main` callback, then `server.lifespan` | `mcp` | same file; WARNING+ to stderr, never stdout | `z-spec.mcp.<capability>` events for the server's lifetime |
-| PostToolUse | `plugin/hooks/suppress-output.sh` delegates diagnostics to `z-spec` | `hook` | same file; never stdout | None |
+| PostToolUse | `plugin/hooks/suppress-output.sh` delegates diagnostics to `z-spec-hook` | `hook` | same file; never stdout | None |
 
 The hook records its own formatting outcome (`formatted`, `fallback` or
 `failed`), never the tool response or a second copy of its verdict. If the
-log cannot be written, the hook still returns the formatted response.
+log cannot be written or an older wheel lacks `z-spec-hook`, the formatter
+still returns the formatted response.
 z-spec spawns no daemon or detached worker; `fuzz` and `probcli` are child
 processes whose output z-spec parses.
 

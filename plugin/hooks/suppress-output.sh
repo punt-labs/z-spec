@@ -52,13 +52,16 @@ if [[ -z "$RESULT" ]]; then
 fi
 
 log_render() {
-  local outcome="$1" plugin_root
-  local -a launcher=(z-spec)
+  local outcome="$1" plugin_root diagnostics
+  local -a launcher=(z-spec-hook)
   plugin_root="${BASH_SOURCE[0]%/*}/.."
   if [[ "$(jq -r '.name' "$plugin_root/.claude-plugin/plugin.json" 2>/dev/null)" == "z-spec-dev" ]]; then
-    launcher=(uv run --no-sync --directory "$plugin_root" z-spec)
+    launcher=(uv run --no-sync --directory "$plugin_root" z-spec-hook)
+  elif ! command -v z-spec-hook >/dev/null 2>&1; then
+    # The marketplace plugin can be updated before the installed wheel.
+    return 0
   fi
-  if ! "${launcher[@]}" _log-post-tool-use "$outcome" </dev/null >/dev/null 2>&1; then
+  if ! diagnostics=$("${launcher[@]}" "$outcome" </dev/null 2>&1) || [[ -n "$diagnostics" ]]; then
     printf '%s\n' 'z-spec hook: could not write formatting diagnostics' >&2
   fi
 }
@@ -90,6 +93,11 @@ emit() {
     return 1
   fi
 }
+
+if ! printf '%s' "$RESULT" | jq -se 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then
+  emit "${TOOL_NAME:-z-spec}: (unexpected response — see result)" "$RESULT" fallback
+  exit 0
+fi
 
 # ── Error guard: {ok:false, error:<msg>} from any tool failure ───────
 # CommandError.to_dict() emits {"ok": false, "error": <message>}. A check with

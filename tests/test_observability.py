@@ -9,6 +9,7 @@ an exporter swap needs no change to z-spec's instrumentation.
 
 from __future__ import annotations
 
+import fcntl
 import json
 import logging
 import os
@@ -299,9 +300,7 @@ def test_mcp_logs_check_and_doctor_verdicts(
     assert bad.name not in text
 
 
-def _hook(
-    home: Path, tool: str, response: dict[str, object]
-) -> subprocess.CompletedProcess[str]:
+def _hook(home: Path, tool: str, response: object) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [str(_PLUGIN / "hooks" / "suppress-output.sh")],
         input=json.dumps(
@@ -342,6 +341,17 @@ def test_hook_logs_its_formatting_outcome_without_the_payload(
     assert not _db(private_home).exists()
 
 
+def test_hook_preserves_a_non_object_response_as_fallback(private_home: Path) -> None:
+    proc = _hook(private_home, "check", "SYNTHETIC_DIAGNOSTIC")
+
+    panel = json.loads(proc.stdout)["hookSpecificOutput"]
+    assert panel["updatedMCPToolOutput"] == "check: (unexpected response — see result)"
+    assert panel["additionalContext"] == "SYNTHETIC_DIAGNOSTIC"
+    text = _log(private_home).read_text("utf-8")
+    assert "Completed PostToolUse formatting via hook: outcome=fallback" in text
+    assert "SYNTHETIC_DIAGNOSTIC" not in text
+
+
 def test_hook_still_formats_when_its_log_is_unavailable(private_home: Path) -> None:
     (private_home / ".punt-labs").touch()
     proc = _hook(private_home, "check", {"ok": True, "errors": []})
@@ -349,6 +359,59 @@ def test_hook_still_formats_when_its_log_is_unavailable(private_home: Path) -> N
     panel = json.loads(proc.stdout)["hookSpecificOutput"]
     assert panel["updatedMCPToolOutput"] == "check OK — 0 errors"
     assert proc.stderr == "z-spec hook: could not write formatting diagnostics\n"
+
+
+@pytest.mark.parametrize("blocked", ["unwritable", "locked"])
+def test_hook_still_formats_when_its_log_cannot_append(
+    private_home: Path, blocked: str
+) -> None:
+    log = _log(private_home)
+    log.parent.mkdir(parents=True)
+    lock = log.with_suffix(".log.rotate.lock")
+    if blocked == "unwritable":
+        lock.mkdir()
+        proc = _hook(private_home, "check", {"ok": True})
+    else:
+        with lock.open("w", encoding="utf-8") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            proc = _hook(private_home, "check", {"ok": True})
+
+    panel = json.loads(proc.stdout)["hookSpecificOutput"]
+    assert panel["updatedMCPToolOutput"] == "check OK — 0 errors"
+    assert proc.stderr == "z-spec hook: could not write formatting diagnostics\n"
+
+
+def test_marketplace_hook_formats_without_the_logging_entry_point(
+    private_home: Path, tmp_path: Path
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name in ("bash", "cat", "jq"):
+        binary = shutil.which(name)
+        assert binary is not None
+        (bin_dir / name).symlink_to(binary)
+
+    hook = tmp_path / "suppress-output.sh"
+    shutil.copy2(_PLUGIN / "hooks" / hook.name, hook)
+    proc = subprocess.run(
+        [str(hook)],
+        input=json.dumps(
+            {
+                "tool_name": "mcp__plugin_z-spec_zspec__check",
+                "tool_response": {"ok": True, "errors": []},
+            }
+        ),
+        capture_output=True,
+        text=True,
+        env=_env(private_home, PATH=str(bin_dir)),
+        timeout=_TIMEOUT_S,
+        check=True,
+    )
+
+    panel = json.loads(proc.stdout)["hookSpecificOutput"]
+    assert panel["updatedMCPToolOutput"] == "check OK — 0 errors"
+    assert proc.stderr == ""
+    assert not _log(private_home).exists()
 
 
 def test_unreadable_report_records_one_invalid_report_failure(
@@ -412,6 +475,7 @@ def test_schemas_cover_every_capability_on_both_surfaces() -> None:
         (1, {}, None),
         (1, {"outcome": "ok", "duration_ms": 1.5}, None),
         (1, {"outcome": "failed", "failure": "spec_not_found"}, None),
+        (1, {"outcome": "failed", "failure": "check_failed"}, None),
         (2, {"outcome": "ok"}, "unknown_schema"),
         (1, {"path": "/home/user/spec.tex"}, "unknown_attribute"),
         (1, {"outcome": "spec text"}, "wrong_type"),
