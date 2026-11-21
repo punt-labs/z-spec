@@ -381,7 +381,7 @@ def test_hook_still_formats_when_its_log_cannot_append(
     assert proc.stderr == "z-spec hook: could not write formatting diagnostics\n"
 
 
-def test_marketplace_hook_formats_without_the_logging_entry_point(
+def test_marketplace_hook_warns_when_the_logging_entry_point_is_missing(
     private_home: Path, tmp_path: Path
 ) -> None:
     bin_dir = tmp_path / "bin"
@@ -410,7 +410,7 @@ def test_marketplace_hook_formats_without_the_logging_entry_point(
 
     panel = json.loads(proc.stdout)["hookSpecificOutput"]
     assert panel["updatedMCPToolOutput"] == "check OK — 0 errors"
-    assert proc.stderr == ""
+    assert proc.stderr == "z-spec hook: could not write formatting diagnostics\n"
     assert not _log(private_home).exists()
 
 

@@ -57,9 +57,6 @@ log_render() {
   plugin_root="${BASH_SOURCE[0]%/*}/.."
   if [[ "$(jq -r '.name' "$plugin_root/.claude-plugin/plugin.json" 2>/dev/null)" == "z-spec-dev" ]]; then
     launcher=(uv run --no-sync --directory "$plugin_root" z-spec-hook)
-  elif ! command -v z-spec-hook >/dev/null 2>&1; then
-    # The marketplace plugin can be updated before the installed wheel.
-    return 0
   fi
   if ! diagnostics=$("${launcher[@]}" "$outcome" </dev/null 2>&1) || [[ -n "$diagnostics" ]]; then
     printf '%s\n' 'z-spec hook: could not write formatting diagnostics' >&2

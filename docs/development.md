@@ -58,7 +58,8 @@ only for that session.
 `release-plugin.sh` performs three swaps in one commit: the plugin name
 (`z-spec-dev` → `z-spec`), the MCP server command (`uv run` working tree → the
 installed `z-spec` binary, so marketplace users without a uv project can run
-it), and it strips the `-dev` command twins. `restore-dev-plugin.sh` restores
+it), and it strips the `-dev` command twins. The marketplace hook requires the
+`z-spec-hook` entry point from the installed wheel. `restore-dev-plugin.sh` restores
 all three by checking out `plugin/.claude-plugin/plugin.json` and `plugin/commands/` from the parent
 of the release-prep commit.
 
@@ -212,8 +213,8 @@ handlers there.
 
 The hook records its own formatting outcome (`formatted`, `fallback` or
 `failed`), never the tool response or a second copy of its verdict. If the
-log cannot be written or an older wheel lacks `z-spec-hook`, the formatter
-still returns the formatted response.
+diagnostic process cannot run or write the log, the formatter warns on stderr
+and still returns the formatted response.
 z-spec spawns no daemon or detached worker; `fuzz` and `probcli` are child
 processes whose output z-spec parses.
 
