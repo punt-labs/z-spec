@@ -185,7 +185,7 @@ def test_unexpected_topic_event_logs_only_fixed_metadata() -> None:
     assert "synthetic-private-body" not in text
     assert (
         "[DEBUG] punt_zspec.lux.subscription: "
-        "ignoring unexpected Lux topic event: reason=no_topic_subscriptions" in text
+        "ignoring Lux topic event: reason=no_topic_subscriptions" in text
     )
 
 
