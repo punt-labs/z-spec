@@ -11,6 +11,10 @@ menu's authority exactly as it is the tool surface's, and it is re-read at each
 of them rather than read once, because the marker outlives neither the process
 nor the connection: a ``disable`` (or a branch checkout) between two handshakes
 must leave the shared window with no z-spec entries and no live click.
+
+An outage is logged once, not once per retry: its first failure warns, repeats
+go to DEBUG, and its end is one INFO summary — recovered at the next handshake,
+or terminated when the leg stops first.
 """
 
 from __future__ import annotations
@@ -20,6 +24,8 @@ import logging
 from typing import TYPE_CHECKING, Self, final
 
 from punt_lux import HubUnavailableError
+
+from punt_zspec.lux.outage import ZSpecLegOutage
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -47,6 +53,7 @@ class ZSpecSubscription:
     _is_enabled: Callable[[], bool]
     _listener: HubListener | None
     _stopped: bool
+    _outage: ZSpecLegOutage
     __slots__ = (
         "_click",
         "_entries",
@@ -54,6 +61,7 @@ class ZSpecSubscription:
         "_listen",
         "_listener",
         "_menu",
+        "_outage",
         "_stopped",
     )
 
@@ -82,6 +90,7 @@ class ZSpecSubscription:
         self._is_enabled = is_enabled
         self._listener = None  # None until first connect / after stop
         self._stopped = False
+        self._outage = ZSpecLegOutage()
         return self
 
     async def run(self) -> None:
@@ -92,42 +101,37 @@ class ZSpecSubscription:
         clearing it here the second run would exit before its first connect and
         the menu would silently never register again.
 
-        A down luxd is retried with a warning so the menu appears the moment luxd
-        starts; any other fault is logged and retried, so the leg never dies
-        silently. A listener that returns normally without a stop request (a
-        reconnect-exhausted punt_lux that returns rather than raises) is logged
-        and reconnected too, never a silent death. Cancellation on shutdown
-        propagates cleanly out.
+        A down luxd is retried so the menu appears the moment luxd starts; any
+        other fault is logged and retried, so the leg never dies silently. A
+        listener that returns normally without a stop request (a
+        reconnect-exhausted punt_lux that returns rather than raises) is
+        reconnected too, never a silent death. Each outage logs once when it
+        opens and once when it ends (see ``ZSpecLegOutage``). Cancellation on
+        shutdown propagates cleanly out.
         """
         self._stopped = False
         self._listener = None  # the previous run's listener is closed and stale
-        attempt = 0
+        try:
+            await self._retry_until_stopped()
+        finally:
+            self._outage.close("terminated")
+
+    async def _retry_until_stopped(self) -> None:
+        """Connect and listen, backing off after each failure, until stopped."""
         # ``_stopped`` flips via ``stop()`` from another thread mid-``listen``; a
         # method guard keeps mypy from narrowing it to a constant across the await.
         while not self._is_stopped():
-            attempt += 1
             try:
                 await self._connect_and_listen()
             except HubUnavailableError:
-                await self._backoff("luxd is down", attempt)
+                self._outage.failed("luxd is down", _RETRY_SECONDS)
             except Exception:
-                logger.exception("[lux] the z-spec menu leg failed")
-                await self._backoff("the menu leg failed", attempt)
+                self._outage.failed("the menu leg failed", _RETRY_SECONDS, fault=True)
             else:
                 if self._is_stopped():
                     return
-                await self._backoff("the listener returned without a stop", attempt)
-
-    @staticmethod
-    async def _backoff(why: str, attempt: int) -> None:
-        """Say why the leg is going round again, then wait before reconnecting."""
-        logger.warning(
-            "[lux] %s; reconnecting the z-spec menu leg in %.1fs (attempt %d)",
-            why,
-            _RETRY_SECONDS,
-            attempt,
-        )
-        await asyncio.sleep(_RETRY_SECONDS)
+                self._outage.failed("the listener returned unstopped", _RETRY_SECONDS)
+            await asyncio.sleep(_RETRY_SECONDS)
 
     async def _connect_and_listen(self) -> None:
         """Build one fresh listener off-thread and listen until stopped.
@@ -150,7 +154,9 @@ class ZSpecSubscription:
         The marker decides per handshake. A repo turned off while the server ran
         must not have its entries put back on the shared window by the next
         reconnect, and one turned on gets them at the connect that follows.
+        A handshake also ends any outage the leg was retrying through.
         """
+        self._outage.close("recovered")
         if not self._is_enabled():
             logger.info("z-spec is not enabled here — registering no menu entries")
             return

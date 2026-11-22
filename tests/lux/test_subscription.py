@@ -11,11 +11,15 @@ covered in ``test_click.py``.
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from punt_lux import HubUnavailableError
+
 from punt_zspec.commands.picker import PickerResult
 from punt_zspec.commands.result import CommandResult
+from punt_zspec.lux import subscription as subscription_mod
 from punt_zspec.lux.click import ZSpecClickRunner
 from punt_zspec.lux.entry import ZSpecMenuEntries, ZSpecMenuEntry
 from punt_zspec.lux.subscription import ZSpecSubscription
@@ -25,6 +29,7 @@ if TYPE_CHECKING:
 
     from punt_lux import CallbackHandler, EventHandler
     from punt_lux.hub_client import ConnectHandler
+    from pytest import LogCaptureFixture, MonkeyPatch
 
     from punt_zspec.commands.show import Display
     from punt_zspec.lux.command_ports import ClickCommand, ClickOutcome
@@ -344,3 +349,126 @@ def test_a_stopped_subscription_runs_again_when_restarted() -> None:
         "z-spec-tutorial",
         "z-spec-browse",
     ]
+
+
+_LOGGER = "punt_zspec.lux.outage"
+
+
+def _failing_then_listening(
+    failures: int, made: list[_RecordingListener], fault: Exception
+) -> ListenerFactory:
+    """Return a ListenerFactory that raises *fault* *failures* times, then connects."""
+    attempts = 0
+
+    def make(
+        *,
+        on_callback: CallbackHandler,
+        on_event: EventHandler,
+        on_connect: ConnectHandler,
+    ) -> HubListener:
+        nonlocal attempts
+        attempts += 1
+        if attempts <= failures:
+            raise fault
+        listener = _RecordingListener(on_connect)
+        made.append(listener)
+        return listener
+
+    return make
+
+
+def _outage_subscription(listen: ListenerFactory) -> ZSpecSubscription:
+    return ZSpecSubscription(
+        entries=_entries([], []),
+        menu=_RecordingMenu(),
+        listen=listen,
+        click=_runner(),
+        is_enabled=lambda: True,
+    )
+
+
+def _leg_records(caplog: LogCaptureFixture) -> list[tuple[int, str]]:
+    return [(r.levelno, r.getMessage()) for r in caplog.records if r.name == _LOGGER]
+
+
+def test_an_outage_that_recovers_warns_once_and_summarizes_once(
+    monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
+) -> None:
+    """A down luxd is one WARNING, quiet DEBUG repeats, and one recovered INFO."""
+    monkeypatch.setattr(subscription_mod, "_RETRY_SECONDS", 0.0)
+    caplog.set_level(logging.DEBUG, logger=_LOGGER)
+    made: list[_RecordingListener] = []
+    sub = _outage_subscription(
+        _failing_then_listening(4, made, HubUnavailableError("luxd not running"))
+    )
+
+    async def scenario() -> None:
+        task = asyncio.create_task(sub.run())
+        await _until(lambda: bool(made), "the reconnect")
+        await _until(
+            lambda: any("outcome=" in m for _, m in _leg_records(caplog)),
+            "the recovery summary",
+        )
+        sub.stop()
+        await asyncio.wait_for(task, timeout=2)
+
+    asyncio.run(scenario())
+
+    records = _leg_records(caplog)
+    assert [m for lvl, m in records if lvl >= logging.WARNING] == [
+        "[lux] luxd is down; retrying the z-spec menu leg every 0.0s "
+        "(repeats logged at DEBUG)"
+    ]
+    assert sum(1 for lvl, _ in records if lvl == logging.DEBUG) == 3
+    assert [m for lvl, m in records if lvl == logging.INFO] == [
+        "[lux] z-spec menu leg outcome=recovered failures=4"
+    ]
+
+
+def test_an_outage_cut_short_by_shutdown_summarizes_as_terminated(
+    monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
+) -> None:
+    """Cancelling the leg mid-outage still closes it with one summary."""
+    monkeypatch.setattr(subscription_mod, "_RETRY_SECONDS", 0.0)
+    caplog.set_level(logging.DEBUG, logger=_LOGGER)
+    made: list[_RecordingListener] = []
+    sub = _outage_subscription(
+        _failing_then_listening(10**9, made, HubUnavailableError("luxd not running"))
+    )
+
+    async def scenario() -> None:
+        task = asyncio.create_task(sub.run())
+        await _until(lambda: len(_leg_records(caplog)) >= 3, "several retries")
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    asyncio.run(scenario())
+
+    records = _leg_records(caplog)
+    assert sum(1 for lvl, _ in records if lvl >= logging.WARNING) == 1
+    summaries = [m for lvl, m in records if lvl == logging.INFO]
+    assert len(summaries) == 1
+    assert summaries[0].startswith("[lux] z-spec menu leg outcome=terminated failures=")
+
+
+def test_an_unexpected_fault_opens_the_outage_at_error_with_its_traceback(
+    monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(subscription_mod, "_RETRY_SECONDS", 0.0)
+    caplog.set_level(logging.DEBUG, logger=_LOGGER)
+    made: list[_RecordingListener] = []
+    sub = _outage_subscription(_failing_then_listening(3, made, RuntimeError("boom")))
+
+    async def scenario() -> None:
+        task = asyncio.create_task(sub.run())
+        await _until(lambda: bool(made), "the reconnect")
+        sub.stop()
+        await asyncio.wait_for(task, timeout=2)
+
+    asyncio.run(scenario())
+
+    loud = [
+        r for r in caplog.records if r.name == _LOGGER and r.levelno >= logging.WARNING
+    ]
+    assert [r.levelno for r in loud] == [logging.ERROR]
+    assert loud[0].exc_info is not None
