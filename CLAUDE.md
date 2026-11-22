@@ -108,9 +108,11 @@ hand except `--rebaseline` for structural refactors; never suppress the
 ratchet. Org standards (see `../punt-kit/standards/python.md` above) override
 review-tool suggestions (Qodo, Bugbot, Copilot) when the two disagree.
 
-`make design-shadow` reports advisory design changes against `origin/main`
-(`DESIGN_BASE` overrides it). PR CI appends the report to its step summary;
-it never gates the job and is not part of `make check`. Layers are declared in
+`make design-gate` gates design changes against `origin/main`
+(`DESIGN_BASE` overrides it). PR CI appends the JSON report (or input error)
+to its step summary and fails on would-fail verdicts or tool/input errors;
+neutral, good-deed, and good-deed trades pass. It is separate from `make check`
+because it requires a base ref. Layers are declared in
 `pyproject.toml`: server lifecycle wiring is entry, Lux views and telemetry are
 adapters, commands are application, and syntax/models/coverage are domain.
 

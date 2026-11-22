@@ -108,6 +108,11 @@ hand except `--rebaseline` for structural refactors; never suppress the
 ratchet. Org standards (see `../punt-kit/standards/python.md` above) override
 review-tool suggestions (Qodo, Bugbot, Copilot) when the two disagree.
 
+`make design-gate` compares against `origin/main` (`DESIGN_BASE` overrides it).
+PR CI publishes its JSON report or input error and fails on would-fail verdicts
+or tool/input errors. Neutral, good-deed, and good-deed trades pass. It is
+separate from `make check` because it requires a base ref.
+
 No migration, backwards-compat, or shim code — ever; when a feature
 supersedes an old behavior, delete the old path in the same change.
 
