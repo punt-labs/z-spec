@@ -57,7 +57,7 @@ checks:
     timeout: 120s
   - name: suppressions-commit
     stage: commit
-    files: ["src/**/*.py", "src/**/*.pyi", ".suppression-baseline.json"]
+    files: ["src/**/*.py", "src/**/*.pyi", ".suppression-baseline.json", "pyproject.toml"]
     adapter: make
     target: check-suppressions
     on_fail: block
