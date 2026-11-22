@@ -45,7 +45,8 @@ tools:
   - mcp__plugin_z-spec_zspec__test
 model: "sonnet"
 skills:
-  - "baseline-ops"
+  - "ethos:baseline-ops"
+  - "ethos-dev:baseline-ops"
 hooks:
   PostToolUse:
     - matcher: "Write|Edit"

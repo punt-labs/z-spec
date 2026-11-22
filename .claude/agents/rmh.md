@@ -33,7 +33,8 @@ tools:
   - mcp__plugin_quarry_quarry__use
 model: "sonnet"
 skills:
-  - "baseline-ops"
+  - "ethos:baseline-ops"
+  - "ethos-dev:baseline-ops"
 hooks:
   PostToolUse:
     - matcher: "Write|Edit"
