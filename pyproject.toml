@@ -158,7 +158,7 @@ precision = 2
 
 [dependency-groups]
 dev = [
-    "punt-oo-ratchet==0.3.0",
+    "punt-oo-ratchet==0.4.0",
     "docstring-parser>=0.17,<1",
     "markdown==3.11.3",
     "types-markdown>=3.10,<4",
@@ -166,4 +166,22 @@ dev = [
 docs = [
     "mkdocs>=1.6.1",
     "mkdocstrings[python]>=1.0.8",
+]
+
+[tool.oo-ratchet.layers]
+entry = [
+    "punt_zspec", "punt_zspec.__main__", "punt_zspec.server",
+    "punt_zspec._hook_entry", "punt_zspec.server_context", "punt_zspec.lux.entry",
+]
+adapters = [
+    "punt_zspec.fuzz", "punt_zspec.prob", "punt_zspec.prob_output",
+    "punt_zspec.browser", "punt_zspec.display", "punt_zspec.applet",
+    "punt_zspec.picker_scene", "punt_zspec.atomic_file", "punt_zspec.claude_md",
+    "punt_zspec.claude_settings", "punt_zspec.logging_config", "punt_zspec.report",
+    "punt_zspec.manifest", "punt_zspec.usage", "punt_zspec.lux", "punt_zspec.lux.*",
+]
+application = ["punt_zspec.commands", "punt_zspec.commands.*", "punt_zspec.gate"]
+domain = [
+    "punt_zspec.types", "punt_zspec.types.*", "punt_zspec.parser",
+    "punt_zspec.markdown_fence", "punt_zspec.coverage",
 ]

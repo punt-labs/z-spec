@@ -98,6 +98,12 @@ check-dev-commands: ## Fail if any -dev twin is missing or out of sync
 OO_BASE          ?=
 COUPLING_BASE    ?=
 SUPPRESSION_BASE ?=
+DESIGN_BASE      ?= origin/main
+
+.PHONY: design-shadow
+
+design-shadow: ## Report advisory design changes; never part of check
+	uv run oo-ratchet design src/punt_zspec --shadow-check "$(DESIGN_BASE)"
 
 check-oo: ## OO ratchet — must improve over baseline, never regress
 	uv run oo-ratchet oo src/punt_zspec/ --check $(OO_BASE)

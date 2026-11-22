@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Report-only design ratchet: `make design-shadow` compares against
+  `origin/main` (override `DESIGN_BASE`), and PR CI appends its output to the
+  job summary without gating. Explicit entry/adapter/application/domain
+  layers cover the package; findings remain advisory.
 - z-spec checks public docstrings and Python comments in lint and CI, and
   builds a generated Python API reference from the source.
 - The CLI and the MCP server write diagnostics to a private, rotated log at
@@ -19,6 +23,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Bump the quality-gate dev dependency to `punt-oo-ratchet==0.4.0` for the
+  advisory design and shadow reports. Existing OO, coupling and suppression
+  gates retain their policies and baselines.
 - A Lux outage no longer writes a WARNING every five seconds. The z-spec
   menu leg logs one WARNING when luxd goes down, retries at DEBUG, and one
   INFO summary (`outcome=recovered` or `outcome=terminated`, with the failed
