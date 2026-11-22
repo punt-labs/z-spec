@@ -79,6 +79,7 @@ checks:
       - ".github/workflows/**"
       - "Makefile"
       - "uv.lock"
+      - ".gitignore"
       - ".markdownlint*.json*"
       - ".oo-*.json*"
       - ".suppression-*.json*"
