@@ -25,8 +25,8 @@ All notable changes to this project will be documented in this file.
 
 - Agent edits now receive advisory Ruff and shellcheck feedback through a
   repository-owned Ethos check set instead of running the full quality gate.
-  Commit checks block lint and ratchet regressions; handoff runs the Python
-  and policy gates, with the full fuzz/ProB corpus remaining in CI.
+  Commit checks block lint and ratchet regressions; handoff runs the full
+  quality gate, including the fuzz/ProB corpus, with a 30-minute timeout.
 
 - Bump the quality-gate dev dependency to `punt-oo-ratchet==0.4.0` for the
   advisory design and shadow reports. Existing OO, coupling and suppression

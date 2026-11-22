@@ -62,53 +62,10 @@ checks:
     target: check-suppressions
     on_fail: block
     timeout: 120s
-  # The full fuzz/ProB corpus remains gated by .github/workflows/test.yml.
-  - name: lint-handoff
+  - name: full-gate-handoff
     stage: handoff
     files: all
     adapter: make
-    target: lint
+    target: check
     on_fail: block
-    timeout: 10m
-  - name: type-py-handoff
-    stage: handoff
-    files: all
-    adapter: make
-    target: type-py
-    on_fail: block
-    timeout: 10m
-  - name: test-py-handoff
-    stage: handoff
-    files: all
-    adapter: make
-    target: test-py
-    on_fail: block
-    timeout: 10m
-  - name: check-oo-handoff
-    stage: handoff
-    files: all
-    adapter: make
-    target: check-oo
-    on_fail: block
-    timeout: 10m
-  - name: check-coupling-handoff
-    stage: handoff
-    files: all
-    adapter: make
-    target: check-coupling
-    on_fail: block
-    timeout: 10m
-  - name: check-suppressions-handoff
-    stage: handoff
-    files: all
-    adapter: make
-    target: check-suppressions
-    on_fail: block
-    timeout: 10m
-  - name: check-dev-commands-handoff
-    stage: handoff
-    files: all
-    adapter: make
-    target: check-dev-commands
-    on_fail: block
-    timeout: 10m
+    timeout: 30m
