@@ -1261,15 +1261,15 @@ wheels = [
 
 [[package]]
 name = "punt-observe"
-version = "0.1.0"
+version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-sdk" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7b/79/2d331e922bc56a18c33f63518981970c164ee0148033b68014fc6945defe/punt_observe-0.1.0.tar.gz", hash = "sha256:c6f7303ddf3a3c4be652d5256959b75d34d2bbcce71837413213c64c0281a385", size = 36166, upload-time = "2026-11-20T15:28:46.86Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b8/2c/d583ccbf26072533d1ab3105f1b22cb42c4abd688cc057f91acf3d253068/punt_observe-0.1.1.tar.gz", hash = "sha256:48db7f6f9072531b77636e698ed9e21f89743a2eaede2c74a5de7e62a7fe8acf", size = 38295, upload-time = "2026-11-22T15:57:05.997Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f4/42/e3a57a51742a3554342f1ce667c9ad026f24506610ac186c253c72d3435d/punt_observe-0.1.0-py3-none-any.whl", hash = "sha256:ba0fa482c08ac362df734d69db507b5700f9ce2b0d78b53409798eb25ec58d31", size = 45573, upload-time = "2026-11-20T15:28:45.684Z" },
+    { url = "https://files.pythonhosted.org/packages/62/c2/1ad4e79c38ecf4d04140814cce259574d8049ec4ef00b084656b5f821954/punt_observe-0.1.1-py3-none-any.whl", hash = "sha256:602dac07e0214e0879e858069becb69003480dd9a17d73175fd4b743ec83d0c0", size = 47980, upload-time = "2026-11-22T15:57:04.57Z" },
 ]
 
 [[package]]
@@ -1318,7 +1318,7 @@ requires-dist = [
     { name = "mcp", specifier = ">=1.0.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.14.0" },
     { name = "punt-lux", specifier = ">=0.33,<0.34" },
-    { name = "punt-observe", specifier = "==0.1.0" },
+    { name = "punt-observe", specifier = "==0.1.1" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.390" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.0.0" },

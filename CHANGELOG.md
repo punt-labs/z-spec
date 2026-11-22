@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Bump punt-observe to 0.1.1 (log masking fixes)
+
 ### Added
 
 - Report-only design ratchet: `make design-shadow` compares against
