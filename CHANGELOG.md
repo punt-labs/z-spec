@@ -26,9 +26,11 @@ All notable changes to this project will be documented in this file.
 - Agent edits now receive advisory Ruff and shellcheck feedback through a
   repository-owned Ethos check set instead of running the full quality gate.
   Commit checks block lint and ratchet regressions; handoff runs full
-  `make check`, including the fuzz/ProB corpus, with a 30-minute timeout
-  only when the subagent edited quality-gate inputs. Read-only handoffs and
-  unrelated edits skip the gate.
+  `make check`, including the fuzz/ProB corpus, with a 30-minute timeout.
+  Requires the next Ethos release for its read-only handoff skip: no
+  Write/Edit calls and a checkout unchanged since SubagentStart. Bash-only
+  edits still run the gate. Current Ethos main still runs the gate on
+  read-only stops until that skip ships.
 
 - Bump the quality-gate dev dependency to `punt-oo-ratchet==0.4.0` for the
   advisory design and shadow reports. Existing OO, coupling and suppression

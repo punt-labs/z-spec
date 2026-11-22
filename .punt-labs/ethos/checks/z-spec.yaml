@@ -64,25 +64,7 @@ checks:
     timeout: 120s
   - name: full-gate-handoff
     stage: handoff
-    files:
-      - "**/*.py"
-      - "**/*.pyi"
-      - "**/*.toml"
-      - "**/*.md"
-      - "scripts/*.sh"
-      - "install.sh"
-      - "examples/**/*.tex"
-      - "src/**"
-      - "tests/**"
-      - "tools/**"
-      - "plugin/**"
-      - ".github/workflows/**"
-      - "Makefile"
-      - "uv.lock"
-      - ".gitignore"
-      - ".markdownlint*.json*"
-      - ".oo-*.json*"
-      - ".suppression-*.json*"
+    files: all
     adapter: make
     target: check
     on_fail: block
