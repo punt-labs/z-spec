@@ -1,0 +1,114 @@
+name: z-spec
+description: Advisory edit feedback; blocking commit and handoff checks.
+checks:
+  - name: ruff-edit
+    stage: edit
+    files: ["**/*.py", "**/*.pyi"]
+    adapter: uv
+    uv: [ruff, check, "{file}"]
+    on_fail: advisory
+    timeout: 10s
+  - name: ruff-format-edit
+    stage: edit
+    files: ["**/*.py", "**/*.pyi"]
+    adapter: uv
+    uv: [ruff, format, --check, "{file}"]
+    on_fail: advisory
+    timeout: 10s
+  - name: shellcheck-edit
+    stage: edit
+    files: ["scripts/*.sh", "install.sh", "plugin/hooks/*.sh"]
+    run: [shellcheck, "-x", "{file}"]
+    on_fail: advisory
+    timeout: 10s
+  - name: ruff-commit
+    stage: commit
+    files: ["**/*.py", "**/*.pyi"]
+    adapter: uv
+    uv: [ruff, check, "{files}"]
+    on_fail: block
+    timeout: 10s
+  - name: ruff-format-commit
+    stage: commit
+    files: ["**/*.py", "**/*.pyi"]
+    adapter: uv
+    uv: [ruff, format, --check, "{files}"]
+    on_fail: block
+    timeout: 10s
+  - name: shellcheck-commit
+    stage: commit
+    files: ["scripts/*.sh", "install.sh", "plugin/hooks/*.sh"]
+    run: [shellcheck, "-x", "{files}"]
+    on_fail: block
+    timeout: 10s
+  - name: oo-commit
+    stage: commit
+    files: ["src/**/*.py", "src/**/*.pyi", ".oo-baseline.json"]
+    adapter: make
+    target: check-oo
+    on_fail: block
+    timeout: 120s
+  - name: coupling-commit
+    stage: commit
+    files: ["src/**/*.py", "src/**/*.pyi", ".oo-coupling-baseline.json"]
+    adapter: make
+    target: check-coupling
+    on_fail: block
+    timeout: 120s
+  - name: suppressions-commit
+    stage: commit
+    files: ["src/**/*.py", "src/**/*.pyi", ".suppression-baseline.json"]
+    adapter: make
+    target: check-suppressions
+    on_fail: block
+    timeout: 120s
+  # The full fuzz/ProB corpus remains gated by .github/workflows/test.yml.
+  - name: lint-handoff
+    stage: handoff
+    files: all
+    adapter: make
+    target: lint
+    on_fail: block
+    timeout: 10m
+  - name: type-py-handoff
+    stage: handoff
+    files: all
+    adapter: make
+    target: type-py
+    on_fail: block
+    timeout: 10m
+  - name: test-py-handoff
+    stage: handoff
+    files: all
+    adapter: make
+    target: test-py
+    on_fail: block
+    timeout: 10m
+  - name: check-oo-handoff
+    stage: handoff
+    files: all
+    adapter: make
+    target: check-oo
+    on_fail: block
+    timeout: 10m
+  - name: check-coupling-handoff
+    stage: handoff
+    files: all
+    adapter: make
+    target: check-coupling
+    on_fail: block
+    timeout: 10m
+  - name: check-suppressions-handoff
+    stage: handoff
+    files: all
+    adapter: make
+    target: check-suppressions
+    on_fail: block
+    timeout: 10m
+  - name: check-dev-commands-handoff
+    stage: handoff
+    files: all
+    adapter: make
+    target: check-dev-commands
+    on_fail: block
+    timeout: 10m

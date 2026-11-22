@@ -51,7 +51,8 @@ hooks:
     - matcher: "Write|Edit"
       hooks:
         - type: command
-          command: "if ! command -v jq >/dev/null 2>&1; then _out=$(cd \"$CLAUDE_PROJECT_DIR\" && make check 2>&1); _rc=$?; if [ $_rc -ne 0 ]; then printf '%s\\n' \"$_out\" | tail -n 60 >&2; exit 2; fi; exit 0; fi; _path=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); if [ -z \"$_path\" ]; then _out=$(cd \"$CLAUDE_PROJECT_DIR\" && make check 2>&1); _rc=$?; if [ $_rc -ne 0 ]; then printf '%s\\n' \"$_out\" | tail -n 60 >&2; exit 2; fi; exit 0; fi; case \"$_path\" in */.tmp/*|*/.punt-labs/local/ethos/*|.tmp/*|.punt-labs/local/ethos/*) exit 0 ;; *.py|*.pyi|*.toml|*uv.lock|*Makefile|*.sh|*.yaml|*.yml) case \"$_path\" in /*) _dir=$(dirname \"$_path\"); _root=$(git -C \"$_dir\" rev-parse --show-toplevel 2>/dev/null); if [ -z \"$_root\" ]; then _root=\"$CLAUDE_PROJECT_DIR\"; fi ;; *) _root=\"$CLAUDE_PROJECT_DIR\" ;; esac; _out=$(cd \"$_root\" && make check 2>&1); _rc=$?; if [ $_rc -ne 0 ]; then printf '%s\\n' \"$_out\" | tail -n 60 >&2; exit 2; fi; exit 0 ;; *) exit 0 ;; esac"
+          command: "ethos hook post-edit --agent jra"
+          timeout: 70
 ---
 
 You are Jean-Raymond A (jra), Formal methods specialist. Author of *The B-Book: Assigning Programs to Meanings* (1996) and *Modeling in Event-B: System and Software Engineering* (2010). Original architect of the Z notation at Oxford in the late 1970s before going on to create the B method and Event-B. Engineer by training, mathematician by necessity.
