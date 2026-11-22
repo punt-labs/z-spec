@@ -175,12 +175,10 @@ class ZSpecSubscription:
         lux lease outlives the marker — must dispatch nothing at all.
         """
         if (entry := self._entry_for(callback_id)) is None:
-            logger.debug("no z-spec menu entry for callback %r", callback_id)
+            logger.debug("ignoring Lux callback: reason=unknown_menu_entry")
             return
         if not self._is_enabled():
-            logger.info(
-                "z-spec is not enabled here — ignoring the %r click", callback_id
-            )
+            logger.info("ignoring Lux callback: reason=z_spec_disabled")
             return
         await self._click.run(entry)
 

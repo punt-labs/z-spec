@@ -60,6 +60,8 @@ All notable changes to this project will be documented in this file.
 
 - Keep Lux event topics and bodies out of z-spec's DEBUG log. Ignored topic
   events report only the event type and reason (PL-1271).
+- Omit callback IDs from ignored Lux callback diagnostics, including unknown
+  menu entries at DEBUG (PL-1280).
 
 - Log failed checks and unhealthy doctor reports as failures on CLI and MCP
   without changing their output. The PostToolUse hook logs formatting outcomes

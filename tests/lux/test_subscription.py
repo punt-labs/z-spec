@@ -227,6 +227,18 @@ def test_unknown_callback_is_a_noop() -> None:
     assert (tut, brw) == ([], [])
 
 
+def test_unknown_callback_logs_only_fixed_metadata() -> None:
+    path = configure_logging("z-spec", "mcp", level="DEBUG")
+    asyncio.run(_subscription().on_callback("synthetic-private-callback-id"))
+
+    text = path.read_text(encoding="utf-8")
+    assert "synthetic-private-callback-id" not in text
+    assert (
+        "[DEBUG] punt_zspec.lux.subscription: "
+        "ignoring Lux callback: reason=unknown_menu_entry" in text
+    )
+
+
 def test_on_connect_registers_both_entries_with_their_scene_as_frame_id() -> None:
     async def scenario() -> list[tuple[str, str, str]]:
         menu = _RecordingMenu()
@@ -283,7 +295,14 @@ def test_a_click_dispatches_nothing_where_z_spec_is_not_enabled() -> None:
         await sub.on_callback("z-spec-browse")
         return brw
 
+    path = configure_logging("z-spec", "mcp", level="DEBUG")
     assert asyncio.run(scenario()) == []
+    text = path.read_text(encoding="utf-8")
+    assert "z-spec-browse" not in text
+    assert (
+        "[INFO] punt_zspec.lux.subscription: "
+        "ignoring Lux callback: reason=z_spec_disabled" in text
+    )
 
 
 def test_enablement_is_re_read_per_click_not_captured_at_registration() -> None:
