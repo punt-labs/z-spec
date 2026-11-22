@@ -27,7 +27,6 @@
 .punt-labs/quarry/captures/
 .punt-labs/vox/ephemeral/
 .punt-labs/vox/vox.local.md
-.punt-labs/lux.md
 
 # --- Claude Code runtime state ---
 .claude/*
