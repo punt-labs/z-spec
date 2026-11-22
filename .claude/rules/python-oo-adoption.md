@@ -42,7 +42,7 @@ every file better than you found it.
 ## PL-OA-2: The punt-oo-ratchet Package Is Required
 
 **Statement**: Every Python project depends on the pinned PyPI dev package
-`punt-oo-ratchet==0.3.0`. It provides the zero-runtime-dependency AST gates
+`punt-oo-ratchet==0.4.0`. It provides the zero-runtime-dependency AST gates
 `oo-ratchet oo`, `oo-ratchet coupling`, and `oo-ratchet suppressions`.
 Do not embed copies under `tools/`. Commit `pyproject.toml` and `uv.lock`;
 CI installs with `uv sync --frozen --all-extras`. Existing baseline and audit

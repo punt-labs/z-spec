@@ -73,6 +73,20 @@ jobs:
           make check-oo OO_BASE="${OO_ARGS}"
           make check-coupling COUPLING_BASE="--base-ref ${BASE} --require-base"
           make check-suppressions SUPPRESSION_BASE="--base-ref ${BASE} --require-base"
+      # Advisory only: show the verdict (or input error) in the PR summary,
+      # without adding a gate or letting a reporting failure fail the job.
+      - name: Design ratchet (shadow, report only)
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        continue-on-error: true
+        env:
+          DESIGN_BASE: origin/${{ github.base_ref }}
+        run: |
+          {
+            echo '### Design ratchet (shadow, report only)'
+            echo '```text'
+            make design-shadow 2>&1 || true
+            echo '```'
+          } | tee -a "${GITHUB_STEP_SUMMARY}"
       # OO ratchet on main after a merge: HEAD~1 is the squash's merge-base, so
       # the ratchet re-runs on merged reality — the tripwire that catches a red
       # main from a bad squash or a direct push. This step is REGRESSION-ONLY:

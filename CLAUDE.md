@@ -102,11 +102,17 @@ PR review follows punt-kit/standards/pr-review.md: local review (qodo review + s
 ## Code quality
 
 Three ratchets — OO, coupling, suppression — run from the pinned PyPI dev
-package `punt-oo-ratchet==0.3.0`. `make check-oo` passes only if no metric regressed
+package `punt-oo-ratchet==0.4.0`. `make check-oo` passes only if no metric regressed
 on touched files and at least one improved. Never edit `.oo-baseline.json` by
 hand except `--rebaseline` for structural refactors; never suppress the
 ratchet. Org standards (see `../punt-kit/standards/python.md` above) override
 review-tool suggestions (Qodo, Bugbot, Copilot) when the two disagree.
+
+`make design-shadow` reports advisory design changes against `origin/main`
+(`DESIGN_BASE` overrides it). PR CI appends the report to its step summary;
+it never gates the job and is not part of `make check`. Layers are declared in
+`pyproject.toml`: server lifecycle wiring is entry, Lux views and telemetry are
+adapters, commands are application, and syntax/models/coverage are domain.
 
 No migration, backwards-compat, or shim code — ever; when a feature
 supersedes an old behavior, delete the old path in the same change.
