@@ -22,7 +22,7 @@ running.
 ## Quick Start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/38d8814/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/fb966b4/install.sh | sh
 ```
 
 This installs uv and Python 3.13 if they are missing, the `z-spec` CLI,
@@ -35,14 +35,14 @@ plain terminal) or where policy blocks plugin installation — pass
 `--no-plugin` through the pipe with `sh -s --`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/38d8814/install.sh | sh -s -- --no-plugin
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/fb966b4/install.sh | sh -s -- --no-plugin
 ```
 
 Where passing arguments is awkward (templated CI, proxies), set
 `ZSPEC_NO_PLUGIN=1` instead. It takes effect only when set to exactly `1`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/38d8814/install.sh | ZSPEC_NO_PLUGIN=1 sh
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/fb966b4/install.sh | ZSPEC_NO_PLUGIN=1 sh
 ```
 
 <details>
@@ -73,7 +73,7 @@ Claude Code to install them.
 <summary>Verify before running</summary>
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/38d8814/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/punt-labs/z-spec/fb966b4/install.sh -o install.sh
 ```
 
 ```bash
