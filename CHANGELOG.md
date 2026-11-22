@@ -19,6 +19,11 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- A Lux outage no longer writes a WARNING every five seconds. The z-spec
+  menu leg logs one WARNING when luxd goes down, retries at DEBUG, and one
+  INFO summary (`outcome=recovered` or `outcome=terminated`, with the failed
+  attempt count) when the outage ends (PL-1264).
+
 - Depend on the `punt-observe==0.1.0` PyPI release instead of a git commit
   pin, so z-spec can be published to PyPI again (PL-1200).
 
