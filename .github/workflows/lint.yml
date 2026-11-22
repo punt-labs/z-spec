@@ -76,7 +76,7 @@ jobs:
       # Advisory only: show the verdict (or input error) in the PR summary,
       # without adding a gate or letting a reporting failure fail the job.
       - name: Design ratchet (shadow, report only)
-        if: github.event_name == 'pull_request'
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         continue-on-error: true
         env:
           DESIGN_BASE: origin/${{ github.base_ref }}

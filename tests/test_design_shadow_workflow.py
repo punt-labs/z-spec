@@ -20,7 +20,9 @@ def test_design_shadow_is_a_pr_report_not_a_gate() -> None:
     index, step = workflow.step("lint", _STEP)
     ratchet_index, _ = workflow.step("lint", "Ratchets (PR")
     assert index > ratchet_index
-    assert step.field("if") == "github.event_name == 'pull_request'"
+    assert step.field("if") == (
+        "${{ !cancelled() && github.event_name == 'pull_request' }}"
+    )
     assert step.field("continue-on-error") == "true"
     assert step.field("DESIGN_BASE") == "origin/${{ github.base_ref }}"
     assert "${{" not in "\n".join(step.script())
