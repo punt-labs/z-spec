@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Report-only design ratchet: `make design-shadow` compares against
   `origin/main` (override `DESIGN_BASE`), and PR CI appends its output to the
-  job summary without gating. Explicit entry/adapter/application/domain
+  job summary even after a gate fails, without gating. Explicit
   layers cover the package; findings remain advisory.
 - z-spec checks public docstrings and Python comments in lint and CI, and
   builds a generated Python API reference from the source.
