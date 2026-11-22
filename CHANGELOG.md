@@ -4,8 +4,6 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-- Bump punt-observe to 0.1.1 (log masking fixes)
-
 ### Added
 
 - Report-only design ratchet: `make design-shadow` compares against
@@ -66,6 +64,10 @@ All notable changes to this project will be documented in this file.
   paths and CI comparison refs are unchanged.
 
 ### Fixed
+
+- Bump punt-observe to 0.1.1: diagnostic logs now mask bare bearer
+  credentials and home-directory prefixes, and URL query redaction keeps
+  prose punctuation.
 
 - Keep Lux event topics and bodies out of z-spec's DEBUG log. Ignored topic
   events report only the event type and reason (PL-1271).
