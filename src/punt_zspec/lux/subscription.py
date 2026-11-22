@@ -165,7 +165,7 @@ class ZSpecSubscription:
 
     async def on_event(self, topic: str, payload: Mapping[str, object]) -> None:
         """Ignore topic events: z-spec's scenes publish none; clicks are callbacks."""
-        logger.debug("ignoring unexpected z-spec event on %s: %r", topic, dict(payload))
+        logger.debug("ignoring Lux topic event: reason=no_topic_subscriptions")
 
     async def on_callback(self, callback_id: str) -> None:
         """Route a menu click to its entry and hand it to the click runner.
@@ -174,8 +174,7 @@ class ZSpecSubscription:
         time. An entry the shared window still shows after a ``disable`` — the
         lux lease outlives the marker — must dispatch nothing at all.
         """
-        entry = self._entry_for(callback_id)
-        if entry is None:
+        if (entry := self._entry_for(callback_id)) is None:
             logger.debug("no z-spec menu entry for callback %r", callback_id)
             return
         if not self._is_enabled():

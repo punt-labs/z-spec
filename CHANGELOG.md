@@ -58,6 +58,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Keep Lux event topics and bodies out of z-spec's DEBUG log. Ignored topic
+  events report only the event type and reason (PL-1271).
+
 - Log failed checks and unhealthy doctor reports as failures on CLI and MCP
   without changing their output. The PostToolUse hook logs formatting outcomes
   without recording tool output (PL-1226).
