@@ -65,6 +65,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Bump punt-observe to 0.1.1: diagnostic logs now mask bare bearer
+  credentials and home-directory prefixes, and URL query redaction keeps
+  prose punctuation.
+
 - Keep Lux event topics and bodies out of z-spec's DEBUG log. Ignored topic
   events report only the event type and reason (PL-1271).
 - Omit callback IDs from ignored Lux callback diagnostics, including unknown
