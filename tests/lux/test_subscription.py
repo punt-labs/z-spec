@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from punt_lux import HubUnavailableError
+from punt_observe.logging import configure_logging
 
 from punt_zspec.commands.picker import PickerResult
 from punt_zspec.commands.result import CommandResult
@@ -168,6 +169,23 @@ def _subscription(
         listen=_unused_listen,
         click=_runner(),
         is_enabled=lambda: enabled,
+    )
+
+
+def test_unexpected_topic_event_logs_only_fixed_metadata() -> None:
+    path = configure_logging("z-spec", "mcp", level="DEBUG")
+    asyncio.run(
+        _subscription().on_event(
+            "synthetic-private-topic", {"message": "synthetic-private-body"}
+        )
+    )
+
+    text = path.read_text(encoding="utf-8")
+    assert "synthetic-private-topic" not in text
+    assert "synthetic-private-body" not in text
+    assert (
+        "[DEBUG] punt_zspec.lux.subscription: "
+        "ignoring unexpected Lux topic event: reason=no_topic_subscriptions" in text
     )
 
 

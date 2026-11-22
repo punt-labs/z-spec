@@ -165,7 +165,9 @@ class ZSpecSubscription:
 
     async def on_event(self, topic: str, payload: Mapping[str, object]) -> None:
         """Ignore topic events: z-spec's scenes publish none; clicks are callbacks."""
-        logger.debug("ignoring unexpected z-spec event on %s: %r", topic, dict(payload))
+        logger.debug(
+            "ignoring unexpected Lux topic event: reason=no_topic_subscriptions"
+        )
 
     async def on_callback(self, callback_id: str) -> None:
         """Route a menu click to its entry and hand it to the click runner.
