@@ -100,10 +100,15 @@ COUPLING_BASE    ?=
 SUPPRESSION_BASE ?=
 DESIGN_BASE      ?= origin/main
 
-.PHONY: design-shadow
+.PHONY: design-gate
 
-design-shadow: ## Report advisory design changes; never part of check
-	uv run oo-ratchet design src/punt_zspec --shadow-check "$(DESIGN_BASE)"
+design-gate: ## Gate design changes against DESIGN_BASE; separate from check
+	@set -e; report=$$(mktemp); trap 'rm -f "$$report"' EXIT HUP INT TERM; \
+	status=0; \
+	uv run oo-ratchet design src/punt_zspec --shadow-check "$(DESIGN_BASE)" --json > "$$report" || status=$$?; \
+	cat "$$report"; \
+	if [ "$$status" -ne 0 ]; then exit "$$status"; fi; \
+	python3 -c 'import json, sys; verdict = json.load(sys.stdin)["verdict"]; sys.exit(0 if verdict in ("neutral", "good-deed", "good-deed: trade") else "Design gate rejected verdict: " + str(verdict))' < "$$report"
 
 check-oo: ## OO ratchet — must improve over baseline, never regress
 	uv run oo-ratchet oo src/punt_zspec/ --check $(OO_BASE)

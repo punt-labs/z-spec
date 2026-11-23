@@ -1,4 +1,4 @@
-"""Run the report-only design step with successful, empty and failing reports."""
+"""Exercise the PR design gate and its summary for passing and failing reports."""
 
 from __future__ import annotations
 
@@ -12,10 +12,10 @@ from tests.workflow_source import Workflow
 
 _ROOT = Path(__file__).resolve().parent.parent
 _WORKFLOW = _ROOT / ".github/workflows/lint.yml"
-_STEP = "Design ratchet (shadow, report only)"
+_STEP = "Design ratchet (gate)"
 
 
-def test_design_shadow_is_a_pr_report_not_a_gate() -> None:
+def test_design_gate_is_pr_only_and_separate_from_check() -> None:
     workflow = Workflow(_WORKFLOW)
     index, step = workflow.step("lint", _STEP)
     ratchet_index, _ = workflow.step("lint", "Ratchets (PR")
@@ -23,7 +23,7 @@ def test_design_shadow_is_a_pr_report_not_a_gate() -> None:
     assert step.field("if") == (
         "${{ !cancelled() && github.event_name == 'pull_request' }}"
     )
-    assert step.field("continue-on-error") == "true"
+    assert not step.has("continue-on-error")
     assert step.field("DESIGN_BASE") == "origin/${{ github.base_ref }}"
     assert "${{" not in "\n".join(step.script())
     check = next(
@@ -31,15 +31,29 @@ def test_design_shadow_is_a_pr_report_not_a_gate() -> None:
         for line in (_ROOT / "Makefile").read_text().splitlines()
         if line.startswith("check:")
     )
-    assert "design-shadow" not in check
+    assert "design-gate" not in check
 
 
 @pytest.mark.parametrize(
-    ("status", "output"),
-    [(0, "neutral\n"), (0, ""), (2, "FAIL: invalid reference\n")],
+    ("status", "output", "passes"),
+    [
+        (0, '{"verdict": "neutral"}\n', True),
+        (0, '{"verdict": "good-deed"}\n', True),
+        (0, '{"verdict": "good-deed: trade"}\n', True),
+        (0, '{"verdict": "would-fail: tier0"}\n', False),
+        (0, '{"verdict": "would-fail: tier1"}\n', False),
+        (0, '{"verdict": "would-fail: tier2"}\n', False),
+        (0, '{"verdict": "unknown"}\n', False),
+        (0, "{}\n", False),
+        (0, "[]\n", False),
+        (0, "", False),
+        (0, "invalid JSON\n", False),
+        (2, "FAIL: invalid reference\n", False),
+        (2, '{"verdict": "neutral"}\n', False),
+    ],
 )
-def test_design_shadow_publishes_even_failed_reports(
-    tmp_path: Path, status: int, output: str
+def test_design_gate_publishes_and_preserves_failure(
+    tmp_path: Path, status: int, output: str, passes: bool
 ) -> None:
     uv = tmp_path / "uv"
     uv.write_text(
@@ -77,12 +91,12 @@ def test_design_shadow_publishes_even_failed_reports(
         text=True,
         check=False,
     )
-    assert result.returncode == 0, result.stderr
+    assert (result.returncode == 0) is passes, result.stdout + result.stderr
     assert argv_log.read_text().strip() == (
-        "run oo-ratchet design src/punt_zspec --shadow-check origin/other-base"
+        "run oo-ratchet design src/punt_zspec --shadow-check origin/other-base --json"
     )
     report = summary.read_text()
-    assert report.startswith("Earlier step\n### Design ratchet (shadow, report only)")
+    assert report.startswith("Earlier step\n### Design ratchet (gate)")
     assert report == "Earlier step\n" + result.stdout
     assert report.endswith("```\n")
     assert output in report
