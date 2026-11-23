@@ -82,7 +82,7 @@ test-z-%: examples/%.tex
 		--setsize $(SETSIZE) --max-ops $(MAX_OPS) --timeout $(TIMEOUT)
 	@echo ""
 
-check: lint type test check-oo check-coupling check-suppressions check-dev-commands ## Run all quality gates
+check: lint type test check-oo check-coupling check-suppressions check-dev-commands design-gate ## Run all quality gates
 
 # ── Dev/prod plugin namespace ───────────────────────────────
 
@@ -102,8 +102,14 @@ DESIGN_BASE      ?= origin/main
 
 .PHONY: design-gate
 
-design-gate: ## Gate design changes against DESIGN_BASE; separate from check
-	@set -e; report=$$(mktemp); trap 'rm -f "$$report"' EXIT HUP INT TERM; \
+design-gate: ## Gate design changes against DESIGN_BASE
+	@set -e; \
+	if ! git rev-parse --verify --quiet "$(DESIGN_BASE)^{commit}" >/dev/null 2>&1; then \
+	echo "FATAL: design-gate base ref '$(DESIGN_BASE)' does not resolve to a commit" >&2; \
+	echo "       fetch the base branch or set DESIGN_BASE to a resolvable commit" >&2; \
+	exit 2; \
+	fi; \
+	report=$$(mktemp); trap 'rm -f "$$report"' EXIT HUP INT TERM; \
 	status=0; \
 	uv run oo-ratchet design src/punt_zspec --shadow-check "$(DESIGN_BASE)" --json > "$$report" || status=$$?; \
 	cat "$$report"; \

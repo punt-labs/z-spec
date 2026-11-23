@@ -33,9 +33,10 @@ window, the labels, what a person actually sees — is the demo gate in
 
 `.github/workflows/` carries `lint.yml` and `test.yml` alongside `docs.yml`,
 `release.yml` and `biff-notify.yml`. `lint.yml` runs ruff check and format, mypy,
-pyright, shellcheck, `check-dev-commands`, and all three ratchets scoped to the
-merge base via `OO_BASE` / `COUPLING_BASE` / `SUPPRESSION_BASE`, with a
-post-merge `HEAD~1` tripwire on main. `test.yml` runs three jobs: `unit`
+pyright, shellcheck, `check-dev-commands`, the design gate against the PR base,
+and the OO, coupling and suppression ratchets scoped to the merge base via
+`OO_BASE` / `COUPLING_BASE` / `SUPPRESSION_BASE`, with a post-merge `HEAD~1`
+tripwire on main. `test.yml` runs three jobs: `unit`
 (pytest), `e2e` (builds and installs the wheel, then drives the installed
 artifact), and `specs` (builds `fuzz` from source, downloads `probcli`, then
 type-checks and model-checks every `examples/*.tex`).
@@ -164,9 +165,15 @@ make uat            # build + install, then run docs/testing/manual-tests.md
 
 `make check` runs, in order: `lint` (markdownlint + ruff check + ruff format),
 `type` (mypy + pyright + fuzz on every spec), `test` (pytest + probcli on every
-spec), `check-oo`, `check-coupling`, `check-suppressions`, `check-dev-commands`.
+spec), `check-oo`, `check-coupling`, `check-suppressions`, `check-dev-commands`,
+and `design-gate`.
 
-The three ratchets run from the pinned PyPI dev package
+`design-gate` compares `src/punt_zspec` against `DESIGN_BASE` (default
+`origin/main`) and rejects would-fail verdicts, tool/input errors, and a
+missing or unresolvable base ref. In a clean tree on main, HEAD and the default
+base are the same commit, so the comparison is neutral.
+
+The OO, coupling and suppression ratchets run from the pinned PyPI dev package
 `punt-oo-ratchet==0.4.0`, installed by `uv sync`.
 `check-oo` passes only if no metric regressed on touched files **and at least
 one improved** — see the OO ratchet section of [`CLAUDE.md`](CLAUDE.md) for what
