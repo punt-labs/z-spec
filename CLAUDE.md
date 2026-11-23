@@ -28,7 +28,8 @@ the lux Hub.
 
 ```bash
 make check      # full quality gate: lint, type, test, check-oo,
-                 #   check-coupling, check-suppressions, check-dev-commands
+                 #   check-coupling, check-suppressions, check-dev-commands,
+                 #   design-gate
 make lint       # markdownlint + ruff check + ruff format --check + shellcheck
 make type       # mypy + pyright + fuzz on every examples/*.tex spec
 make test       # pytest + probcli model-check on every examples/*.tex spec
@@ -109,12 +110,14 @@ ratchet. Org standards (see `../punt-kit/standards/python.md` above) override
 review-tool suggestions (Qodo, Bugbot, Copilot) when the two disagree.
 
 `make design-gate` gates design changes against `origin/main`
-(`DESIGN_BASE` overrides it). PR CI appends the JSON report (or input error)
-to its step summary and fails on would-fail verdicts or tool/input errors;
-neutral, good-deed, and good-deed trades pass. It is separate from `make check`
-because it requires a base ref. Layers are declared in
-`pyproject.toml`: server lifecycle wiring is entry, Lux views and telemetry are
-adapters, commands are application, and syntax/models/coverage are domain.
+(`DESIGN_BASE` overrides it) and is part of `make check`. A missing or
+unresolvable base ref fails closed. When HEAD is the base in a clean tree —
+on main itself, for example — the comparison is neutral and passes. PR CI
+appends the JSON report (or input error) to its step summary and fails on
+would-fail verdicts or tool/input errors; neutral, good-deed, and good-deed
+trades pass. Layers are declared in `pyproject.toml`: server lifecycle wiring
+is entry, Lux views and telemetry are adapters, commands are application, and
+syntax/models/coverage are domain.
 
 No migration, backwards-compat, or shim code — ever; when a feature
 supersedes an old behavior, delete the old path in the same change.

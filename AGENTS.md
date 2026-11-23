@@ -28,7 +28,8 @@ the lux Hub.
 
 ```bash
 make check      # full quality gate: lint, type, test, check-oo,
-                 #   check-coupling, check-suppressions, check-dev-commands
+                 #   check-coupling, check-suppressions, check-dev-commands,
+                 #   design-gate
 make lint       # markdownlint + ruff check + ruff format --check + shellcheck
 make type       # mypy + pyright + fuzz on every examples/*.tex spec
 make test       # pytest + probcli model-check on every examples/*.tex spec
@@ -108,10 +109,12 @@ hand except `--rebaseline` for structural refactors; never suppress the
 ratchet. Org standards (see `../punt-kit/standards/python.md` above) override
 review-tool suggestions (Qodo, Bugbot, Copilot) when the two disagree.
 
-`make design-gate` compares against `origin/main` (`DESIGN_BASE` overrides it).
-PR CI publishes its JSON report or input error and fails on would-fail verdicts
-or tool/input errors. Neutral, good-deed, and good-deed trades pass. It is
-separate from `make check` because it requires a base ref.
+`make design-gate` compares against `origin/main` (`DESIGN_BASE` overrides it)
+and is part of `make check`. A missing or unresolvable base ref fails closed;
+when HEAD is the base in a clean tree (as on main itself), the comparison is
+neutral and passes. PR CI publishes its JSON report or input error and fails on
+would-fail verdicts or tool/input errors. Neutral, good-deed, and good-deed
+trades pass.
 
 No migration, backwards-compat, or shim code — ever; when a feature
 supersedes an old behavior, delete the old path in the same change.

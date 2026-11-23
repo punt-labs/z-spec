@@ -6,10 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- PR design checks now gate on would-fail verdicts and tool/input errors while
-  retaining the job summary report. Run `make design-gate` locally against
-  `origin/main` (override `DESIGN_BASE`); neutral and good-deed trades pass.
-  The base-ref-dependent gate remains separate from `make check`.
+- `make design-gate` is part of `make check` rather than an optional local
+  gate. It compares against `origin/main` by default (override `DESIGN_BASE`),
+  fails closed when the base ref cannot be resolved, and passes as neutral in
+  a clean tree whose HEAD is the base (as on main itself). PR design checks
+  retain the job summary report and fail on would-fail verdicts and tool/input
+  errors; neutral, good-deed, and `good-deed: trade` verdicts pass.
 - Agent edits now receive advisory Ruff and shellcheck feedback through a
   repository-owned Ethos check set instead of running the full quality gate.
   Commit checks block lint and ratchet regressions; handoff runs full

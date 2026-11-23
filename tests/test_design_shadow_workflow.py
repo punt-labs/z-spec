@@ -15,7 +15,7 @@ _WORKFLOW = _ROOT / ".github/workflows/lint.yml"
 _STEP = "Design ratchet (gate)"
 
 
-def test_design_gate_is_pr_only_and_separate_from_check() -> None:
+def test_design_gate_step_is_pr_only_and_check_includes_it() -> None:
     workflow = Workflow(_WORKFLOW)
     index, step = workflow.step("lint", _STEP)
     ratchet_index, _ = workflow.step("lint", "Ratchets (PR")
@@ -31,7 +31,34 @@ def test_design_gate_is_pr_only_and_separate_from_check() -> None:
         for line in (_ROOT / "Makefile").read_text().splitlines()
         if line.startswith("check:")
     )
-    assert "design-gate" not in check
+    assert "design-gate" in check
+
+
+def test_design_gate_missing_base_fails_before_scan(tmp_path: Path) -> None:
+    invoked = tmp_path / "uv-invoked"
+    uv = tmp_path / "uv"
+    uv.write_text('#!/bin/sh\ntouch "$UV_INVOKED"\nexit 99\n')
+    uv.chmod(0o755)
+    missing = "origin/no-such-design-gate-base-z-spec"
+    result = subprocess.run(
+        ["make", "design-gate", f"DESIGN_BASE={missing}"],
+        cwd=_ROOT,
+        env={
+            **os.environ,
+            "PATH": f"{tmp_path}:{os.environ['PATH']}",
+            "UV_INVOKED": str(invoked),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert (
+        f"FATAL: design-gate base ref '{missing}' does not resolve to a commit"
+        in result.stderr
+    )
+    assert "fetch the base branch or set DESIGN_BASE" in result.stderr
+    assert not invoked.exists()
 
 
 @pytest.mark.parametrize(
@@ -68,7 +95,7 @@ def test_design_gate_publishes_and_preserves_failure(
         **os.environ,
         "PATH": f"{tmp_path}:{os.environ['PATH']}",
         "GITHUB_STEP_SUMMARY": str(summary),
-        "DESIGN_BASE": "origin/other-base",
+        "DESIGN_BASE": "HEAD",
         "ARGV_LOG": str(argv_log),
         "SHADOW_OUTPUT": output,
         "SHADOW_STATUS": str(status),
@@ -93,7 +120,7 @@ def test_design_gate_publishes_and_preserves_failure(
     )
     assert (result.returncode == 0) is passes, result.stdout + result.stderr
     assert argv_log.read_text().strip() == (
-        "run oo-ratchet design src/punt_zspec --shadow-check origin/other-base --json"
+        "run oo-ratchet design src/punt_zspec --shadow-check HEAD --json"
     )
     report = summary.read_text()
     assert report.startswith("Earlier step\n### Design ratchet (gate)")
