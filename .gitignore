@@ -301,6 +301,7 @@ htmlcov/
 !.punt-labs/ethos/CLAUDE.md
 !.punt-labs/ethos/ETHOS-SETUP.md
 !.punt-labs/ethos/.vendored-manifest
+!.punt-labs/ethos/checks/
 
 # Quarry's per-session working files. Machine state: regenerated each session,
 # rewritten whenever the local index updates, and read by no one. Nothing here

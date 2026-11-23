@@ -1,2 +1,3 @@
 agent: claude
 team: formal-methods
+checks: z-spec
