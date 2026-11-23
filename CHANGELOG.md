@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- PR design checks now gate on would-fail verdicts and tool/input errors while
+  retaining the job summary report. Run `make design-gate` locally against
+  `origin/main` (override `DESIGN_BASE`); neutral and good-deed trades pass.
+  The base-ref-dependent gate remains separate from `make check`.
+
+## [0.21.0] - 2026-11-22
+
 ### Added
 
 - Report-only design ratchet: `make design-shadow` compares against
