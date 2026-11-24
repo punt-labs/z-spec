@@ -137,10 +137,11 @@ minversion = "8.0"
 # Tier 5 (e2e) is opt-in: it drives the INSTALLED z-spec binary, so a plain
 # `pytest` run in a working tree would test whatever wheel happens to be
 # installed rather than the code under edit. Run it with `make test-e2e`.
-addopts = "-ra -q -m 'not e2e'"
+addopts = "-ra -q --strict-markers -m 'not e2e and not quarantine'"
 testpaths = ["tests"]
 markers = [
     "e2e: drives the installed z-spec CLI and MCP server as subprocesses",
+    "quarantine(issue, owner, reason, expires): temporarily exclude a tracked flaky test",
 ]
 
 [tool.coverage.run]

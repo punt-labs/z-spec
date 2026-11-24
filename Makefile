@@ -1,4 +1,5 @@
 .PHONY: help lint type test test-py test-e2e check check-oo update-oo check-coupling update-coupling check-suppressions update-suppressions check-dev-commands gen-dev-commands check-comments check-docstrings build-api-docs format build install uat clean depot assert report spec-reports metrics coverage coverage-ci
+.PHONY: hooks test-changed test-push test-subprocess test-nightly test-quarantine test-quarantine-run
 
 FUZZ      ?= fuzz
 PROBCLI   ?= $(HOME)/Applications/ProB/probcli
@@ -44,7 +45,7 @@ lint: check-comments check-docstrings ## Lint markdown, Python, comments, docstr
 	npx markdownlint-cli2 "**/*.md" "#node_modules"
 	uv run ruff check .
 	uv run ruff format --check .
-	shellcheck -x scripts/*.sh install.sh plugin/hooks/*.sh
+	shellcheck -x scripts/*.sh install.sh plugin/hooks/*.sh .githooks/pre-commit .githooks/pre-push
 
 check-comments: ## Reject commented-out code and tracker references in Python prose
 	uv run ruff check --select ERA001 .
@@ -73,8 +74,41 @@ test: test-py $(addprefix test-z-,$(SPEC_NAMES)) ## Run Python tests and model-c
 test-py:
 	uv run pytest tests/ -v
 
+hooks: ## Install the local test hooks without overwriting other hooks
+	@if path=$$(git config --get core.hooksPath); then \
+		echo "core.hooksPath already set to $$path; chain .githooks manually" >&2; exit 1; \
+	fi; \
+	dir=$$(git rev-parse --git-path hooks) && mkdir -p "$$dir" || exit; \
+	for hook in pre-commit pre-push; do \
+		if { [ -e "$$dir/$$hook" ] || [ -L "$$dir/$$hook" ]; } && \
+		   ! cmp -s ".githooks/$$hook" "$$dir/$$hook"; then \
+			echo "$$dir/$$hook already exists; chain .githooks/$$hook manually" >&2; exit 1; \
+		fi; \
+	done; \
+	for hook in pre-commit pre-push; do \
+		[ -x "$$dir/$$hook" ] || install -m 755 ".githooks/$$hook" "$$dir/$$hook" || exit; \
+	done
+
+test-changed: ## Run default tests affected by staged changes
+	TMPDIR=/tmp uv run python tools/test_changed.py
+
+test-push: export TMPDIR = /tmp
+test-push: test-py ## Run the local push gate (default suite and its local process tests)
+
+test-subprocess: ## Run local installer and command-tool process contracts
+	uv run pytest tests/test_install_probcli_pin.py tests/test_gen_dev_commands.py
+
 test-e2e: ## Tier 5 — drive the INSTALLED binary and MCP server (run make install first)
-	Z_SPEC_TEST_EXECUTABLE="$$(uv tool dir --bin)/z-spec" uv run pytest tests/e2e -v -m e2e
+	Z_SPEC_TEST_EXECUTABLE="$$(uv tool dir --bin)/z-spec" uv run pytest tests/e2e -v -m 'e2e and not quarantine'
+
+test-nightly: test-e2e ## Run the installed wheel and a larger-scope ProB model check
+	$(MAKE) test-z-animation-hints-good SETSIZE=2
+
+test-quarantine: ## List quarantines; an empty selection is expected
+	@uv run pytest --collect-only -v -m quarantine || [ "$$?" = 5 ]
+
+test-quarantine-run: ## Run only quarantined tests (install the wheel if needed)
+	Z_SPEC_TEST_EXECUTABLE="$$(uv tool dir --bin)/z-spec" uv run pytest -m quarantine
 
 test-z-%: examples/%.tex
 	@echo "probcli $< (setsize=$(SETSIZE))"

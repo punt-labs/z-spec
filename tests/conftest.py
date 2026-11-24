@@ -7,6 +7,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from tools.test_quarantine import (
+    pytest_collection_modifyitems as pytest_collection_modifyitems,
+)
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path

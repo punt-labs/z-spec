@@ -1,5 +1,8 @@
 # Testing
 
+This guide follows the [Punt Labs testing standard](https://github.com/punt-labs/punt-kit/blob/main/standards/testing.md)
+and its [Python mapping](https://github.com/punt-labs/punt-kit/blob/main/lang-rules/python/python-testing.md).
+
 ## Philosophy
 
 `make check` proves the code is internally consistent. It does not prove the
@@ -14,32 +17,53 @@ post-merge activity, not a reviewer's job, and not something Copilot or Bugbot
 can do. Code reviewers find code defects; only running the thing finds "the
 feature is unusable."
 
-## The pyramid
+## Triggers and budgets
 
-| Tier | Command | Runs in CI | What it proves | Gate |
-|------|---------|------------|----------------|------|
-| 1. Unit | `make test-py` | yes — `test.yml` `unit` | each module behaves in isolation — parsing, report I/O, command objects, types; and each shipped prompt document is internally consistent | every commit |
-| 2. Spec type-check | `make type` (`type-z-*`) | yes — `test.yml` `specs` | every `examples/*.tex` is fuzz-clean; the tool's own corpus type-checks | every commit |
-| 3. Spec model-check | `make test` (`test-z-*`) | yes — `test.yml` `specs` | probcli explores each spec's reachable state space, finds no counterexample, certifies the exploration complete, and fires every operation at least once | every commit |
-| 4. Surface parity | `tests/commands/test_parity.py` | yes — `test.yml` `unit` | the CLI verb and the MCP tool for one command resolve to the same `Command` object with the same options | every commit |
-| 5. **Acceptance (UAT)** | `make uat` + [`docs/testing/manual-tests.md`](docs/testing/manual-tests.md) | the subprocess half only — `test.yml` `e2e` | the installed CLI, the reconnected MCP server, and the lux menu do the right thing on screen | **before the PR opens** |
+Provision Python 3.13, Git, and uv, then run `uv sync --frozen --all-extras`.
+Run `make hooks` to activate the local gates. It preserves other Git hooks
+and leaves linked worktrees without these test commands unaffected. If the
+repo already has custom pre-commit or pre-push hooks, invoke the matching
+`.githooks/` scripts from those hooks instead. The hook targets use system
+temporary storage rather than the checkout's `.tmp`.
+For direct local pytest runs under direnv, use `--basetemp` with a dedicated
+path outside the checkout.
 
-Tiers 1–4 are `make check`. Tier 5 splits: `make test-e2e` drives the installed
-binary and the stdio server and does run in CI, while the human half — the lux
-window, the labels, what a person actually sees — is the demo gate in
-[`docs/WORKFLOW.md`](docs/WORKFLOW.md) and cannot be automated.
+| Tier | Runner and selector | Budget | Failure |
+| --- | --- | --- | --- |
+| Pre-commit | Local hook: `make test-changed` selects default tests by staged path and source imports. Changes to shared fixtures or source with indirect or unknown consumers fall back to the default suite. | <30 s for typical small changes | Stops commit |
+| Pre-push | Local hook: `make test-push` runs the default suite, including credential-free local process contracts. | <3 min | Stops push |
+| PR | GitHub Actions: Docs, Lint and Test. Test uses Ubuntu and macOS for default, installed wheel, spec corpus and installer checks. | <10 min target for the parallel gate | Required checks block merge |
+| Merge to main | The same workflows validate the actual main commit and publish default coverage. | Same PR budget | Red main triggers CI triage |
+| Nightly | Ubuntu, upstream main only: `nightly.yml` / `make test-nightly` reruns the installed wheel on main, and explores the animation-hints model at set size 2 rather than 1. Prerequisites: wheel, Git, `fuzz`, and `probcli`. | 30 min job timeout | Biff notifies maintainers; not a PR check |
+| Release candidate | Ubuntu, trusted release CI: exact TestPyPI wheel and both installed entry points. | 10 min job timeout | Blocks promotion |
+| Post-release | Ubuntu, trusted release CI: exact production PyPI version and both installed entry points. | 2 min job timeout | Alerts the release owner |
+
+The default suite (`make test-py`) runs in-process unit/component tests and
+local subprocess tests; `make test-subprocess` selects the installer pin and
+command-tool process contracts separately. `make test-e2e` selects installed
+CLI/MCP workflows. `make type` and `make test` include the domain checks:
+`type-z-*` checks specs with `fuzz`; `test-z-*` checks reachability, absence
+of counterexamples, completeness and operation coverage with `probcli`.
+The credential-free gates require no provider credentials or running daemons.
+
+The deterministic CLI/MCP operations do not require a live provider. The
+Claude plugin does need real-agent evidence; currently its applicable rows are
+covered by manual UAT, not an automated trusted Nightly or candidate gate.
+Manual installed-artifact UAT remains the separate change-level demo gate in
+[`docs/WORKFLOW.md`](docs/WORKFLOW.md).
 
 ### What CI covers
 
 `.github/workflows/` carries `lint.yml` and `test.yml` alongside `docs.yml`,
-`release.yml` and `biff-notify.yml`. `lint.yml` runs ruff check and format, mypy,
+`nightly.yml`, `release.yml` and `biff-notify.yml`. `lint.yml` runs ruff check and format, mypy,
 pyright, shellcheck, `check-dev-commands`, the design gate against the PR base,
 and the OO, coupling and suppression ratchets scoped to the merge base via
 `OO_BASE` / `COUPLING_BASE` / `SUPPRESSION_BASE`, with a post-merge `HEAD~1`
-tripwire on main. `test.yml` runs three jobs: `unit`
+tripwire on main. `test.yml` runs `unit`
 (pytest), `e2e` (builds and installs the wheel, then drives the installed
-artifact), and `specs` (builds `fuzz` from source, downloads `probcli`, then
-type-checks and model-checks every `examples/*.tex`).
+artifact), `specs` (builds `fuzz` from source, downloads `probcli`, then
+type-checks and model-checks the example corpus), and `installer` (both
+supported platforms, with and without TeX).
 
 So a green PR is now evidence. It was not before, and this section previously
 said so long after it had stopped being true — the gap sections were written
@@ -110,7 +134,23 @@ bash scripts/smoke-release.sh candidate VERSION dist/punt_z_spec-VERSION-py3-non
 bash scripts/smoke-release.sh published VERSION
 ```
 
-## Tier 5 — user acceptance testing
+## Quarantine
+
+Fix flaky tests promptly. If a required test must be isolated, file a Linear
+issue with a named owner, reason, and fix-or-remove deadline within 14 days.
+Use `@pytest.mark.quarantine(issue=..., owner=..., reason=..., expires=...)`,
+with the `PL-...` identifier and a UTC `YYYY-MM-DD` deadline matching the
+issue. Required pytest selections exclude the mark, but collection still
+fails on incomplete, expired, or overlong metadata.
+
+Nightly runs `make test-quarantine` to list marked tests (an empty list is
+valid). Review the list daily, diagnose failures before retrying, and restore
+fixed tests to their normal gate. To run quarantines separately, use
+`make test-quarantine-run` (or `uv run pytest -m quarantine` for in-process
+tests). Install the wheel and provision the relevant tools for installed or
+subprocess cases.
+
+## Manual user acceptance testing
 
 **UAT happens before the PR, never after.** The order is: `make check` green →
 `make uat` (build, install, reconnect the MCP server) → run every applicable
@@ -181,7 +221,7 @@ has a characteristic failure:
 - **Lux code is tested with fakes at the port, and confirmed by eye.** The
   `lux/ports.py` protocols let unit tests drive session, menu, and subscription
   logic without a daemon. That covers the wiring. It does not cover whether the
-  scene renders — that is tier 5, always.
+  scene renders — that is manual UAT.
 
 ## Running tests
 
@@ -193,8 +233,8 @@ resolve, and that command persists its report. The files are gitignored and
 before they corresponded to whenever someone last ran `make spec-reports`.
 
 ```bash
-make check          # tiers 1–4: lint, types, fuzz, pytest, probcli, ratchets
-make test-py        # unit tests only
+make check          # lint, types, fuzz, pytest, probcli, ratchets
+make test-py        # credential-free default pytest suite
 uv run pytest tests/commands/test_picker.py -v   # one file
 uv run pytest -k picker                          # one pattern
 make coverage       # terminal + HTML coverage (htmlcov/index.html)
@@ -218,8 +258,8 @@ The OO, coupling and suppression ratchets run from the pinned PyPI dev package
 `punt-oo-ratchet==0.4.0`, installed by `uv sync`.
 `check-oo` passes only if no metric regressed on touched files **and at least
 one improved** — see the OO ratchet section of [`CLAUDE.md`](CLAUDE.md) for what
-that demands and what it forbids. Coverage never goes down; the test count never
-goes down.
+that demands and what it forbids. Review coverage changes when adding or
+changing behavior; the coverage report is not a percentage gate.
 
 No suppression (`# noqa`, `# type: ignore`, `xfail`, `--no-verify`) is added to
 make a gate pass without operator approval, outside the classes pre-authorized

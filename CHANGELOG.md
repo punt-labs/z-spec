@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
   before production promotion and again from the exact version on PyPI.
 - PR and main CI type-check a real spec through the installed CLI and MCP
   server on Linux and macOS and publish default-suite line and branch coverage.
+- Added local test hooks, a trusted Nightly gate, and a tracked test
+  quarantine policy.
 
 - `make design-gate` is part of `make check` rather than an optional local
   gate. It compares against `origin/main` by default (override `DESIGN_BASE`),
