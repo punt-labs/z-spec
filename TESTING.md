@@ -91,8 +91,9 @@ These catch the packaging faults no in-process test can see: an entry point that
 does not resolve, a data file absent from the wheel, a `__file__`-relative path
 that only works in a checkout. `pyproject.toml` declares the `e2e` marker and
 `addopts` deselects it by default, so a plain `pytest` run does not test whatever
-wheel happens to be installed. Run it with `make test-e2e` after
-`make install`, with Git and real `fuzz` on `PATH`. Missing prerequisites
+wheel happens to be installed. Run it with `make test-e2e` or
+`uv run pytest -m e2e` after `make install`, with Git and real `fuzz` on
+`PATH`. Missing prerequisites
 fail the suite rather than silently reducing the evidence. Tests copy the
 spec into temporary state and do not require ProB or a running Lux daemon.
 

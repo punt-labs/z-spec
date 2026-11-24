@@ -10,10 +10,16 @@ from pathlib import Path
 import pytest
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def z_spec() -> str:
     """Resolve the required installed CLI."""
-    binary = shutil.which(os.environ.get("Z_SPEC_TEST_EXECUTABLE", ""))
+    executable = os.environ.get("Z_SPEC_TEST_EXECUTABLE")
+    if executable is None:
+        tool_dir = subprocess.check_output(
+            ["uv", "tool", "dir", "--bin"], text=True, timeout=10
+        ).strip()
+        executable = str(Path(tool_dir) / "z-spec")
+    binary = shutil.which(executable)
     if binary is None:
         pytest.fail("Run `make install` and then `make test-e2e` against that wheel")
     return binary
