@@ -69,6 +69,32 @@ wheel happens to be installed. Run it with `make test-e2e`.
 Tests mirror source: one `test_*.py` per module, `tests/commands/` and
 `tests/lux/` mirroring their packages, `conftest.py` for shared fixtures.
 
+### Release gates
+
+On an Ubuntu runner, `release.yml` fetches the tagged wheel from TestPyPI
+and compares its bytes with the build artifact before installing it.
+Within the 10-minute candidate job, the installed CLI and MCP server
+must both type-check a copy of `animation-hints-good.tex` with real
+`fuzz`, in a fresh virtual environment and temporary project. A failure
+blocks production promotion; PyPI receives the original build artifacts.
+
+Immediately after publication, the Ubuntu smoke job installs the exact
+version from production PyPI and runs the same checks with a two-minute
+job timeout. Both jobs assert the CLI version and log the version,
+channel, and outcome. The release build provides `fuzz`; ProB and a Lux
+daemon are not needed. A post-release failure fails the release workflow
+and alerts the team on Biff for release-owner triage; publication is not
+rolled back automatically.
+
+To reproduce either smoke locally with Python 3.13, `uv`, Git, and
+`fuzz` on `PATH`:
+
+```bash
+uv build
+bash scripts/smoke-release.sh candidate VERSION dist/punt_z_spec-VERSION-py3-none-any.whl
+bash scripts/smoke-release.sh published VERSION
+```
+
 ## Tier 5 — user acceptance testing
 
 **UAT happens before the PR, never after.** The order is: `make check` green →
