@@ -168,20 +168,24 @@ def test_prepush_replays_refs_and_args_to_chained_hook(
     assert (tmp_path / "refs").read_text() == refs
 
 
-def test_prepush_runs_gate_after_an_upstream_hook_consumes_refs(
+def test_prepush_skips_gate_for_empty_ref_list_but_chains(
     tmp_path: Path, prepush_hook: Path
 ) -> None:
+    custom_hook = tmp_path / "custom-hook"
+    custom_hook.write_text("#!/bin/sh\ncat\nprintf 'ran-custom-hook\\n'\n")
+    custom_hook.chmod(0o755)
     result = subprocess.run(
-        ["sh", "-c", 'cat >/dev/null; exec "$@"', "pre-push", str(prepush_hook)],
+        [str(prepush_hook), "--chain", str(custom_hook)],
         cwd=tmp_path,
-        input="a ref update consumed by the preceding hook\n",
+        input="",
         text=True,
         capture_output=True,
         timeout=10,
         check=False,
     )
     assert result.returncode == 0, result.stderr
-    assert "ran-push-gate" in result.stdout
+    assert "ran-push-gate" not in result.stdout
+    assert result.stdout == "ran-custom-hook\n"
 
 
 def test_prepush_wrapper_falls_through_in_older_worktree(
