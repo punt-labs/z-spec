@@ -7,7 +7,7 @@ if [[ "${1:-}" == --chain ]]; then
   chain=${2:?--chain requires a hook path}
   shift 2
 fi
-refs=$(mktemp)
+refs=$(mktemp /tmp/z-spec-pre-push.XXXXXXXX)
 trap 'rm -f "$refs"' EXIT
 cat > "$refs"
 

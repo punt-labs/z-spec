@@ -218,6 +218,27 @@ def test_prepush_wrapper_falls_through_in_older_worktree(
     assert "gate not present in this worktree" in result.stderr
 
 
+def test_prepush_buffers_refs_even_when_checkout_tmpdir_is_missing(
+    tmp_path: Path, prepush_hook: Path
+) -> None:
+    head = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=tmp_path, text=True
+    ).strip()
+    result = subprocess.run(
+        [str(prepush_hook)],
+        cwd=tmp_path,
+        env={**os.environ, "TMPDIR": str(tmp_path / ".tmp")},
+        input=f"HEAD {head} refs/heads/main {'0' * len(head)}\n",
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "ran-push-gate" in result.stdout
+    assert not (tmp_path / ".tmp").exists()
+
+
 def test_changed_module_and_test_select_relevant_paths(tmp_path: Path) -> None:
     tests = tmp_path / "tests"
     tests.mkdir()
