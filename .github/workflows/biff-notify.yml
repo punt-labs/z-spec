@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   notify:
-    # event == 'push' is a secret-safety boundary, not just a notification
+    # Restrict events to trusted runs, not just for notification
     # filter: this step's env: block carries secrets.BIFF_RELAY_TOKEN.
     # Widening this to include pull_request-sourced workflow_run completions
     # (e.g. to notify on fork-PR CI failures) reopens fork access to that
@@ -22,8 +22,11 @@ jobs:
     # github.repository` check, per GitHub's workflow_run-with-secrets
     # guidance. Do not relax this filter without adding that check.
     if: >-
-      github.event.workflow_run.conclusion == 'failure'
-      && github.event.workflow_run.event == 'push'
+      (github.event.workflow_run.conclusion == 'failure'
+       || github.event.workflow_run.conclusion == 'timed_out')
+      && (github.event.workflow_run.event == 'push'
+          || (github.event.workflow_run.name == 'Release'
+              && github.event.workflow_run.event == 'workflow_dispatch'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

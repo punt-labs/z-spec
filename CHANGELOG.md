@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Releases now type-check a real Z spec via the installed CLI and MCP server
+  before production promotion and again from the exact version on PyPI.
+
 - `make design-gate` is part of `make check` rather than an optional local
   gate. It compares against `origin/main` by default (override `DESIGN_BASE`),
   fails closed when the base ref cannot be resolved, and passes as neutral in

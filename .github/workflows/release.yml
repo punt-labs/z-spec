@@ -29,6 +29,16 @@ jobs:
           python-version: "3.13"
       - run: uv build
       - run: uvx twine check dist/*
+      - name: Build fuzz for the smoke jobs
+        run: |
+          sudo apt-get update && sudo apt-get install -y build-essential bison flex
+          ./install.sh --fuzz-only
+          tar -C "$HOME/.local" -czf "$RUNNER_TEMP/fuzz.tar.gz" bin/fuzz lib/fuzzlib
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-fuzz
+          path: ${{ runner.temp }}/fuzz.tar.gz
+          retention-days: 1
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist
@@ -55,34 +65,51 @@ jobs:
   test-install:
     needs: testpypi
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
-      - name: Install from TestPyPI
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-fuzz
+          path: ${{ runner.temp }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - name: Smoke-test the exact wheel served by TestPyPI
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          MAX_ATTEMPTS=10
-          WAIT_SECONDS=60
-          for attempt in $(seq 1 $MAX_ATTEMPTS); do
-            echo "Attempt $attempt/$MAX_ATTEMPTS: installing punt-z-spec==$VERSION from TestPyPI..."
-            if uv pip install --system --refresh \
-              --index-url https://test.pypi.org/simple/ \
-              --extra-index-url https://pypi.org/simple/ \
-              --index-strategy unsafe-best-match \
-              "punt-z-spec==$VERSION"; then
-              echo "Successfully installed punt-z-spec==$VERSION"
+          mkdir -p "$HOME/.local"
+          tar -C "$HOME/.local" -xzf "$RUNNER_TEMP/fuzz.tar.gz"
+          export PATH="$HOME/.local/bin:$PATH"
+          wheels=(dist/punt_z_spec-*.whl)
+          [[ "${#wheels[@]}" == 1 && -f "${wheels[0]}" ]]
+          filename="${wheels[0]##*/}"
+          work=$(mktemp -d)
+          trap 'rm -rf -- "$work"' EXIT
+          index="https://test.pypi.org/simple/punt-z-spec/"
+          staged="$work/$filename"
+          for attempt in 1 2 3 4 5; do
+            if metadata=$(curl -fsS --max-time 15 -H 'Accept: application/vnd.pypi.simple.v1+json' "$index") &&
+              url=$(jq -er --arg name "$filename" '.files[] | select(.filename == $name and (.yanked // false) == false) | .url' <<<"$metadata") &&
+              [[ "$url" == https://test-files.pythonhosted.org/* ]] &&
+              curl -fsSL --proto '=https' --proto-redir '=https' --max-time 20 "$url" -o "$staged"; then
+              cmp "${wheels[0]}" "$staged"
+              bash scripts/smoke-release.sh candidate "${GITHUB_REF_NAME#v}" "$staged"
               exit 0
             fi
-            echo "Attempt $attempt failed, waiting ${WAIT_SECONDS}s..."
-            sleep $WAIT_SECONDS
+            echo "TestPyPI wheel unavailable (attempt $attempt)"
+            [[ "$attempt" == 5 ]] || sleep 15
           done
-          echo "Failed to install punt-z-spec==$VERSION after $MAX_ATTEMPTS attempts"
+          echo "::error::Could not download $filename from TestPyPI"
           exit 1
-      - name: Verify CLI
-        run: z-spec --help
 
   pypi:
     needs: test-install
@@ -97,3 +124,28 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
+
+  published-smoke:
+    needs: pypi
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-fuzz
+          path: ${{ runner.temp }}
+      - name: Check the published version on PyPI
+        run: |
+          mkdir -p "$HOME/.local"
+          tar -C "$HOME/.local" -xzf "$RUNNER_TEMP/fuzz.tar.gz"
+          export PATH="$HOME/.local/bin:$PATH"
+          bash scripts/smoke-release.sh published "${GITHUB_REF_NAME#v}"
