@@ -28,7 +28,12 @@ installed pre-push entry point with an executable wrapper:
 
 ```bash
 #!/usr/bin/env bash
-exec .githooks/pre-push --chain /path/to/custom-hook "$@"
+chain=/path/to/custom-hook
+if [[ -x .githooks/pre-push ]]; then
+  exec .githooks/pre-push --chain "$chain" "$@"
+fi
+printf '%s\n' 'z-spec pre-push gate not present in this worktree; skipping it.' >&2
+exec "$chain" "$@"
 ```
 
 Point `/path/to/custom-hook` at the hook you moved. Both hooks then receive

@@ -184,6 +184,36 @@ def test_prepush_runs_gate_after_an_upstream_hook_consumes_refs(
     assert "ran-push-gate" in result.stdout
 
 
+def test_prepush_wrapper_falls_through_in_older_worktree(
+    tmp_path: Path, prepush_hook: Path
+) -> None:
+    legacy = tmp_path / "legacy"
+    subprocess.run(
+        ["git", "worktree", "add", "--quiet", "--detach", str(legacy), "HEAD"],
+        cwd=prepush_hook.parents[1],
+        check=True,
+    )
+    assert not (legacy / ".githooks/pre-push").exists()
+    custom_hook = tmp_path / "custom-hook"
+    custom_hook.write_text("#!/bin/sh\ncat\n")
+    custom_hook.chmod(0o755)
+    docs = (_ROOT / "TESTING.md").read_text()
+    blocks = (block.split("```", 1)[0] for block in docs.split("```bash\n")[1:])
+    script = next(block for block in blocks if ".githooks/pre-push --chain" in block)
+    result = subprocess.run(
+        ["bash", "-c", script.replace("/path/to/custom-hook", str(custom_hook))],
+        cwd=legacy,
+        input="refs forwarded to the custom hook\n",
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "refs forwarded to the custom hook\n"
+    assert "gate not present in this worktree" in result.stderr
+
+
 def test_changed_module_and_test_select_relevant_paths(tmp_path: Path) -> None:
     tests = tmp_path / "tests"
     tests.mkdir()
