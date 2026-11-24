@@ -1,4 +1,4 @@
-.PHONY: help lint type test test-py test-e2e check check-oo update-oo check-coupling update-coupling check-suppressions update-suppressions check-dev-commands gen-dev-commands check-comments check-docstrings build-api-docs format build install uat clean depot assert report spec-reports metrics coverage
+.PHONY: help lint type test test-py test-e2e check check-oo update-oo check-coupling update-coupling check-suppressions update-suppressions check-dev-commands gen-dev-commands check-comments check-docstrings build-api-docs format build install uat clean depot assert report spec-reports metrics coverage coverage-ci
 
 FUZZ      ?= fuzz
 PROBCLI   ?= $(HOME)/Applications/ProB/probcli
@@ -74,7 +74,7 @@ test-py:
 	uv run pytest tests/ -v
 
 test-e2e: ## Tier 5 — drive the INSTALLED binary and MCP server (run make install first)
-	uv run pytest tests/e2e -v -m e2e
+	Z_SPEC_TEST_EXECUTABLE="$$(uv tool dir --bin)/z-spec" uv run pytest tests/e2e -v -m e2e
 
 test-z-%: examples/%.tex
 	@echo "probcli $< (setsize=$(SETSIZE))"
@@ -164,7 +164,10 @@ metrics: ## ABC complexity metrics on src/
 	uv run python tools/run_metrics.py
 
 coverage: ## Run tests with coverage report (terminal + HTML)
-	uv run python tools/run_coverage.py
+	uv run pytest tests/ --cov --cov-report=term-missing --cov-report=html
+
+coverage-ci: ## Run the default suite with line and branch coverage (XML)
+	uv run pytest tests/ --cov --cov-report=term --cov-report=xml
 
 DEPOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))../.depot
 

@@ -4,22 +4,26 @@ The MCP surface is the one clients actually connect to, and it is the surface
 where packaging faults surface as a hung "Loading…" rather than an error: the
 server starts, the tool answers, and the data file it needed was never in the
 wheel. Nothing in-process can see that. This spawns ``z-spec mcp``, completes
-the JSON-RPC handshake, and asserts the tool list matches the registry.
+the JSON-RPC handshake, checks the tool list, and calls ``check``.
 """
 
 from __future__ import annotations
 
 import json
 import queue
-import shutil
 import subprocess
 import threading
 import time
-from typing import IO, Any, NoReturn, Self, final
+from contextlib import contextmanager
+from typing import IO, TYPE_CHECKING, Any, NoReturn, Self, final
 
 import pytest
 
 from punt_zspec.commands.registry import CAPABILITIES
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
+    from pathlib import Path
 
 pytestmark = pytest.mark.e2e
 
@@ -158,41 +162,64 @@ class StdioClient:
         raise AssertionError(f"{reason}\n--- server stderr ---\n{self._err.text()}")
 
 
-def _spawn() -> subprocess.Popen[str]:
-    binary = shutil.which("z-spec")
-    if binary is None:
-        pytest.skip("z-spec is not installed — run `make install` first")
-    return subprocess.Popen(
-        [binary, "mcp"],
+@contextmanager
+def _connect(
+    z_spec: str, directory: Path, env: dict[str, str]
+) -> Generator[StdioClient]:
+    with subprocess.Popen(
+        [z_spec, "mcp"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         bufsize=1,
-    )
+        cwd=directory,
+        env=env,
+    ) as proc:
+        try:
+            client = StdioClient(proc)
+            client.request(
+                "initialize",
+                {
+                    "protocolVersion": _PROTOCOL_VERSION,
+                    "capabilities": {},
+                    "clientInfo": {"name": "z-spec-e2e", "version": "0"},
+                },
+            )
+            client.notify("notifications/initialized")
+            yield client
+        finally:
+            proc.terminate()
+            try:
+                proc.wait(timeout=_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
 
 
-def test_installed_server_exposes_every_registry_tool() -> None:
-    proc = _spawn()
-    try:
-        client = StdioClient(proc)
-        client.request(
-            "initialize",
-            {
-                "protocolVersion": _PROTOCOL_VERSION,
-                "capabilities": {},
-                "clientInfo": {"name": "z-spec-e2e", "version": "0"},
-            },
-        )
-        client.notify("notifications/initialized")
+def test_installed_server_exposes_every_registry_tool(
+    z_spec: str, tmp_path: Path, child_env: dict[str, str]
+) -> None:
+    with _connect(z_spec, tmp_path, child_env) as client:
         result = client.request("tools/list")
 
         names = {tool["name"] for tool in result["tools"]}
         missing = [c.mcp_tool for c in CAPABILITIES if c.mcp_tool not in names]
         assert not missing, f"tools absent from the installed server: {missing}"
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=_TIMEOUT)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+
+
+def test_installed_server_type_checks_a_real_spec(
+    z_spec: str, spec: Path, child_env: dict[str, str]
+) -> None:
+    with _connect(z_spec, spec.parent, child_env) as client:
+        result = client.request(
+            "tools/call", {"name": "check", "arguments": {"file": spec.name}}
+        )
+
+    assert not result.get("isError"), result
+    [content] = result["content"]
+    assert content["type"] == "text"
+    payload = json.loads(content["text"])
+    assert payload["ok"] is True, payload
+    assert payload["errors"] == []
+    assert json.loads(spec.with_suffix(".fuzz.json").read_text()) == payload
