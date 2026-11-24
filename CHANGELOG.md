@@ -29,11 +29,6 @@ All notable changes to this project will be documented in this file.
   and a checkout unchanged since SubagentStart. Bash-only edits still run
   the gate. Agent hooks are regenerated from Ethos's bounded-stdin template.
 
-### Fixed
-
-- The Lux subscription no longer starts listening if shutdown was requested
-  while it was creating a listener.
-
 ## [0.21.0] - 2026-11-22
 
 ### Added
