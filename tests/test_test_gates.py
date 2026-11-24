@@ -19,9 +19,35 @@ _ROOT = Path(__file__).resolve().parents[1]
 
 def test_precommit_tests_the_index_not_the_working_tree(tmp_path: Path) -> None:
     subprocess.run(["git", "init", "--quiet"], cwd=tmp_path, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Tester",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "-m",
+            "baseline",
+        ],
+        cwd=tmp_path,
+        check=True,
+    )
+    head = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=tmp_path, text=True
+    ).strip()
     (tmp_path / "tests").mkdir()
     probe = tmp_path / "tests/test_probe.py"
-    probe.write_text("def test_probe():\n    assert False, 'index-only failure'\n")
+    probe.write_text(
+        "import subprocess\n"
+        "def test_probe():\n"
+        "    current = subprocess.check_output("
+        "['git', 'rev-parse', 'HEAD'], text=True)\n"
+        f"    assert current.strip() == {head!r}\n"
+        "    assert False, 'index-only failure'\n"
+    )
     subprocess.run(["git", "add", "tests/test_probe.py"], cwd=tmp_path, check=True)
     probe.write_text("def test_probe():\n    assert True\n")
 

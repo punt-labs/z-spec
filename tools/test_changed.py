@@ -97,6 +97,11 @@ def main() -> int:
     with TemporaryDirectory(prefix="z-spec-staged-") as temp:
         root = Path(temp)
         subprocess.run(
+            ["git", "clone", "--quiet", "--shared", "--no-checkout", ".", temp],
+            env=env,
+            check=True,
+        )
+        subprocess.run(
             [
                 "git",
                 "checkout-index",
