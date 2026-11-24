@@ -3,7 +3,7 @@
 Quality gates, in order:
 
 ```bash
-uv sync
+uv sync --frozen --extra dev
 ```
 
 ```bash
