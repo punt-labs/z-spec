@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -148,3 +148,48 @@ def test_collection_rejects_invalid_quarantine() -> None:
 
     with pytest.raises(pytest.UsageError, match="test_flaky: quarantine requires"):
         pytest_collection_modifyitems([item])
+
+
+@pytest.mark.parametrize("expired", [True, False])
+def test_quarantine_is_enforced_during_real_collection(
+    tmp_path: Path, expired: bool
+) -> None:
+    (tmp_path / "conftest.py").write_bytes((_ROOT / "tests/conftest.py").read_bytes())
+    expires = "2000-01-01" if expired else datetime.now(UTC).date().isoformat()
+    (tmp_path / "test_probe.py").write_text(
+        "import pytest\n"
+        f"@pytest.mark.quarantine(issue='PL-1', owner='tester', "
+        f"reason='probe', expires={expires!r})\n"
+        "def test_quarantined():\n    pass\n"
+        "def test_default():\n    pass\n"
+    )
+    args = ["--collect-only"] if expired else ["-m", "quarantine"]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-c",
+            str(_ROOT / "pyproject.toml"),
+            "--rootdir",
+            str(tmp_path),
+            *args,
+            "test_probe.py",
+        ],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "PYTHONPATH": str(_ROOT),
+            "PYTEST_ADDOPTS": f"--basetemp={tmp_path / 'child'}",
+        },
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    if expired:
+        assert result.returncode == pytest.ExitCode.USAGE_ERROR
+        assert "test_quarantined: quarantine requires" in result.stderr
+    else:
+        assert result.returncode == 0, result.stderr
+        assert "1 passed, 1 deselected" in result.stdout
