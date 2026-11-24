@@ -40,6 +40,42 @@ def test_precommit_tests_the_index_not_the_working_tree(tmp_path: Path) -> None:
     assert probe.read_text() == "def test_probe():\n    assert True\n"
 
 
+def test_prepush_refuses_to_test_a_different_commit(tmp_path: Path) -> None:
+    subprocess.run(["git", "init", "--quiet"], cwd=tmp_path, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Tester",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "-m",
+            "probe",
+        ],
+        cwd=tmp_path,
+        check=True,
+    )
+    hooks = tmp_path / ".githooks"
+    hooks.mkdir()
+    installed = hooks / "pre-push"
+    installed.write_bytes((_ROOT / ".githooks/pre-push").read_bytes())
+    installed.chmod(0o755)
+    result = subprocess.run(
+        [str(installed)],
+        cwd=tmp_path,
+        input=f"refs/heads/other {'1' * 40} refs/heads/other {'0' * 40}\n",
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "check it out and push it separately" in result.stderr
+
+
 def test_changed_module_and_test_select_relevant_paths(tmp_path: Path) -> None:
     tests = tmp_path / "tests"
     tests.mkdir()

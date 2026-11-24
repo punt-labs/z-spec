@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ -x .githooks/pre-push ]]; then
+[[ -x .githooks/pre-push ]] || exit 0
+head=$(git rev-parse HEAD)
+updates=0
+while read -r local_ref local_oid _remote_ref _remote_oid; do
+  [[ "$local_ref" == '(delete)' ]] && continue
+  if [[ "$local_oid" != "$head" ]]; then
+    printf 'Cannot test pushed ref %s: check it out and push it separately.\n' "$local_ref" >&2
+    exit 1
+  fi
+  updates=1
+done
+if ((updates)); then
   make test-push </dev/null
 fi
