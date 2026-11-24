@@ -53,21 +53,37 @@ design, not a hole.
 
 ### The subprocess tier
 
-`tests/e2e/` drives the `z-spec` binary that `make install` put on `PATH` — not
-the working tree. `test_installed_cli.py` runs it as a subprocess (`--version`,
+`tests/e2e/` drives the `z-spec` binary that `make install` put in uv's tool
+directory — not the editable entry point on pytest's `PATH`.
+`test_installed_cli.py` runs it as a subprocess (`--version`,
 every registry verb in `--help`, a missing spec failing without a traceback,
 `check` reaching the real `fuzz`, `doctor` from an unrelated directory) and
 `test_installed_mcp.py` drives the MCP server over stdio with a JSON-RPC
 `initialize` handshake and `tools/list` asserted against the capability registry.
+It also calls the real `check` tool in a temporary enabled repository and
+asserts both the tool result and the report it writes.
 
 These catch the packaging faults no in-process test can see: an entry point that
 does not resolve, a data file absent from the wheel, a `__file__`-relative path
 that only works in a checkout. `pyproject.toml` declares the `e2e` marker and
 `addopts` deselects it by default, so a plain `pytest` run does not test whatever
-wheel happens to be installed. Run it with `make test-e2e`.
+wheel happens to be installed. Run it with `make test-e2e` or
+`uv run pytest -m e2e` after `make install`, with Git and real `fuzz` on
+`PATH`. Missing prerequisites
+fail the suite rather than silently reducing the evidence. Tests copy the
+spec into temporary state and do not require ProB or a running Lux daemon.
 
 Tests mirror source: one `test_*.py` per module, `tests/commands/` and
 `tests/lux/` mirroring their packages, `conftest.py` for shared fixtures.
+
+### Coverage
+
+`make coverage` reports line and branch coverage in the terminal and at
+`htmlcov/index.html`. `make coverage-ci` runs the same selection and
+generates `coverage.xml`; PR and main CI publish successful reports per
+commit and OS. Coverage includes `punt_zspec` code run in the default
+pytest process. It excludes the installed CLI and MCP subprocesses,
+external binaries, and manual UAT. There is no percentage floor.
 
 ### Release gates
 

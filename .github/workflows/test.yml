@@ -28,7 +28,12 @@ jobs:
         with:
           python-version: "3.13"
       - run: uv sync --frozen --all-extras
-      - run: make test-py
+      - run: make coverage-ci
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-${{ github.sha }}-${{ matrix.os }}
+          path: coverage.xml
+          if-no-files-found: error
 
   # Tier 5 (partial): drives the INSTALLED wheel — the z-spec binary as a
   # subprocess and the MCP server over stdio. This is the tier that catches
@@ -48,7 +53,25 @@ jobs:
         with:
           python-version: "3.13"
       - run: uv sync --frozen --all-extras
-      - run: make install
+      - name: Install build prerequisites (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential bison flex
+      - name: Install build prerequisites (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install bison flex
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
+      - name: Build fuzz and install the candidate wheel
+        env:
+          UV_TOOL_DIR: ${{ runner.temp }}/z-spec-tools
+          UV_TOOL_BIN_DIR: ${{ runner.temp }}/z-spec-bin
+        run: |
+          ./install.sh --fuzz-only
+          export PATH="$UV_TOOL_BIN_DIR:$HOME/.local/bin:$PATH"
+          make install
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          printf 'UV_TOOL_BIN_DIR=%s\n' "$UV_TOOL_BIN_DIR" >> "$GITHUB_ENV"
       - run: make test-e2e
 
   # Tiers 2 + 3: the Z spec corpus, type-checked with fuzz and model-checked

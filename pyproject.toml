@@ -144,8 +144,8 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["src"]
-omit = ["tests/*"]
+source = ["punt_zspec"]
+branch = true
 
 [tool.coverage.report]
 exclude_lines = [

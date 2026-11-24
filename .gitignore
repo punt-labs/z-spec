@@ -105,6 +105,7 @@ build/
 .ruff_cache/
 .coverage
 .coverage.*
+/coverage.xml
 htmlcov/
 uv.toml
 
