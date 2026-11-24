@@ -32,7 +32,7 @@ jobs:
       - run: uv run pyright src/ tests/ tools/
       # Mirrors `make lint`'s shellcheck line exactly; plugin/hooks/*.sh ships
       # to users, so it is linted with the release scripts and the installer.
-      - run: shellcheck -x scripts/*.sh install.sh plugin/hooks/*.sh
+      - run: shellcheck -x scripts/*.sh install.sh plugin/hooks/*.sh .githooks/pre-commit .githooks/pre-push
       # Every prod slash command has a generated -dev twin; drift means the dev
       # plugin and the shipped plugin disagree.
       - run: make check-dev-commands
