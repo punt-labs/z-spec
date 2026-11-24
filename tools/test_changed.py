@@ -8,6 +8,7 @@ import subprocess
 import sys
 from importlib.util import resolve_name
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import pytest
 
@@ -78,16 +79,40 @@ def main() -> int:
     names = subprocess.check_output(
         ["git", "diff", "--cached", "--no-renames", "--name-only", "-z"]
     )
-    selected = select_tests(
-        Path.cwd(), {Path(os.fsdecode(name)) for name in names.split(b"\0") if name}
-    )
-    if selected == []:
+    staged = {Path(os.fsdecode(name)) for name in names.split(b"\0") if name}
+    if not staged:
         return 0
-    command = [sys.executable, "-m", "pytest"]
-    code = subprocess.call([*command, *(str(path) for path in selected or [])])
-    if selected is not None and code == pytest.ExitCode.NO_TESTS_COLLECTED:
-        return subprocess.call(command)
-    return code
+    git_env = subprocess.check_output(
+        ["git", "rev-parse", "--local-env-vars"], text=True
+    )
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in git_env.splitlines()
+    }
+    with TemporaryDirectory(prefix="z-spec-staged-") as temp:
+        root = Path(temp)
+        subprocess.run(
+            [
+                "git",
+                "checkout-index",
+                "--all",
+                "--ignore-skip-worktree-bits",
+                f"--prefix={root}/",
+            ],
+            check=True,
+        )
+        env["PYTHONPATH"] = os.pathsep.join((str(root / "src"), str(root)))
+        selected = select_tests(root, staged)
+        if selected == []:
+            return 0
+        command = [sys.executable, "-m", "pytest"]
+        code = subprocess.call(
+            [*command, *(str(path) for path in selected or [])], cwd=root, env=env
+        )
+        if selected is not None and code == pytest.ExitCode.NO_TESTS_COLLECTED:
+            return subprocess.call(command, cwd=root, env=env)
+        return code
 
 
 if __name__ == "__main__":

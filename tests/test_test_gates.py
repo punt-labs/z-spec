@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from datetime import date
 from pathlib import Path
 from unittest.mock import Mock
@@ -10,6 +13,31 @@ import pytest
 
 from tools.test_changed import select_tests
 from tools.test_quarantine import pytest_collection_modifyitems, quarantine_is_valid
+
+_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_precommit_tests_the_index_not_the_working_tree(tmp_path: Path) -> None:
+    subprocess.run(["git", "init", "--quiet"], cwd=tmp_path, check=True)
+    (tmp_path / "tests").mkdir()
+    probe = tmp_path / "tests/test_probe.py"
+    probe.write_text("def test_probe():\n    assert False, 'index-only failure'\n")
+    subprocess.run(["git", "add", "tests/test_probe.py"], cwd=tmp_path, check=True)
+    probe.write_text("def test_probe():\n    assert True\n")
+
+    result = subprocess.run(
+        [sys.executable, str(_ROOT / "tools/test_changed.py")],
+        cwd=tmp_path,
+        env={**os.environ, "PYTEST_ADDOPTS": f"--basetemp={tmp_path / 'child'}"},
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+
+    assert result.returncode == 1, result.stderr
+    assert "AssertionError: index-only failure" in result.stdout
+    assert probe.read_text() == "def test_probe():\n    assert True\n"
 
 
 def test_changed_module_and_test_select_relevant_paths(tmp_path: Path) -> None:
