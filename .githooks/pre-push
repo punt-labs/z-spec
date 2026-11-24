@@ -2,6 +2,15 @@
 set -euo pipefail
 
 [[ -x .githooks/pre-push ]] || exit 0
+chain=
+if [[ "${1:-}" == --chain ]]; then
+  chain=${2:?--chain requires a hook path}
+  shift 2
+fi
+refs=$(mktemp)
+trap 'rm -f "$refs"' EXIT
+cat > "$refs"
+
 head=$(git rev-parse HEAD)
 updates=0
 while read -r local_ref local_oid _remote_ref _remote_oid; do
@@ -12,7 +21,10 @@ while read -r local_ref local_oid _remote_ref _remote_oid; do
     exit 1
   fi
   updates=1
-done
-if ((updates)); then
+done < "$refs"
+if ((updates)) || [[ ! -s "$refs" ]]; then
   make test-push </dev/null
+fi
+if [[ -n "$chain" ]]; then
+  "$chain" "$@" < "$refs"
 fi

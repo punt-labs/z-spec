@@ -110,7 +110,7 @@ def test_prepush_refuses_to_test_a_different_commit(
     assert "check it out and push it separately" in result.stderr
 
 
-def test_prepush_tests_annotated_tag_at_head(tmp_path: Path, prepush_hook: Path) -> None:
+def test_prepush_accepts_tag_at_head(tmp_path: Path, prepush_hook: Path) -> None:
     subprocess.run(
         [
             "git",
@@ -134,6 +134,47 @@ def test_prepush_tests_annotated_tag_at_head(tmp_path: Path, prepush_hook: Path)
         [str(prepush_hook)],
         cwd=tmp_path,
         input=f"refs/tags/v1 {tag} refs/tags/v1 {'0' * len(tag)}\n",
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "ran-push-gate" in result.stdout
+
+
+def test_prepush_replays_refs_and_args_to_chained_hook(
+    tmp_path: Path, prepush_hook: Path
+) -> None:
+    custom_hook = tmp_path / "custom-hook"
+    custom_hook.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > args\ncat > refs\n')
+    custom_hook.chmod(0o755)
+    head = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=tmp_path, text=True
+    ).strip()
+    refs = f"HEAD {head} refs/heads/main {'0' * len(head)}\n"
+    result = subprocess.run(
+        [str(prepush_hook), "--chain", str(custom_hook), "origin", "remote-url"],
+        cwd=tmp_path,
+        input=refs,
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "ran-push-gate" in result.stdout
+    assert (tmp_path / "args").read_text() == "origin\nremote-url\n"
+    assert (tmp_path / "refs").read_text() == refs
+
+
+def test_prepush_runs_gate_after_an_upstream_hook_consumes_refs(
+    tmp_path: Path, prepush_hook: Path
+) -> None:
+    result = subprocess.run(
+        ["sh", "-c", 'cat >/dev/null; exec "$@"', "pre-push", str(prepush_hook)],
+        cwd=tmp_path,
+        input="a ref update consumed by the preceding hook\n",
         text=True,
         capture_output=True,
         timeout=10,
