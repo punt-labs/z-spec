@@ -5,8 +5,9 @@ set -euo pipefail
 head=$(git rev-parse HEAD)
 updates=0
 while read -r local_ref local_oid _remote_ref _remote_oid; do
-  [[ "$local_ref" == '(delete)' ]] && continue
-  if [[ "$local_oid" != "$head" ]]; then
+  [[ "$local_ref" == '(delete)' || "$local_oid" =~ ^0+$ ]] && continue
+  if ! commit=$(git rev-parse --verify --end-of-options "${local_oid}^{commit}" 2>/dev/null) ||
+    [[ "$commit" != "$head" ]]; then
     printf 'Cannot test pushed ref %s: check it out and push it separately.\n' "$local_ref" >&2
     exit 1
   fi

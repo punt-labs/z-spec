@@ -66,7 +66,8 @@ def test_precommit_tests_the_index_not_the_working_tree(tmp_path: Path) -> None:
     assert probe.read_text() == "def test_probe():\n    assert True\n"
 
 
-def test_prepush_refuses_to_test_a_different_commit(tmp_path: Path) -> None:
+@pytest.fixture
+def prepush_hook(tmp_path: Path) -> Path:
     subprocess.run(["git", "init", "--quiet"], cwd=tmp_path, check=True)
     subprocess.run(
         [
@@ -89,8 +90,15 @@ def test_prepush_refuses_to_test_a_different_commit(tmp_path: Path) -> None:
     installed = hooks / "pre-push"
     installed.write_bytes((_ROOT / ".githooks/pre-push").read_bytes())
     installed.chmod(0o755)
+    (tmp_path / "Makefile").write_text("test-push:\n\t@echo ran-push-gate\n")
+    return installed
+
+
+def test_prepush_refuses_to_test_a_different_commit(
+    tmp_path: Path, prepush_hook: Path
+) -> None:
     result = subprocess.run(
-        [str(installed)],
+        [str(prepush_hook)],
         cwd=tmp_path,
         input=f"refs/heads/other {'1' * 40} refs/heads/other {'0' * 40}\n",
         text=True,
@@ -100,6 +108,39 @@ def test_prepush_refuses_to_test_a_different_commit(tmp_path: Path) -> None:
     )
     assert result.returncode == 1
     assert "check it out and push it separately" in result.stderr
+
+
+def test_prepush_tests_annotated_tag_at_head(tmp_path: Path, prepush_hook: Path) -> None:
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Tester",
+            "-c",
+            "user.email=test@example.com",
+            "tag",
+            "-a",
+            "v1",
+            "-m",
+            "probe",
+        ],
+        cwd=tmp_path,
+        check=True,
+    )
+    tag = subprocess.check_output(
+        ["git", "rev-parse", "refs/tags/v1"], cwd=tmp_path, text=True
+    ).strip()
+    result = subprocess.run(
+        [str(prepush_hook)],
+        cwd=tmp_path,
+        input=f"refs/tags/v1 {tag} refs/tags/v1 {'0' * len(tag)}\n",
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "ran-push-gate" in result.stdout
 
 
 def test_changed_module_and_test_select_relevant_paths(tmp_path: Path) -> None:
