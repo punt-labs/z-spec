@@ -139,17 +139,14 @@ class ZSpecSubscription:
         Menu registration rides ``on_connect`` (fired on every handshake), not
         this loop, so an internal reconnect re-registers register-fresh.
         """
-
-        def build_listener() -> HubListener:
-            return self._listen(
-                on_callback=self.on_callback,
-                on_event=self.on_event,
-                on_connect=self.on_connect,
-            )
-
-        self._listener = await asyncio.to_thread(build_listener)
-        if not self._is_stopped():
-            await self._listener.listen()
+        listener = await asyncio.to_thread(
+            self._listen,
+            on_callback=self.on_callback,
+            on_event=self.on_event,
+            on_connect=self.on_connect,
+        )
+        self._listener = listener
+        await listener.listen()
 
     async def on_connect(self) -> None:
         """Re-register both menu entries after every handshake, where z-spec is on.
@@ -206,5 +203,6 @@ class ZSpecSubscription:
     def stop(self) -> None:
         """Ask the receive leg to finish after its current connection closes."""
         self._stopped = True
-        if (listener := self._listener) is not None:
+        listener = self._listener
+        if listener is not None:
             listener.stop()
