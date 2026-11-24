@@ -26,6 +26,11 @@ fuzz=$(command -v fuzz) || {
   echo "fuzz is required; run ./install.sh --fuzz-only and add it to PATH." >&2
   exit 1
 }
+git_bin=$(type -P git) || {
+  echo "git is required; add it to PATH." >&2
+  exit 1
+}
+[[ "$git_bin" == /* ]] || git_bin="$PWD/$git_bin"
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT
 printf 'Testing punt-z-spec %s from %s\n' "$version" "$channel"
@@ -54,7 +59,7 @@ cd "$work/repo"
 isolated=(env -i "PATH=$work/venv/bin:/usr/bin:/bin" "HOME=$work/home"
   "GIT_CONFIG_NOSYSTEM=1" "PUNT_TELEMETRY=off" "LUX_SOCKET=$work/no-lux.sock"
   "FUZZ=$fuzz")
-"${isolated[@]}" git init --quiet
+"${isolated[@]}" "$git_bin" init --quiet
 touch .punt-labs/z-spec/enabled
 spec=animation-hints-good.tex
 cp "$root/examples/$spec" .
