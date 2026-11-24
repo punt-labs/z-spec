@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 import sys
 from datetime import UTC, date, datetime
@@ -54,7 +55,10 @@ def test_precommit_tests_the_index_not_the_working_tree(tmp_path: Path) -> None:
     result = subprocess.run(
         [sys.executable, str(_ROOT / "tools/test_changed.py")],
         cwd=tmp_path,
-        env={**os.environ, "PYTEST_ADDOPTS": f"--basetemp={tmp_path / 'child'}"},
+        env={
+            **os.environ,
+            "PYTEST_ADDOPTS": shlex.join(["--basetemp", str(tmp_path / "child")]),
+        },
         capture_output=True,
         text=True,
         timeout=20,
@@ -198,14 +202,15 @@ def test_prepush_wrapper_falls_through_in_older_worktree(
         check=True,
     )
     assert not (legacy / ".githooks/pre-push").exists()
-    custom_hook = tmp_path / "custom-hook"
+    custom_hook = tmp_path / "custom hook"
     custom_hook.write_text("#!/bin/sh\ncat\n")
     custom_hook.chmod(0o755)
     docs = (_ROOT / "TESTING.md").read_text()
     blocks = (block.split("```", 1)[0] for block in docs.split("```bash\n")[1:])
     script = next(block for block in blocks if ".githooks/pre-push --chain" in block)
+    script = script.replace("/path/to/custom-hook", shlex.quote(str(custom_hook)))
     result = subprocess.run(
-        ["bash", "-c", script.replace("/path/to/custom-hook", str(custom_hook))],
+        ["bash", "-c", script],
         cwd=legacy,
         input="refs forwarded to the custom hook\n",
         text=True,
@@ -343,7 +348,7 @@ def test_quarantine_is_enforced_during_real_collection(
         env={
             **os.environ,
             "PYTHONPATH": str(_ROOT),
-            "PYTEST_ADDOPTS": f"--basetemp={tmp_path / 'child'}",
+            "PYTEST_ADDOPTS": shlex.join(["--basetemp", str(tmp_path / "child")]),
         },
         capture_output=True,
         text=True,
