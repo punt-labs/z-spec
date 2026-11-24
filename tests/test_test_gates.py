@@ -103,6 +103,12 @@ def test_docs_only_changes_do_not_select_python_tests(tmp_path: Path) -> None:
     assert select_tests(tmp_path, {Path("TESTING.md")}) == []
 
 
+def test_oracle_protocol_doc_selects_its_prompt_contract() -> None:
+    assert select_tests(_ROOT, {Path("docs/prd/z-oracle.md")}) == [
+        Path("tests/commands/test_prompt_contracts.py")
+    ]
+
+
 def test_indirect_source_consumers_select_default_suite(tmp_path: Path) -> None:
     source = tmp_path / "src/punt_zspec"
     source.mkdir(parents=True)

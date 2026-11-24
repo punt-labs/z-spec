@@ -13,6 +13,9 @@ from tempfile import TemporaryDirectory
 import pytest
 
 _SHARED = frozenset({"Makefile", "install.sh", "pyproject.toml", "uv.lock"})
+_DOC_TESTS = {
+    Path("docs/prd/z-oracle.md"): Path("tests/commands/test_prompt_contracts.py"),
+}
 _TEST_INFRA = frozenset(
     {".github", ".githooks", "examples", "plugin", "scripts", "tools"}
 )
@@ -59,6 +62,7 @@ def select_tests(root: Path, staged: set[Path]) -> list[Path] | None:
         return None
     sources = {path for path in staged if path.is_relative_to("src")}
     tests = {path for path in staged if path.is_relative_to("tests")}
+    tests.update(_DOC_TESTS[path] for path in staged if path in _DOC_TESTS)
     if any(
         not path.match("test_*.py") or not (root / path).is_file() for path in tests
     ):
