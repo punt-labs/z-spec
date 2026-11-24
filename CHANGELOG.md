@@ -12,6 +12,8 @@ All notable changes to this project will be documented in this file.
   server on Linux and macOS and publish default-suite line and branch coverage.
 - Added local test hooks, a trusted Nightly gate, and a tracked test
   quarantine policy.
+- The local pre-push gate accepts annotated tags on the checked-out commit
+  and preserves the pushed refs when chaining an existing hook.
 
 - `make design-gate` is part of `make check` rather than an optional local
   gate. It compares against `origin/main` by default (override `DESIGN_BASE`),

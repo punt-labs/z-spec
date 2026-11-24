@@ -23,9 +23,16 @@ Provision Python 3.13, Git, and uv, then run `uv sync --frozen --all-extras`.
 Run `make hooks` to activate the local gates. It preserves other Git hooks
 and leaves linked worktrees without these test commands unaffected. If the
 repo already has a custom pre-commit hook, invoke `.githooks/pre-commit`
-from it. To chain a custom pre-push hook, move it aside and have the
-installed hook run `exec .githooks/pre-push --chain /path/to/custom-hook "$@"`
-before reading stdin. Both hooks then receive the same list of refs.
+from it. To chain a custom pre-push hook, move it aside and replace the
+installed pre-push entry point with an executable wrapper:
+
+```bash
+#!/usr/bin/env bash
+exec .githooks/pre-push --chain /path/to/custom-hook "$@"
+```
+
+Point `/path/to/custom-hook` at the hook you moved. Both hooks then receive
+the same list of refs. Don't run `make hooks` to install this wrapper.
 The hook targets use system temporary storage rather than the checkout's
 `.tmp`.
 For direct local pytest runs under direnv, use `--basetemp` with a dedicated
