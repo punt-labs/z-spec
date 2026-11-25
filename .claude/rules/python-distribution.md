@@ -82,12 +82,12 @@ must match. Version bump is a single operation that updates all mirrors.
 
 **Criterion**:
 
-- Pass: all version references agree; `punt release` handles bumping
+- Pass: all version references agree; `punt release run` handles bumping
 - Fail: version mismatch between pyproject.toml and plugin.json
 
 **Tooling**:
 
-- `punt audit` checks version sync across files
+- `punt repo audit` checks version sync across files
 
 ## PL-DI-6: Local Wheels for Dev Iteration
 

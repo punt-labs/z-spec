@@ -67,5 +67,5 @@ No `.env` files committed, no hardcoded keys, no profiles.
 
 **Tooling**:
 
-- `punt pii` — scans for secrets
+- `punt repo scan-pii` — scans for secrets
 - Grep: `grep -rn "sk-\|api_key\s*=" --include="*.py" src/`

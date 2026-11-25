@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Updated the repository's audit, PII scanning, and release instructions to
+  use the new Punt CLI command tree.
+
 - Releases now type-check a real Z spec via the installed CLI and MCP server
   before production promotion and again from the exact version on PyPI.
 - PR and main CI type-check a real spec through the installed CLI and MCP

@@ -67,7 +67,7 @@ short name. Python import uses underscores.
 
 **Tooling**:
 
-- `punt audit` checks pyproject.toml compliance
+- `punt repo audit` checks pyproject.toml compliance
 
 ## PL-PL-3: Test Structure
 
