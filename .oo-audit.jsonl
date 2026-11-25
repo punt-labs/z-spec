@@ -157,3 +157,4 @@
 {"ts":"2026-11-22T01:40:33Z","commit":"e8c8957","source":null,"files_scored":63,"files_improved":1,"files_regressed":0,"verdict":"pass","deltas":{"src/punt_zspec/lux/subscription.py":{"module_size":[111.0,110.0]}},"removed":[]}
 {"ts":"2026-11-22T02:53:25Z","commit":"f87c8dd","source":null,"files_scored":63,"files_improved":1,"files_regressed":0,"verdict":"pass","deltas":{"src/punt_zspec/lux/subscription.py":{"module_size":[110.0,108.0]}},"removed":[]}
 {"ts":"2026-11-24T03:23:20Z","commit":"990a2f7","source":null,"files_scored":63,"files_improved":1,"files_regressed":0,"verdict":"pass","deltas":{"src/punt_zspec/lux/subscription.py":{"avg_params":[0.9,0.82],"avg_complexity":[2.1,2.09]}},"removed":[]}
+{"ts":"2026-11-25T02:11:38Z","commit":"dc3fec3","source":null,"files_scored":63,"files_improved":1,"files_regressed":0,"verdict":"pass","deltas":{"src/punt_zspec/commands/enablement.py":{"avg_complexity":[1.32,1.27]}},"removed":[]}

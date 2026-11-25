@@ -31,7 +31,7 @@ from punt_zspec.types import EnablementAction, EnablementReport
 __all__ = ["DepositedGuide", "EnabledMarker", "RepoEnablement"]
 
 # The exact canonical repo-scope import line (§2.4): byte-identical across all
-# punt CLIs, what enable writes, what disable prunes, what punt audit greps.
+# punt CLIs, what enable writes, what disable prunes, what punt repo audit greps.
 IMPORT_LINE = "@.punt-labs/z-spec/CLAUDE.md"
 
 _SUBTREE = (".punt-labs", "z-spec")
@@ -67,7 +67,7 @@ class EnabledMarker:
         A symlink is not the signal: a committed symlink at the marker path
         could otherwise redirect the enablement decision outside the repo.
         """
-        return self._path.is_file() and not self._path.is_symlink()
+        return self._path.is_file(follow_symlinks=False)
 
     def write(self) -> None:
         """Create the empty marker file, replacing a symlink squatting on it."""
