@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: DavidAnson/markdownlint-cli2-action@af945fe9405afdb987c36b20a02429e7b8509fe4 # v22
+      - uses: DavidAnson/markdownlint-cli2-action@6a36cdda56ff94d520af0c222558b603f6610c3e # v22
         with:
           globs: "**/*.md"
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
