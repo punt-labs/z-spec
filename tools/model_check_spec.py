@@ -8,11 +8,13 @@ decided in the engine, so every surface inherits the same answer.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 from punt_zspec.commands.model_check import ModelCheckCommand
 from punt_zspec.commands.options import ProbOptions
+from punt_zspec.report import save_report
 from punt_zspec.types import ProbReport
 
 
@@ -52,10 +54,20 @@ def _print_summary(report: ProbReport) -> None:
     )
 
 
+def save_gate_report(spec: Path, report: ProbReport) -> Path:
+    """Persist the model-check report in gate scratch when configured."""
+    report_dir = os.environ.get("Z_SPEC_GATE_REPORT_DIR")
+    if report_dir:
+        directory = Path(report_dir)
+        directory.mkdir(parents=True, exist_ok=True)
+        return save_report(directory / spec.name, report)
+    return save_report(spec, report)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Model-check the spec; return 0 when the report is ok, 1 when it is not."""
     args = _parse_args(argv)
-    result = ModelCheckCommand().run(
+    result = ModelCheckCommand(persist=save_gate_report).run(
         args.spec,
         ProbOptions(
             setsize=args.setsize, max_ops=args.max_ops, timeout_ms=args.timeout

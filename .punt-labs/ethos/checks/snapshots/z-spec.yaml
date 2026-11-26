@@ -26,6 +26,7 @@ checks:
             PYTHONDONTWRITEBYTECODE: "1"
             FUZZLIB: "{runtime}/bin/fuzzlib"
             PROBCLI: "{runtime}/prob/probcli"
+            Z_SPEC_GATE_REPORT_DIR: "{scratch}/prob-reports"
     system:
       tools: [bash, git, java, make, shellcheck, uv, uvx, python, fuzz, probcli, node, npm, npx]
     scratch:
