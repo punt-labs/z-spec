@@ -41,7 +41,6 @@ from punt_zspec.types import (
     ProbReport,
     TraceStep,
 )
-from tools.model_check_spec import save_gate_report
 
 if TYPE_CHECKING:
     import pytest
@@ -94,23 +93,6 @@ def test_save_and_load_roundtrip(tmp_path: Path) -> None:
     assert loaded.operations[0].name == "AddItem"
     assert loaded.operations[1].covered is False
     assert loaded.counter_example is None
-
-
-def test_save_gate_report_in_scratch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    tex = tmp_path / "spec.tex"
-    report = _make_report()
-    directory = tmp_path / "scratch" / "reports"
-    monkeypatch.setenv("Z_SPEC_GATE_REPORT_DIR", str(directory))
-
-    saved = save_gate_report(tex, report)
-
-    assert saved == directory / "spec.report.json"
-    assert not report_path(tex).exists()
-    relocated = load_report(directory / tex.name)
-    assert relocated is not None
-    assert relocated.checks == report.checks
 
 
 def test_load_report_missing(tmp_path: Path) -> None:

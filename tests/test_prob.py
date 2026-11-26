@@ -12,7 +12,7 @@ from __future__ import annotations
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 from punt_zspec.prob import (
@@ -22,7 +22,12 @@ from punt_zspec.prob import (
     run_init,
     run_model_check,
 )
+from punt_zspec.report import load_report, report_path
 from punt_zspec.types import CheckStatus
+from tools.model_check_spec import main as model_check_gate
+
+if TYPE_CHECKING:
+    import pytest
 
 _FIXTURES = Path(__file__).parent / "fixtures" / "probcli"
 
@@ -184,6 +189,26 @@ def test_run_model_check_pass(tmp_path: Path) -> None:
     assert report.transitions_fired == 39
     assert report.counter_example is None
     assert all(op.covered for op in report.operations)
+
+
+def test_model_check_gate_saves_report_in_scratch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    spec = _spec(tmp_path)
+    binary = tmp_path / "probcli"
+    binary.touch()
+    scratch = tmp_path / "scratch" / "reports"
+    monkeypatch.setenv("PROBCLI", str(binary))
+    monkeypatch.setenv("Z_SPEC_GATE_REPORT_DIR", str(scratch))
+    mock = _mock_run({"-init": _INIT, "-model_check": _MODEL_CHECK_COVERED})
+
+    with patch("subprocess.run", side_effect=mock):
+        assert model_check_gate([str(spec)]) == 0
+
+    assert not report_path(spec).exists()
+    report = load_report(scratch / spec.name)
+    assert report is not None
+    assert report.ok
 
 
 def test_run_model_check_fails_on_an_unreachable_operation(tmp_path: Path) -> None:

@@ -54,7 +54,7 @@ def _print_summary(report: ProbReport) -> None:
     )
 
 
-def save_gate_report(spec: Path, report: ProbReport) -> Path:
+def _save_gate_report(spec: Path, report: ProbReport) -> Path:
     """Persist the model-check report in gate scratch when configured."""
     report_dir = os.environ.get("Z_SPEC_GATE_REPORT_DIR")
     if report_dir:
@@ -67,7 +67,7 @@ def save_gate_report(spec: Path, report: ProbReport) -> Path:
 def main(argv: list[str] | None = None) -> int:
     """Model-check the spec; return 0 when the report is ok, 1 when it is not."""
     args = _parse_args(argv)
-    result = ModelCheckCommand(persist=save_gate_report).run(
+    result = ModelCheckCommand(persist=_save_gate_report).run(
         args.spec,
         ProbOptions(
             setsize=args.setsize, max_ops=args.max_ops, timeout_ms=args.timeout
