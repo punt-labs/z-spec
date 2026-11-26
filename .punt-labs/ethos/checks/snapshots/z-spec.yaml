@@ -1,0 +1,40 @@
+checks:
+  full-gate-handoff:
+    profile: linux-worktree-v1
+    epoch: z-spec-v1
+    sources:
+      mode: worktree
+    runtime:
+      platforms:
+        linux-amd64:
+          bundle: z-spec-linux-amd64-v1.tar.gz
+          sha256: "360142e932167d78164b1ce32bff7cf78b35d9786451396cd8ab3aa865223e81"
+          path: ["{runtime}/bin", "{runtime}/python/bin", "{runtime}/node/bin", "{runtime}/prob"]
+          env:
+            UV_PYTHON: "{runtime}/python/bin/python3.13"
+            UV_PYTHON_DOWNLOADS: never
+            UV_PROJECT_ENVIRONMENT: "{root}/.venv"
+            UV_OFFLINE: "1"
+            UV_LINK_MODE: copy
+            UV_CACHE_DIR: "{scratch}/uv-cache"
+            npm_config_cache: "{scratch}/npm-cache"
+            npm_config_offline: "true"
+            npm_config_yes: "true"
+            RUFF_CACHE_DIR: "{scratch}/ruff-cache"
+            MYPY_CACHE_DIR: "{scratch}/mypy-cache"
+            PYRIGHT_PYTHON_CACHE_DIR: "{scratch}/pyright-cache"
+            PYTHONDONTWRITEBYTECODE: "1"
+            FUZZLIB: "{runtime}/bin/fuzzlib"
+            PROBCLI: "{runtime}/prob/probcli"
+    system:
+      tools: [bash, git, java, make, shellcheck, uv, uvx, python, fuzz, probcli, node, npm, npx]
+    scratch:
+      checkout: [.venv, .tmp, .pytest_cache]
+      seed:
+        "{scratch}/uv-cache": "{runtime}/cache/uv"
+        "{scratch}/npm-cache": "{runtime}/cache/npm"
+    git:
+      base_ref: refs/remotes/origin/main
+    network: loopback
+    prehydrate:
+      run: [uv, sync, --extra, dev, --offline, --locked]

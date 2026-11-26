@@ -78,6 +78,36 @@ git push origin main
 
 Both scripts abort if the working tree has uncommitted changes.
 
+## Ethos handoff runtime
+
+The Linux amd64 snapshot uses the same `make check` target as a live
+handoff. It needs a pinned offline bundle and host Bash, Git, Java, Make,
+and ShellCheck. Use upstream Node with its bundled npm and npx, uv with
+uvx and managed Python 3.13, and the fuzz and ProB versions from
+`install.sh` to provision the bundle:
+
+```bash
+mkdir -p runtime-assets
+scripts/build-handoff-runtime.sh runtime-assets /path/to/ProB
+```
+
+Publish the exact `z-spec-linux-amd64-v1.tar.gz` bytes and pin the printed
+SHA-256 in `.punt-labs/ethos/checks/snapshots/z-spec.yaml`. A fresh build
+may produce a different digest. After downloading the release asset,
+verify and install it under the digest in the profile:
+
+```bash
+sha='digest-from-profile'
+printf '%s  %s\n' "$sha" z-spec-linux-amd64-v1.tar.gz | sha256sum --check
+install -D z-spec-linux-amd64-v1.tar.gz \
+    "$HOME/.punt-labs/ethos/runtimes/$sha.tar.gz"
+```
+
+The snapshot copies the locked dependency caches into private scratch and
+builds a fresh `.venv`; it never writes the live checkout's `.tmp` or
+other scratch directories. Rebuild and repin the bundle when the locked
+dependencies or required tools change.
+
 ## Project structure
 
 Everything the Claude Code plugin ships lives under `plugin/`, and nothing

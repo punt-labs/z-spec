@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Added a Linux Ethos handoff snapshot profile for the existing `make check`
+  gate, with offline runtime inputs and private scratch.
+
 ### Changed
 
 - Updated the repository's audit, PII scanning, and release instructions to
