@@ -82,9 +82,10 @@ Both scripts abort if the working tree has uncommitted changes.
 
 The Linux amd64 snapshot uses the same `make check` target as a live
 handoff. It needs a pinned offline bundle and host Bash, Git, Java, Make,
-and ShellCheck. Use upstream Node with its bundled npm and npx, uv with
-uvx and managed Python 3.13, and the fuzz and ProB versions from
-`install.sh` to provision the bundle:
+and ShellCheck. To build the bundle, use upstream Node with its bundled npm
+and npx, uv with uvx and managed Python 3.13, and the ProB version from
+`install.sh`. The builder compiles fuzz at `install.sh`'s pinned revision
+using GCC, Make, Bison, and Flex:
 
 ```bash
 mkdir -p runtime-assets

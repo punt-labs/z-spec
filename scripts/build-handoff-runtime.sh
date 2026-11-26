@@ -31,9 +31,12 @@ if [[ ! -f $node_home/LICENSE || ! -f $node_home/lib/node_modules/npm/bin/npx-cl
     printf 'Use an upstream Node distribution with npm, npx, and its license (e.g. via nvm).\n' >&2
     exit 1
 fi
-fuzz=$(command -v fuzz)
-fuzz_home=$(dirname -- "$(dirname -- "$fuzz")")
+fuzz_repo=$(sed -n 's/^FUZZ_REPO="\(.*\)"$/\1/p' "$repo/install.sh")
 fuzz_ref=$(sed -n 's/^FUZZ_REF="\(.*\)"$/\1/p' "$repo/install.sh")
+if [[ -z $fuzz_repo || ! $fuzz_ref =~ ^[0-9a-f]{40}$ ]]; then
+    printf 'Could not read the pinned fuzz source from install.sh.\n' >&2
+    exit 1
+fi
 
 mkdir -p "$local_root"
 work=$(mktemp -d "$local_root/runtime-build.XXXXXX")
@@ -42,7 +45,17 @@ trap 'rm -rf -- "$work"; if [[ -n $staged ]]; then rm -f -- "$staged"; fi' EXIT
 runtime=$work/runtime
 mkdir -p "$runtime/bin" "$runtime/node/bin" "$runtime/node/lib/node_modules" \
     "$runtime/licenses" "$work/home" "$work/tmp"
-install -m 0755 "$uv" "$uvx" "$fuzz" "$runtime/bin/"
+fuzz_home=$work/fuzz-install
+mkdir -p "$fuzz_home/bin" "$fuzz_home/lib"
+(
+    git clone --quiet --no-checkout "$fuzz_repo" "$work/fuzz"
+    cd "$work/fuzz"
+    git checkout --quiet --detach "$fuzz_ref"
+    ./configure --prefix="$fuzz_home"
+    make CFLAGS="${CFLAGS:-} -std=gnu17"
+    make install
+) >&2
+install -m 0755 "$uv" "$uvx" "$fuzz_home/bin/fuzz" "$runtime/bin/"
 install -m 0644 "$fuzz_home/lib/fuzzlib" "$runtime/bin/fuzzlib"
 cp -RP -- "$python_home" "$runtime/python"
 cp -RP -- "$prob" "$runtime/prob"

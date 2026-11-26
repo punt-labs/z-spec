@@ -8,7 +8,7 @@ checks:
       platforms:
         linux-amd64:
           bundle: z-spec-linux-amd64-v1.tar.gz
-          sha256: "360142e932167d78164b1ce32bff7cf78b35d9786451396cd8ab3aa865223e81"
+          sha256: "81759bb0d11aca7e6709a16a7e9343ef2502baf693018fa1e69b30dbd454c216"
           path: ["{runtime}/bin", "{runtime}/python/bin", "{runtime}/node/bin", "{runtime}/prob"]
           env:
             UV_PYTHON: "{runtime}/python/bin/python3.13"
