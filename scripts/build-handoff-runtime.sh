@@ -45,18 +45,16 @@ trap 'rm -rf -- "$work"; if [[ -n $staged ]]; then rm -f -- "$staged"; fi' EXIT
 runtime=$work/runtime
 mkdir -p "$runtime/bin" "$runtime/node/bin" "$runtime/node/lib/node_modules" \
     "$runtime/licenses" "$work/home" "$work/tmp"
-fuzz_home=$work/fuzz-install
-mkdir -p "$fuzz_home/bin" "$fuzz_home/lib"
+fuzz_source=$work/fuzz
 (
-    git clone --quiet --no-checkout "$fuzz_repo" "$work/fuzz"
-    cd "$work/fuzz"
+    git clone --quiet --no-checkout "$fuzz_repo" "$fuzz_source"
+    cd "$fuzz_source"
     git checkout --quiet --detach "$fuzz_ref"
-    ./configure --prefix="$fuzz_home"
+    ./configure
     make CFLAGS="${CFLAGS:-} -std=gnu17"
-    make install
 ) >&2
-install -m 0755 "$uv" "$uvx" "$fuzz_home/bin/fuzz" "$runtime/bin/"
-install -m 0644 "$fuzz_home/lib/fuzzlib" "$runtime/bin/fuzzlib"
+install -m 0755 "$uv" "$uvx" "$fuzz_source/src/fuzz" "$runtime/bin/"
+install -m 0644 "$fuzz_source/src/fuzzlib" "$runtime/bin/fuzzlib"
 cp -RP -- "$python_home" "$runtime/python"
 cp -RP -- "$prob" "$runtime/prob"
 install -m 0755 "$node_home/bin/node" "$runtime/node/bin/node"
