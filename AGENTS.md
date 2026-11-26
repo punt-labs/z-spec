@@ -125,7 +125,6 @@ Read `.punt-labs/punt/CLAUDE.md` before planning or writing to the issue tracker
 Escalate to punt-kit's tracker if an issue spans repos or needs a standards
 change.
 
-@.punt-labs/ethos/CLAUDE.md
 @.punt-labs/punt/CLAUDE.md
 
 # Python standards

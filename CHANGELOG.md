@@ -24,13 +24,12 @@ All notable changes to this project will be documented in this file.
   a clean tree whose HEAD is the base (as on main itself). PR design checks
   retain the job summary report and fail on would-fail verdicts and tool/input
   errors; neutral, good-deed, and `good-deed: trade` verdicts pass.
-- Agent edits now receive advisory Ruff and shellcheck feedback through a
-  repository-owned Ethos check set instead of running the full quality gate.
-  Commit checks block lint and ratchet regressions; handoff runs full
-  `make check`, including the fuzz/ProB corpus, with a 30-minute timeout.
-  Requires Ethos v5.2.0 for its read-only handoff skip: no Write/Edit calls
-  and a checkout unchanged since SubagentStart. Bash-only edits still run
-  the gate. Agent hooks are regenerated from Ethos's bounded-stdin template.
+### Removed
+
+- Ethos is removed from this repository for now: `.punt-labs/ethos/` (including
+  the repository-owned `z-spec` check set), `.punt-labs/ethos.yaml`, the nine
+  generated `.claude/agents/` specialist files, the `Skill(ethos:*)`
+  permissions, and the `CLAUDE.md`/`AGENTS.md` imports of the Ethos guide.
 
 ### Fixed
 
