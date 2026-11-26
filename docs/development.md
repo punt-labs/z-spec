@@ -80,6 +80,12 @@ Both scripts abort if the working tree has uncommitted changes.
 
 ## Ethos handoff runtime
 
+DES-086 loads `checks/snapshots/<slug>.yaml` beside the winning
+`checks/<slug>.yaml` in the same configuration layer. For z-spec, that
+sidecar attaches to `full-gate-handoff` without changing its Make adapter
+or `check` target. Older Ethos releases that don't recognize sidecars
+still run the gate live.
+
 The Linux amd64 snapshot uses the same `make check` target as a live
 handoff. It needs a pinned offline bundle and host Bash, Git, Java, Make,
 and ShellCheck. To build the bundle, use upstream Node with its bundled npm
